@@ -1,32 +1,51 @@
-/* Paleta w zmiennych, bo dashboard jest czytany też w ciemnym motywie systemowym —
-   twarde #fff w tłach dawało tam białe płachty. */
+/* Paleta w zmiennych, bo dashboard jest czytany w obu motywach — twarde #fff
+   w tłach dawało białe płachty w ciemnym. light-dark() trzyma obie wersje koloru
+   w jednej definicji; o tym, która obowiązuje, decyduje color-scheme niżej. */
 :root {
-  --accent: #2563eb; --danger: #dc2626; --ok: #16a34a; --warn: #a16207;
-  --muted: #6b7280; --fg: #111827; --bg: #f8fafc; --surface: #ffffff;
-  --line: #e5e7eb; --line-soft: #f3f4f6; --shadow: 0 1px 2px rgba(15, 23, 42, .06);
-  --badge-bg: #e5e7eb; --badge-fg: #374151;
-  --info-bg: #dbeafe; --wait-bg: #fef9c3; --done-bg: #dcfce7;
-  --err-bg: #fee2e2; --merged-bg: #f3e8ff; --merged-fg: #7e22ce;
+  color-scheme: light dark;
+  --accent: light-dark(#2563eb, #60a5fa);
+  --danger: light-dark(#dc2626, #f87171);
+  --ok: light-dark(#16a34a, #4ade80);
+  --warn: light-dark(#a16207, #fbbf24);
+  --muted: light-dark(#6b7280, #9ca3af);
+  --fg: light-dark(#111827, #e5e7eb);
+  --bg: light-dark(#f8fafc, #111318);
+  --surface: light-dark(#ffffff, #1b1e26);
+  --line: light-dark(#e5e7eb, #2f3440);
+  --line-soft: light-dark(#f3f4f6, #23262f);
+  --shadow: 0 1px 2px light-dark(rgba(15, 23, 42, .06), transparent);
+  --badge-bg: light-dark(#e5e7eb, #2f3440);
+  --badge-fg: light-dark(#374151, #d1d5db);
+  --info-bg: light-dark(#dbeafe, #1e3a5f);
+  --wait-bg: light-dark(#fef9c3, #4a3a12);
+  --done-bg: light-dark(#dcfce7, #14432a);
+  --err-bg: light-dark(#fee2e2, #4c1d1d);
+  --merged-bg: light-dark(#f3e8ff, #3b1d54);
+  --merged-fg: light-dark(#7e22ce, #d8b4fe);
   /* Tekst na wypełnionych przyciskach (accent/danger/ok). W dark mode te tła
      jaśnieją, więc białe napisy spadałyby poniżej kontrastu AA. */
-  --on-accent: #ffffff;
+  --on-accent: light-dark(#ffffff, #0b1220);
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --accent: #60a5fa; --danger: #f87171; --ok: #4ade80; --warn: #fbbf24;
-    --muted: #9ca3af; --fg: #e5e7eb; --bg: #111318; --surface: #1b1e26;
-    --line: #2f3440; --line-soft: #23262f; --shadow: none;
-    --badge-bg: #2f3440; --badge-fg: #d1d5db;
-    --info-bg: #1e3a5f; --wait-bg: #4a3a12; --done-bg: #14432a;
-    --err-bg: #4c1d1d; --merged-bg: #3b1d54; --merged-fg: #d8b4fe;
-    --on-accent: #0b1220;
-  }
-}
+/* Przełącznik w topbarze zapisuje wybór w localStorage; inline skrypt w <head>
+   ustawia data-theme przed pierwszym malowaniem. Brak atrybutu = motyw systemowy. */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--fg); }
+/* Bez tej reguły linki bez klasy dostają domyślny granat przeglądarki (a odwiedzone —
+   fiolet spoza palety), które na ciemnym tle są nieczytelne. */
+a, a:visited { color: var(--accent); }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 700; color: var(--fg); text-decoration: none; font-size: 18px; }
 .topbar nav { font-size: 14px; }
 .topbar nav a { color: var(--muted); }
+/* Przełącznik motywu: pomocnicza kontrolka w stylu .pill, nie akcja — dlatego szara.
+   Etykietę rysuje CSS po data-theme, więc jest poprawna już przy pierwszym malowaniu
+   — kontroler tylko przestawia atrybut, nie dotyka tekstu. */
+.btn-theme { font-family: inherit; cursor: pointer; white-space: nowrap; }
+.btn-theme:hover { color: var(--fg); border-color: var(--muted); }
+.btn-theme::after { content: " auto"; }
+:root[data-theme="light"] .btn-theme::after { content: " jasny ☀️"; }
+:root[data-theme="dark"] .btn-theme::after { content: " ciemny 🌙"; }
 .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
 .btn { display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-decoration: none; font-size: 15px; cursor: pointer; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
@@ -48,7 +67,6 @@ body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background:
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
 .toolbar .filter { margin: 0 0 0 auto; }
 .toolbar .filter select { width: auto; padding: 6px 10px; font-size: 13px; }
-.btn-small { padding: 6px 12px; font-size: 13px; }
 table#reviews { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 table#reviews th, table#reviews td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }
 table#reviews tbody tr:last-child td { border-bottom: 0; }
@@ -83,16 +101,13 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .status-failed { background: var(--err-bg); color: var(--danger); }
 /* Kolory jak na GitHubie: merged fioletowy, closed czerwony — żeby stan końcowy
    nie mylił się z zielonym „decided", które jeszcze czeka na losy PR-a. */
-.status-merged { background: #f3e8ff; color: #7e22ce; }
-.status-closed { background: #fee2e2; color: var(--danger); }
-/* Werdykt weryfikacji poprawek na znalezisku — te same kolory co statusy review,
-   bo znaczą to samo: zielone = zrobione, czerwone = zostało, szare = nie wiadomo. */
-.fix-implemented { background: #dcfce7; color: var(--ok); }
-.fix-ignored { background: #fee2e2; color: var(--danger); }
-.fix-unclear { background: #e5e7eb; color: var(--muted); }
-.done-box { border-left: 4px solid var(--ok); background: #f0fdf4; }
 .status-merged { background: var(--merged-bg); color: var(--merged-fg); }
 .status-closed { background: var(--err-bg); color: var(--danger); }
+/* Werdykt weryfikacji poprawek na znalezisku — te same kolory co statusy review,
+   bo znaczą to samo: zielone = zrobione, czerwone = zostało, szare = nie wiadomo. */
+.fix-implemented { background: var(--done-bg); color: var(--ok); }
+.fix-ignored { background: var(--err-bg); color: var(--danger); }
+.fix-unclear { background: var(--badge-bg); color: var(--muted); }
 
 /* ===================== strona wejściowa: kolejki + projekty ===================== */
 .pagehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 4px; }
