@@ -219,6 +219,25 @@ class ReviewTest < ActiveSupport::TestCase
     assert review.valid?, review.errors.full_messages.to_sentence
   end
 
+  test "drugi review tego samego PR-a jest odrzucany, a duplicate_review wskazuje istniejący" do
+    existing = reviews(:pr_review)
+    review = Review.new(project: projects(:webapp), pr_url: "https://github.com/Acme/Webapp/pull/1234/files")
+    assert_not review.valid?
+    assert_equal existing, review.duplicate_review
+    assert_match(/ma już review/, review.errors[:pr_url].to_sentence)
+  end
+
+  test "inny numer PR-a w tym samym repo nie jest duplikatem" do
+    review = Review.new(project: projects(:webapp), pr_url: "https://github.com/acme/webapp/pull/9999")
+    assert review.valid?, review.errors.full_messages.to_sentence
+  end
+
+  test "duplikat PR-a nie blokuje aktualizacji istniejącego review" do
+    review = reviews(:pr_review)
+    review.update!(status: "ready")
+    assert_equal "ready", review.reload.status
+  end
+
   test "nie pozwala założyć review w zarchiwizowanym projekcie" do
     project = projects(:webapp)
     project.update!(archived_at: Time.current)

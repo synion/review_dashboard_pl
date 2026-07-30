@@ -6,6 +6,20 @@ class GithubClient
   VERDICT_EVENTS = { "approve" => "APPROVE", "reject" => "REQUEST_CHANGES", "comment" => "COMMENT" }.freeze
   PR_URL = %r{github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)/pull/(?<number>\d+)}
 
+  # Jedyne miejsce rozbierające link do PR-a na nazwane grupy — walidacje Review
+  # i endpoint niżej nie znają kształtu regexa, tylko wynik.
+  def self.parse_pr_url(url)
+    PR_URL.match(url.to_s)
+  end
+
+  # Kanoniczny identyfikator PR-a ("owner/repo#123", małymi literami): ten sam PR
+  # wkleja się też jako .../pull/123/files albo z inną wielkością liter.
+  # nil dla linku spoza wzorca.
+  def self.pr_key(url)
+    match = parse_pr_url(url)
+    "#{match[:owner]}/#{match[:repo]}##{match[:number]}".downcase if match
+  end
+
   def initialize(runner: CommandRunner)
     @runner = runner
   end
@@ -44,7 +58,7 @@ class GithubClient
   end
 
   def reviews_endpoint(pr_url)
-    match = PR_URL.match(pr_url.to_s)
+    match = self.class.parse_pr_url(pr_url)
     raise Error, "Nie rozpoznaję linku do PR-a: #{pr_url}" unless match
 
     "repos/#{match[:owner]}/#{match[:repo]}/pulls/#{match[:number]}/reviews"
