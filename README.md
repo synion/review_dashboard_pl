@@ -134,7 +134,7 @@ skrypt istnieje i czy wzorzec `%{branch}` jest poprawny.
 Dwie reguły kolejki z GitHuba: **własne PR-y nie wchodzą** (swojego kodu nie recenzuję;
 login bierze się z `gh api user`, nie z configu) i **komentarz sam z siebie nie liczy się
 jako piłka** — dopiero cudzy ruch późniejszy niż moje ostatnie review. Kolejka odświeża
-się w tle co `GithubInbox::STALE_AFTER` (10 min) i przyciskiem „🔄 Sprawdź teraz";
+się w tle co `GithubInbox::STALE_AFTER` (1 h) i przyciskiem „🔄 Sprawdź teraz";
 padnięte `gh` nigdy jej nie czyści (pusty wynik wyglądałby jak „nikt nie czeka").
 Kafel PR-a bez review w dashboardzie prowadzi do formularza z wypełnionym `pr_url`
 i linkiem do zadania wyłuskanym z opisu PR-a.

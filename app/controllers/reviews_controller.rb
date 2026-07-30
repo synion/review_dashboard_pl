@@ -66,7 +66,7 @@ class ReviewsController < ApplicationController
       DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued"
       redirect_to @review
     else
-      flash.now[:error] = @review.errors.full_messages.to_sentence
+      flash.now[:error] = create_error_message
       render :new, status: :unprocessable_entity
     end
   end
@@ -229,6 +229,16 @@ class ReviewsController < ApplicationController
 
   def set_project
     @project = Project.find(params[:project_id])
+  end
+
+  # Przy duplikacie PR-a doklejamy do błędów link do istniejącego review — sam tekst
+  # walidacji nie mówi, gdzie go szukać. safe_join, nie html_safe na sklejce: tekst
+  # błędu przechodzi przez escape, bezpieczny zostaje tylko link z link_to.
+  def create_error_message
+    message = @review.errors.full_messages.to_sentence
+    return message unless (existing = @review.duplicate_review)
+
+    helpers.safe_join([ message, helpers.link_to("przejdź do review ##{existing.id}", review_path(existing)) ], " — ")
   end
 
   # Wznawiamy dokładnie ten krok, który padł — po to jest ten przycisk. Followup
