@@ -8,7 +8,9 @@
 class GithubInbox
   # Po tym czasie kolejka jest uznana za nieświeżą i wejście na stronę zleca
   # odświeżenie w tle. `gh search` to ~2 s — na render tego nie wpuszczamy.
-  STALE_AFTER = 10.minutes
+  # Godzina zamiast minut: GitHub nie jest tu źródłem pilnych sygnałów, a każde
+  # odpytanie to seria spawnów `gh`; kto chce świeżej, ma przycisk „Sprawdź teraz".
+  STALE_AFTER = 1.hour
 
   def initialize(github: GithubClient.new, login: nil)
     @github = github
