@@ -83,6 +83,14 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .status-failed { background: var(--err-bg); color: var(--danger); }
 /* Kolory jak na GitHubie: merged fioletowy, closed czerwony — żeby stan końcowy
    nie mylił się z zielonym „decided", które jeszcze czeka na losy PR-a. */
+.status-merged { background: #f3e8ff; color: #7e22ce; }
+.status-closed { background: #fee2e2; color: var(--danger); }
+/* Werdykt weryfikacji poprawek na znalezisku — te same kolory co statusy review,
+   bo znaczą to samo: zielone = zrobione, czerwone = zostało, szare = nie wiadomo. */
+.fix-implemented { background: #dcfce7; color: var(--ok); }
+.fix-ignored { background: #fee2e2; color: var(--danger); }
+.fix-unclear { background: #e5e7eb; color: var(--muted); }
+.done-box { border-left: 4px solid var(--ok); background: #f0fdf4; }
 .status-merged { background: var(--merged-bg); color: var(--merged-fg); }
 .status-closed { background: var(--err-bg); color: var(--danger); }
 

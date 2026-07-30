@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_121227) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_130537) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -40,6 +40,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_121227) do
     t.text "body"
     t.datetime "created_at", null: false
     t.string "file_location"
+    t.text "fix_note"
+    t.string "fix_status"
     t.string "priority"
     t.integer "review_id", null: false
     t.string "title"
@@ -97,6 +99,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_121227) do
     t.string "branch"
     t.string "claude_config"
     t.datetime "created_at", null: false
+    t.string "decision_head_sha"
+    t.datetime "fixes_checked_at"
     t.datetime "decided_at"
     t.string "decision"
     t.text "decision_body"

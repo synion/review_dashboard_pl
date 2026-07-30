@@ -166,6 +166,19 @@ class Review < ApplicationRecord
     pr_url.presence || task_url
   end
 
+  # Weryfikacja poprawek ma sens tylko po wysłanej decyzji i tylko gdy wiemy, na jaki
+  # stan kodu patrzyliśmy. Bez znalezisk nie ma czego sprawdzać, bez brancha nie ma
+  # czego porównać (review z samego zadania).
+  def fixes_verifiable?
+    status.in?(%w[decided waiting_review]) && pr_url.present? && branch.present? &&
+      decision_head_sha.present? && findings.any?
+  end
+
+  # Rozkład werdyktów do nagłówka sekcji; pusty hash, gdy nic jeszcze nie sprawdzono.
+  def fix_summary
+    findings.filter_map(&:fix_status).tally
+  end
+
   def finished?
     FINISHED_STATUSES.include?(status)
   end

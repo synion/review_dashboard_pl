@@ -88,6 +88,15 @@
       <h2>Decyzja: <%= review.decision %></h2>
       <% if review.decided_at %><p>Wysłana na GitHub <%= l review.decided_at, format: :short %></p><% end %>
       <% if review.decision_body.present? %><%= markdown review.decision_body %><% end %>
+      <%# Weryfikacja poprawek: pyta o KONKRETNE uwagi, w odróżnieniu od followupu,
+          który robi ponowne review całej zmiany. %>
+      <% if review.fixes_verifiable? %>
+        <%= button_to "🔍 Sprawdź, czy uwagi wdrożone", verify_fixes_review_path(review), class: "btn" %>
+        <p class="muted">
+          <%= review.fixes_checked_at ? "sprawdzone #{l review.fixes_checked_at, format: :short}" : "jeszcze nie sprawdzane" %>
+          — porównanie z kodem sprzed decyzji (<code class="inline"><%= review.decision_head_sha.to_s.first(7) %></code>)
+        </p>
+      <% end %>
     </div>
     <%= render "reviews/task_comment", review: review %>
   <% elsif review.status == "reviewed" && review.github_actions_available? %>

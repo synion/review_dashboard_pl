@@ -935,6 +935,46 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     WorktreeManager.stub(:new, manager, &block)
   end
 
+  # Weryfikacja poprawek: osobna, krótka sesja po decyzji — nie rusza statusu review.
+  test "should queue verification of the authors fixes" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "comment", decision_head_sha: "aaa1111",
+                   branch: "sl-fix-vat")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+
+    assert_enqueued_with job: VerifyFixesJob, args: [ review ] do
+      post verify_fixes_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_equal "decided", review.reload.status
+  end
+
+  test "should refuse verification without a reference point from the decision" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "comment", branch: "sl-fix-vat")
+    review.findings.create!(priority: "critical", title: "nil", body: "x")
+
+    assert_no_enqueued_jobs only: VerifyFixesJob do
+      post verify_fixes_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_match(/Nie ma czego weryfikować/, flash[:alert])
+  end
+
+  test "should show the verification button and verdicts on the review page" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "comment", decision_head_sha: "aaa1111",
+                   branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x",
+                            fix_status: "ignored", fix_note: "kod bez zmian")
+
+    get review_path(review)
+
+    assert_select "form[action=?]", verify_fixes_review_path(review)
+    assert_select ".fix-ignored", text: /zignorowane/
+    assert_select ".card p.muted", text: /1 ✗ zignorowane/
+  end
+
   # Kafel kolejki „czeka na Twoje review" prowadzi tu z adresem PR-a i linkiem do
   # zadania wyłuskanym z jego opisu — formularz ma je pokazać wpisane.
   test "should prefill the new-review form from the queue tile" do

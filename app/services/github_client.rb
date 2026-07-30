@@ -68,6 +68,12 @@ class GithubClient
     pr_view(pr_url, fields: "reviewRequests,state", repo_dir: repo_dir)
   end
 
+  # SHA głowy PR-a — punkt odniesienia weryfikacji poprawek. Zapisujemy go przy
+  # decyzji, bo tylko wtedy wiemy, na jaki kod patrzył człowiek.
+  def pr_head_sha(pr_url, repo_dir:)
+    pr_view(pr_url, fields: "headRefOid", repo_dir: repo_dir)["headRefOid"]
+  end
+
   def pr_diff(pr_url, repo_dir:)
     run!([ "gh", "pr", "diff", pr_url ], label: "gh pr diff", chdir: repo_dir).stdout
   end

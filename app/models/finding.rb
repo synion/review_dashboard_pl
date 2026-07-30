@@ -7,10 +7,20 @@ class Finding < ApplicationRecord
   # Ścieżka nie może zawierać dwukropka, bo to on oddziela numer linii.
   LOCATION = /\A(?<path>[^\s:]+)(?::(?<from>\d+)(?:-(?<to>\d+))?)?/
 
+  # Wynik weryfikacji poprawek autora. `unclear` jest osobnym stanem, nie brakiem
+  # odpowiedzi: „z diffu nie wynika, czy to zaadresowane" to informacja dla człowieka.
+  # nil znaczy „jeszcze nie sprawdzaliśmy".
+  FIX_STATUSES = %w[implemented ignored unclear].freeze
+  FIX_LABELS = { "implemented" => "✓ wdrożone", "ignored" => "✗ zignorowane",
+                 "unclear" => "? niejasne" }.freeze
+
   belongs_to :review
 
   validates :priority, inclusion: { in: PRIORITIES }
   validates :title, presence: true
+  validates :fix_status, inclusion: { in: FIX_STATUSES }, allow_nil: true
+
+  def fix_label = FIX_LABELS[fix_status]
 
   def location_path
     location_match&.[](:path)
