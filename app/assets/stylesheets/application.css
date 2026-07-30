@@ -41,11 +41,12 @@ a, a:visited { color: var(--accent); }
 .brand { font-weight: 700; color: var(--fg); text-decoration: none; font-size: 18px; }
 .topbar nav { font-size: 14px; }
 .topbar nav a { color: var(--muted); }
-/* Przełącznik motywu: pomocnicza kontrolka w stylu .pill, nie akcja — dlatego szara.
+/* Przełącznik motywu w stylu .pill. Podwójny selektor bije kolor/ramkę .pill
+   (plik definiuje go później) — szara pigułka na tle topbara była niewidoczna.
    Etykietę rysuje CSS po data-theme, więc jest poprawna już przy pierwszym malowaniu
    — kontroler tylko przestawia atrybut, nie dotyka tekstu. */
-.btn-theme { font-family: inherit; cursor: pointer; white-space: nowrap; }
-.btn-theme:hover { color: var(--fg); border-color: var(--muted); }
+.pill.btn-theme { font-family: inherit; cursor: pointer; white-space: nowrap; color: var(--fg); border-color: var(--muted); }
+.pill.btn-theme:hover { border-color: var(--fg); }
 .btn-theme::after { content: " auto"; }
 :root[data-theme="light"] .btn-theme::after { content: " jasny ☀️"; }
 :root[data-theme="dark"] .btn-theme::after { content: " ciemny 🌙"; }
