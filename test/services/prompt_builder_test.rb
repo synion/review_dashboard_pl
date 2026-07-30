@@ -14,7 +14,7 @@ class PromptBuilderTest < ActiveSupport::TestCase
   test "każdy szablon promptu wstawia wspólne zasady pisania" do
     templates = Dir.glob(PromptBuilder::TEMPLATES_DIR.join("*.md.erb"))
                    .reject { |path| File.basename(path).start_with?("_") }
-    assert_equal 5, templates.size
+    assert_equal 6, templates.size
     templates.each do |path|
       assert_includes File.read(path), "<%= style %>", "#{File.basename(path)} nie wstawia zasad pisania"
     end

@@ -4,7 +4,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact verify_fixes]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -21,6 +21,9 @@ class ReviewsController < ApplicationController
     # Jednym zapytaniem, nie raz na wiersz: „reviewing" bez pracującej sesji znaczy,
     # że job czeka na wolny wątek workera — i to musi być widać już na liście.
     @running_review_ids = ClaudeRun.where(status: "running").distinct.pluck(:review_id)
+    # Liczniki nad tabelą liczą CAŁY projekt, nie przefiltrowaną listę: mają odpowiadać
+    # „ile tu jest roboty", a nie „ile widzisz po filtrze". Jedno GROUP BY.
+    @status_counts = @project.reviews.group(:status).count
     enqueue_github_checks(@project.reviews.due_for_github_check)
   end
 
@@ -36,6 +39,18 @@ class ReviewsController < ApplicationController
   end
 
   def show
+  end
+
+  # Weryfikacja poprawek autora — osobna, krótka sesja, która nie rusza statusu
+  # review ani znalezisk (tylko dokłada im werdykt).
+  def verify_fixes
+    unless @review.fixes_verifiable?
+      return redirect_to review_path(@review),
+                         alert: "Nie ma czego weryfikować: potrzebna wysłana decyzja, znaleziska i znany stan kodu z chwili decyzji"
+    end
+
+    VerifyFixesJob.perform_later(@review)
+    redirect_to review_path(@review), notice: "Sprawdzam, co autor zrobił z uwagami…"
   end
 
   def new
@@ -66,7 +81,7 @@ class ReviewsController < ApplicationController
       DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued"
       redirect_to @review
     else
-      flash.now[:error] = @review.errors.full_messages.to_sentence
+      flash.now[:error] = create_error_message
       render :new, status: :unprocessable_entity
     end
   end
@@ -229,6 +244,16 @@ class ReviewsController < ApplicationController
 
   def set_project
     @project = Project.find(params[:project_id])
+  end
+
+  # Przy duplikacie PR-a doklejamy do błędów link do istniejącego review — sam tekst
+  # walidacji nie mówi, gdzie go szukać. safe_join, nie html_safe na sklejce: tekst
+  # błędu przechodzi przez escape, bezpieczny zostaje tylko link z link_to.
+  def create_error_message
+    message = @review.errors.full_messages.to_sentence
+    return message unless (existing = @review.duplicate_review)
+
+    helpers.safe_join([ message, helpers.link_to("przejdź do review ##{existing.id}", review_path(existing)) ], " — ")
   end
 
   # Wznawiamy dokładnie ten krok, który padł — po to jest ten przycisk. Followup

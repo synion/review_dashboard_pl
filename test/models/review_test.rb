@@ -219,6 +219,25 @@ class ReviewTest < ActiveSupport::TestCase
     assert review.valid?, review.errors.full_messages.to_sentence
   end
 
+  test "drugi review tego samego PR-a jest odrzucany, a duplicate_review wskazuje istniejący" do
+    existing = reviews(:pr_review)
+    review = Review.new(project: projects(:webapp), pr_url: "https://github.com/Acme/Webapp/pull/1234/files")
+    assert_not review.valid?
+    assert_equal existing, review.duplicate_review
+    assert_match(/ma już review/, review.errors[:pr_url].to_sentence)
+  end
+
+  test "inny numer PR-a w tym samym repo nie jest duplikatem" do
+    review = Review.new(project: projects(:webapp), pr_url: "https://github.com/acme/webapp/pull/9999")
+    assert review.valid?, review.errors.full_messages.to_sentence
+  end
+
+  test "duplikat PR-a nie blokuje aktualizacji istniejącego review" do
+    review = reviews(:pr_review)
+    review.update!(status: "ready")
+    assert_equal "ready", review.reload.status
+  end
+
   test "nie pozwala założyć review w zarchiwizowanym projekcie" do
     project = projects(:webapp)
     project.update!(archived_at: Time.current)
@@ -338,5 +357,35 @@ class ReviewTest < ActiveSupport::TestCase
     assert_equal "sess-compact", review.resumable_session_run(config).session_id
   ensure
     FileUtils.remove_entry(config)
+  end
+
+  # Weryfikacja poprawek potrzebuje czterech rzeczy naraz; brak którejkolwiek znaczy,
+  # że nie ma od czego liczyć diffu albo czego sprawdzać.
+  test "should allow verifying fixes only after a decision on a PR with findings" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "comment", decision_head_sha: "aaa1111",
+                   branch: "sl-fix-vat")
+    assert_not review.fixes_verifiable?, "bez znalezisk nie ma czego sprawdzać"
+
+    review.findings.create!(priority: "minor", title: "literówka", body: "x")
+    assert review.reload.fixes_verifiable?
+
+    review.update!(status: "reviewed")
+    assert_not review.reload.fixes_verifiable?, "przed decyzją nie ma punktu odniesienia"
+
+    review.update!(status: "waiting_review")
+    assert review.reload.fixes_verifiable?, "po prośbie o ponowne review tym bardziej"
+
+    review.update_columns(decision_head_sha: nil)
+    assert_not review.reload.fixes_verifiable?
+  end
+
+  test "should summarise fix verdicts for the findings header" do
+    review = reviews(:pr_review)
+    review.findings.create!(priority: "critical", title: "a", body: "x", fix_status: "implemented")
+    review.findings.create!(priority: "minor", title: "b", body: "y", fix_status: "implemented")
+    review.findings.create!(priority: "minor", title: "c", body: "z")
+
+    assert_equal({ "implemented" => 2 }, review.fix_summary)
   end
 end

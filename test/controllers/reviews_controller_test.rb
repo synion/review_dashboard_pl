@@ -247,6 +247,15 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "create z PR-em, który ma już review, pokazuje błąd z linkiem do istniejącego" do
+    existing = reviews(:pr_review)
+    assert_no_difference "Review.count" do
+      post project_reviews_path(@project), params: { review: { pr_url: existing.pr_url } }
+    end
+    assert_response :unprocessable_entity
+    assert_select ".flash-error a[href=?]", review_path(existing)
+  end
+
   test "create z checkboxem kolejkuje opis zadania" do
     assert_enqueued_with(job: DescribeTaskJob) do
       post project_reviews_path(@project),
@@ -926,6 +935,46 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     WorktreeManager.stub(:new, manager, &block)
   end
 
+  # Weryfikacja poprawek: osobna, krótka sesja po decyzji — nie rusza statusu review.
+  test "should queue verification of the authors fixes" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "comment", decision_head_sha: "aaa1111",
+                   branch: "sl-fix-vat")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+
+    assert_enqueued_with job: VerifyFixesJob, args: [ review ] do
+      post verify_fixes_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_equal "decided", review.reload.status
+  end
+
+  test "should refuse verification without a reference point from the decision" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "comment", branch: "sl-fix-vat")
+    review.findings.create!(priority: "critical", title: "nil", body: "x")
+
+    assert_no_enqueued_jobs only: VerifyFixesJob do
+      post verify_fixes_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_match(/Nie ma czego weryfikować/, flash[:alert])
+  end
+
+  test "should show the verification button and verdicts on the review page" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "comment", decision_head_sha: "aaa1111",
+                   branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x",
+                            fix_status: "ignored", fix_note: "kod bez zmian")
+
+    get review_path(review)
+
+    assert_select "form[action=?]", verify_fixes_review_path(review)
+    assert_select ".fix-ignored", text: /zignorowane/
+    assert_select ".card p.muted", text: /1 ✗ zignorowane/
+  end
+
   # Kafel kolejki „czeka na Twoje review" prowadzi tu z adresem PR-a i linkiem do
   # zadania wyłuskanym z jego opisu — formularz ma je pokazać wpisane.
   test "should prefill the new-review form from the queue tile" do
@@ -935,5 +984,57 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[name='review[pr_url]'][value=?]", "https://github.com/acme/webapp/pull/77"
     assert_select "input[name='review[task_url]'][value=?]", "https://tracker.example.com/organize/tasks/32586"
+  end
+
+  # Liczniki nad tabelą mówią „ile tu jest roboty", więc liczą cały projekt — także
+  # wtedy, gdy patrzysz na listę przefiltrowaną po statusie.
+  test "should count the whole project above the list regardless of the filter" do
+    reviews(:pr_review).update!(status: "reviewed")
+    reviews(:task_only).update!(status: "reviewing")
+
+    get project_reviews_path(@project, status: "reviewed")
+
+    assert_select "table#reviews tbody tr", count: 1
+    assert_select ".pill-attention", text: /1 czeka na Ciebie/
+    assert_select ".pill-progress", text: /1 w toku/
+  end
+
+  # Pusta tabela bez słowa wygląda jak zepsuta strona, a najczęstszą przyczyną jest
+  # filtr statusu — komunikat musi więc podać drogę powrotną.
+  test "should explain an empty list and offer a way back from the filter" do
+    get project_reviews_path(@project, status: "merged")
+
+    assert_select ".empty", text: /Żadne review nie ma statusu/
+    assert_select ".empty a[href=?]", project_reviews_path(@project), text: "Pokaż wszystkie"
+  end
+
+  test "should explain an empty project without blaming a filter" do
+    @project.reviews.destroy_all
+
+    get project_reviews_path(@project)
+
+    assert_select ".empty", text: /Jeszcze żadnego review/
+    assert_select ".empty a", count: 0
+  end
+
+  # button_to renderuje blokowy <form>, więc bez wspólnego paska każdy przycisk zjeżdżał
+  # do osobnej linii — pasek akcji ma być jeden.
+  test "should keep the project actions and the status filter in one bar" do
+    get project_reviews_path(@project)
+
+    assert_select ".toolbar a[href=?]", new_project_review_path(@project)
+    assert_select ".toolbar form[action=?]", recheck_github_project_reviews_path(@project)
+    assert_select ".toolbar form.filter select[name=status]"
+  end
+
+  # Tytuły PR-ów w jednym projekcie bywają bliźniacze — wiersz musi mówić, której
+  # zmiany dotyczy.
+  test "should name the PR and branch under the title" do
+    reviews(:pr_review).update!(pr_number: 1234, branch: "sl-fix-vat", model: "opus")
+
+    get project_reviews_path(@project)
+
+    assert_select "tr#review_row_#{reviews(:pr_review).id} td.title-cell .muted",
+                  text: /PR #1234 · sl-fix-vat · opus/
   end
 end

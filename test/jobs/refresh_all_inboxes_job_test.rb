@@ -82,7 +82,7 @@ class RefreshAllInboxesJobTest < ActiveSupport::TestCase
     [ "development", "production" ].each do |env|
       task = schedule.fetch(env).fetch("refresh_review_inbox")
       assert_equal "RefreshAllInboxesJob", task["class"], "#{env}: zła klasa joba"
-      assert_equal "every 10 minutes", task["schedule"],
+      assert_equal "every #{GithubInbox::STALE_AFTER.in_minutes.to_i} minutes", task["schedule"],
                    "interwał harmonogramu ma trzymać się GithubInbox::STALE_AFTER"
     end
     assert_nil schedule["test"], "harmonogram w testach dorzucałby joby w tle"

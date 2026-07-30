@@ -1,5 +1,5 @@
 class ClaudeRun < ApplicationRecord
-  KINDS = %w[describe describe_task review followup compact comment_task].freeze
+  KINDS = %w[describe describe_task review followup compact comment_task verify_fixes].freeze
   # Kroki cyklu review (describe → review → followup) — w odróżnieniu od runów
   # pobocznych (compact, describe_task), które mają własne przyciski ponowienia
   # i nie mogą decydować o wznawianiu cyklu po awarii.
@@ -15,8 +15,10 @@ class ClaudeRun < ApplicationRecord
   # zero pisania kodu) — do zweryfikowania pomiarem, gdy będą dane.
   # comment_task: otwarcie zadania + napisanie i dodanie jednego komentarza — profil
   # jak describe_task (kilka tur narzędzi, zero kodu), więc ten sam limit.
+  # verify_fixes: jeden git diff plus przejście po liście znalezisk — bez pisania kodu
+  # i bez czytania całego repo, więc profil jak describe_task.
   TIMEOUTS = { "describe" => 900, "describe_task" => 900, "review" => 3600, "followup" => 1800, "compact" => 600,
-               "comment_task" => 900 }.freeze
+               "comment_task" => 900, "verify_fixes" => 900 }.freeze
   # Zwis sesji objawia się ciszą w strumieniu — claude przestaje emitować zdarzenia,
   # choć proces żyje. Czekanie do limitu całkowitego nic wtedy nie daje, więc ubijamy
   # wcześniej i (dla review) ponawiamy. Pracująca sesja bije zdarzeniami co kilka sekund,

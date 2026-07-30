@@ -1,6 +1,13 @@
 <%= turbo_stream_from @project, :reviews %>
-<p><%= link_to "← wszystkie projekty", projects_path %></p>
-<h1>Review — <%= @project.name %></h1>
+<div class="nav-back"><%= link_to "← wszystkie projekty", projects_path %></div>
+<div class="pagehead">
+  <h1>Review — <%= @project.name %></h1>
+  <p class="summary">
+    <span class="pill pill-attention"><b><%= @status_counts.slice(*Review::ATTENTION_STATUSES).values.sum %></b> czeka na Ciebie</span>
+    <span class="pill pill-progress"><b><%= @status_counts.slice(*Review::IN_PROGRESS_STATUSES).values.sum %></b> w toku</span>
+    <span class="pill"><b><%= @status_counts.values.sum %></b> łącznie</span>
+  </p>
+</div>
 <% if @project.archived? %>
   <%# Przycisk „+ Nowy review" po prostu znika bez wyjaśnienia — a jedyna inna droga
       do przywrócenia projektu to /projects i przewinięcie do „Zarchiwizowane". %>
@@ -9,23 +16,25 @@
     <%= button_to "Przywróć projekt", unarchive_project_path(@project), class: "btn" %>
   </div>
 <% end %>
-<p class="project-links">
+<%# Jeden pasek: akcja główna po lewej, reszta drobniejsza obok, filtr po prawej.
+    Wcześniej każdy button_to (blokowy <form>) zjeżdżał do osobnej linii. %>
+<div class="toolbar project-links">
   <%= link_to "+ Nowy review", new_project_review_path(@project), class: "btn btn-primary" unless @project.archived? %>
-  <%= link_to "Edytuj projekt", edit_project_path(@project), class: "btn" %>
+  <%= link_to "Edytuj projekt", edit_project_path(@project), class: "btn btn-small" %>
   <%# Dostępny też w archiwum: nowych review nie ma, ale PR-y istniejących dalej się mergują. %>
-  <%= button_to "🔄 Sprawdź GitHub teraz", recheck_github_project_reviews_path(@project), class: "btn" %>
+  <%= button_to "🔄 Sprawdź GitHub teraz", recheck_github_project_reviews_path(@project), class: "btn btn-small" %>
   <% if @project.repo_url.present? %>
-    <%= link_to "repo na GitHubie", @project.repo_url, class: "btn" %>
+    <%= link_to "repo na GitHubie ↗", @project.repo_url, class: "btn btn-small" %>
   <% end %>
-</p>
-<form method="get" class="field">
-  <select name="status" onchange="this.form.submit()">
-    <option value="">Wszystkie statusy</option>
-    <% Review::STATUSES.each do |s| %>
-      <option value="<%= s %>" <%= "selected" if params[:status] == s %>><%= s %></option>
-    <% end %>
-  </select>
-</form>
+  <form method="get" class="filter">
+    <select name="status" onchange="this.form.submit()">
+      <option value="">Wszystkie statusy</option>
+      <% Review::STATUSES.each do |s| %>
+        <option value="<%= s %>" <%= "selected" if params[:status] == s %>><%= review_status_label(Review.new(status: s)) %><%= " (#{@status_counts[s]})" if @status_counts[s] %></option>
+      <% end %>
+    </select>
+  </form>
+</div>
 <table id="reviews">
   <thead>
     <tr>
@@ -46,3 +55,15 @@
                locals: { running_ids: @running_review_ids } %>
   </tbody>
 </table>
+<%# Pusta tabela bez słowa wygląda jak zepsuta strona, a najczęstszą przyczyną jest
+    filtr statusu, o którym łatwo zapomnieć. %>
+<% if @reviews.empty? %>
+  <p class="empty">
+    <% if params[:status].present? %>
+      Żadne review nie ma statusu „<%= params[:status] %>".
+      <%= link_to "Pokaż wszystkie", project_reviews_path(@project) %>
+    <% else %>
+      Jeszcze żadnego review w tym projekcie. Zacznij od „+ Nowy review".
+    <% end %>
+  </p>
+<% end %>

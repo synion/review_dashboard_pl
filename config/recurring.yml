@@ -3,7 +3,7 @@
 #     class: CleanSoftDeletedRecordsJob
 #     queue: background
 #     args: [ 1000, { batch_size: 500 } ]
-#     schedule: every hour
+#     schedule: every 60 minutes
 #   periodic_cleanup_with_command:
 #     command: "SoftDeletedRecord.due.delete_all"
 #     priority: 2
@@ -20,7 +20,7 @@
 default: &default
   refresh_review_inbox:
     class: RefreshAllInboxesJob
-    schedule: every 10 minutes
+    schedule: every 60 minutes
 
 development:
   <<: *default

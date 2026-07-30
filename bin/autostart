@@ -1,0 +1,69 @@
+#!/usr/bin/env ruby
+# Trzyma dashboard uruchomiony w tle: instaluje agenta launchd, który startuje apkę
+# przy logowaniu i podnosi ją po padzie. WYŁĄCZNIE na jawne żądanie — samo pobranie
+# repo ani `bin/setup` nic nie instalują, bo autostart to decyzja o tym, co chodzi
+# na czyjejś maszynie, a nie szczegół konfiguracji projektu.
+#
+#   bin/autostart install [--port 3020] [--schedule]
+#   bin/autostart status
+#   bin/autostart uninstall
+#
+# --schedule dokłada INBOX_SCHEDULE=1, czyli odświeżanie kolejki review w tle.
+require "fileutils"
+require_relative "../lib/autostart_agent"
+
+ROOT = File.expand_path("..", __dir__)
+COMMANDS = %w[install uninstall status].freeze
+
+def die(message)
+  warn message
+  exit 1
+end
+
+def sh(*args) = system(*args, exception: true)
+
+def uid = `id -u`.strip
+
+def loaded? = system("launchctl print gui/#{uid}/#{AutostartAgent::LABEL} > /dev/null 2>&1")
+
+def agent(port:, schedule:)
+  AutostartAgent.new(
+    root: ROOT, port: port, ruby_bin_dir: File.dirname(`which ruby`.strip),
+    # Login z zalogowanego gh, nie z pytania: dokładnie ten sam, do którego rozwiązują
+    # się filtry `@me` w `gh search`.
+    reviewer_login: `gh api user --jq .login 2>/dev/null`.strip,
+    inbox_schedule: schedule
+  )
+end
+
+command = ARGV.shift
+die("Użycie: bin/autostart #{COMMANDS.join(" | ")}") unless COMMANDS.include?(command)
+die("Autostart jest dostępny tylko na macOS (launchd).") unless RUBY_PLATFORM.include?("darwin")
+
+case command
+when "install"
+  port = ARGV.include?("--port") ? ARGV[ARGV.index("--port") + 1] : "3000"
+  schedule = ARGV.include?("--schedule")
+  definition = agent(port: port, schedule: schedule)
+
+  FileUtils.mkdir_p(File.dirname(definition.plist_path))
+  File.write(definition.plist_path, definition.plist)
+  # bootout przed bootstrap, żeby ponowna instalacja (inny port, --schedule) podmieniła
+  # agenta zamiast odbić się o „service already loaded".
+  system("launchctl bootout gui/#{uid}/#{AutostartAgent::LABEL} > /dev/null 2>&1")
+  sh("launchctl bootstrap gui/#{uid} #{definition.plist_path}")
+
+  puts "Zainstalowane: #{definition.plist_path}"
+  puts "Apka wstaje przy logowaniu na http://localhost:#{port}"
+  puts "Odświeżanie kolejki w tle: #{schedule ? "włączone (INBOX_SCHEDULE=1)" : "wyłączone — dodaj --schedule"}"
+  puts "Logi: log/autostart.{out,err}.log · wyłączenie: bin/autostart uninstall"
+when "uninstall"
+  path = AutostartAgent.new(root: ROOT, port: nil, ruby_bin_dir: nil).plist_path
+  system("launchctl bootout gui/#{uid}/#{AutostartAgent::LABEL} > /dev/null 2>&1")
+  FileUtils.rm_f(path)
+  puts "Usunięte: #{path} (apka nie wstanie już sama)"
+when "status"
+  path = AutostartAgent.new(root: ROOT, port: nil, ruby_bin_dir: nil).plist_path
+  puts "plist: #{File.exist?(path) ? path : "brak — autostart nie jest zainstalowany"}"
+  puts "launchd: #{loaded? ? "agent wczytany" : "agent nie jest wczytany"}"
+end

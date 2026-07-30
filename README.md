@@ -120,27 +120,29 @@ skrypt istnieje i czy wzorzec `%{branch}` jest poprawny.
 
 ---
 
-## Kolejka „czeka na Twoje review"
+## Strona wejściowa
 
-Strona główna zaczyna się listą PR-ów, na których wisi **moje** review — to samo, co
-GitHub pokazuje w „Needs your review", plus PR-y, gdzie ktoś odezwał się PO moim review:
+`/` odpowiada na jedno pytanie: **czyj kod muszę zrecenzować**.
 
-| Sygnał | Skąd |
-|---|---|
-| „prosi o Twoje review" | `gh search prs --repo <repo> --state open --review-requested=@me` |
-| „odezwał się po Twoim review" | `gh search prs --reviewed-by=@me` + `gh pr view` (reviews, comments) |
+| Sekcja | Co w niej jest | Skąd |
+|---|---|---|
+| **Czeka na Twoje review** | PR-y, w których GitHub prosi o moje review, oraz te, gdzie ktoś odezwał się PO moim review | `gh search prs --review-requested=@me` i `--reviewed-by=@me` + `gh pr view` (aktywność ludzi) |
+| **Rozpoczęte w dashboardzie** | opis gotowy do odpalenia, review do wysłania, padnięta sesja | statusy `Review` |
+| **W toku** | sesje Claude, przy których nic się nie klika | statusy `Review` |
+| **Projekty** | liczniki i wejście do „+ Nowy review" | baza |
 
-Dwie reguły: **własne PR-y nie wchodzą** (swojego kodu nie recenzuję; login bierze się
-z `gh api user`, nie z configu) i **komentarz sam z siebie nie jest piłką** — liczy się
-dopiero cudzy ruch późniejszy niż moje ostatnie review. Kolejka odświeża się przy wejściu na stronę i przyciskiem „🔄 Sprawdź teraz", a po
-ustawieniu `INBOX_SCHEDULE=1` także z harmonogramu (`config/recurring.yml` →
-`RefreshAllInboxesJob`, co `GithubInbox::STALE_AFTER`) — czyli bez wchodzenia tutaj; padnięte `gh`
-nigdy jej nie czyści (pusty wynik wyglądałby jak „nikt nie czeka"). PR bez review
-w dashboardzie prowadzi do formularza z wypełnionym `pr_url` i linkiem do zadania
-wyłuskanym z opisu PR-a.
+Dwie reguły kolejki z GitHuba: **własne PR-y nie wchodzą** (swojego kodu nie recenzuję;
+login bierze się z `gh api user`, nie z configu) i **komentarz sam z siebie nie liczy się
+jako piłka** — dopiero cudzy ruch późniejszy niż moje ostatnie review. Kolejka odświeża
+się przy wejściu na stronę co `GithubInbox::STALE_AFTER` (1 h) i przyciskiem
+„🔄 Sprawdź teraz", a po ustawieniu `INBOX_SCHEDULE=1` także z harmonogramu
+(`config/recurring.yml` → `RefreshAllInboxesJob`) — czyli bez wchodzenia tutaj;
+padnięte `gh` nigdy jej nie czyści (pusty wynik wyglądałby jak „nikt nie czeka").
+Kafel PR-a bez review w dashboardzie prowadzi do formularza z wypełnionym `pr_url`
+i linkiem do zadania wyłuskanym z opisu PR-a.
 
 Własne PR-y nie znikają z apki — review swojego kodu zakładasz normalnie przez
-**+ Nowy review**, tylko nie zaśmieca ono kolejki.
+**+ Nowy review**, tylko nie zaśmieca ono kolejki „czeka na Twoje review".
 
 ---
 
@@ -172,6 +174,29 @@ Wszystkie opcjonalne. Wzorzec w [`.env.example`](.env.example) — **Rails nie
 | `SOLID_QUEUE_IN_PUMA` | ustawia `bin/dev` | workery jobów w procesie Pumy; bez tego joby nie ruszają |
 | `JOB_CONCURRENCY` | `1` | liczba procesów workerów |
 | `RAILS_MAX_THREADS` | `5` | pula połączeń do SQLite |
+
+---
+
+## Trzymanie apki uruchomionej (opcjonalne, macOS)
+
+Domyślnie dashboard żyje tyle, ile `bin/dev` w terminalu. `bin/autostart` instaluje
+agenta launchd, który startuje go przy logowaniu i podnosi po padzie:
+
+```bash
+bin/autostart install --port 3020   # apka wstaje sama na tym porcie
+bin/autostart install --schedule    # dodatkowo INBOX_SCHEDULE=1 (kolejka odświeża się w tle)
+bin/autostart status
+bin/autostart uninstall
+```
+
+Nic nie instaluje się samo: ani `bin/setup`, ani pierwsze uruchomienie nie tykają
+launchd — o tym, co chodzi w tle na Twojej maszynie, decydujesz jawną komendą.
+
+Plist jest **generowany z Twojej instalacji**, nie kopiowany z repo: katalog repo,
+`ruby` z Twojego PATH-u (`.rbenv`/`asdf`), port i login z zalogowanego `gh`. Wymusza
+też `SOLID_QUEUE_IN_PUMA=1` — launchd startuje `bin/rails server` wprost, więc bez tego
+apka wstałaby bez workerów i żadne review nigdy nie ruszyłoby (patrz „Problemy").
+Logi: `log/autostart.out.log` i `log/autostart.err.log`.
 
 ---
 
