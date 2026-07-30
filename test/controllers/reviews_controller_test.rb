@@ -247,6 +247,15 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "create z PR-em, który ma już review, pokazuje błąd z linkiem do istniejącego" do
+    existing = reviews(:pr_review)
+    assert_no_difference "Review.count" do
+      post project_reviews_path(@project), params: { review: { pr_url: existing.pr_url } }
+    end
+    assert_response :unprocessable_entity
+    assert_select ".flash-error a[href=?]", review_path(existing)
+  end
+
   test "create z checkboxem kolejkuje opis zadania" do
     assert_enqueued_with(job: DescribeTaskJob) do
       post project_reviews_path(@project),
