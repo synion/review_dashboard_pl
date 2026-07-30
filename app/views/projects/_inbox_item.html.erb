@@ -1,0 +1,23 @@
+<%# PR czekający na MOJE review. Tytuł prowadzi na GitHuba, bo najpierw i tak
+    patrzę na PR — dopiero potem decyduję, czy zlecać review w dashboardzie. %>
+<% review = @inbox_reviews[[ item.project_id, item.pr_number ]] %>
+<article class="qitem q-inbox q-<%= item.reason %>" id="inbox_pr_<%= item.pr_number %>">
+  <div class="qtop">
+    <span class="status-badge status-<%= item.reason %>"><%= item.label %></span>
+    <%= link_to item.project.name, project_reviews_path(item.project), class: "qproj" %>
+    <span class="qwait">czeka <%= inbox_waiting_for(item) %></span>
+  </div>
+  <%= link_to item.title.presence || "PR ##{item.pr_number}", item.url, class: "qttl" %>
+  <div class="qact">
+    <% if review %>
+      <%= link_to "Otwórz review w dashboardzie →", review_path(review) %>
+      <span class="muted">· <%= review_status_label(review) %></span>
+    <% else %>
+      <%= link_to "Zleć review →",
+                  new_project_review_path(item.project, pr_url: item.url, task_url: item.task_url) %>
+    <% end %>
+  </div>
+  <div class="qmeta">
+    PR #<%= item.pr_number %> · autor <%= item.author %><%= " · ostatnio: #{item.actor}" if item.actor.present? && item.actor != item.author %>
+  </div>
+</article>

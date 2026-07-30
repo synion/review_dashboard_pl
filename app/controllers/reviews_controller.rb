@@ -21,6 +21,9 @@ class ReviewsController < ApplicationController
     # Jednym zapytaniem, nie raz na wiersz: „reviewing" bez pracującej sesji znaczy,
     # że job czeka na wolny wątek workera — i to musi być widać już na liście.
     @running_review_ids = ClaudeRun.where(status: "running").distinct.pluck(:review_id)
+    # Liczniki nad tabelą liczą CAŁY projekt, nie przefiltrowaną listę: mają odpowiadać
+    # „ile tu jest roboty", a nie „ile widzisz po filtrze". Jedno GROUP BY.
+    @status_counts = @project.reviews.group(:status).count
     enqueue_github_checks(@project.reviews.due_for_github_check)
   end
 
