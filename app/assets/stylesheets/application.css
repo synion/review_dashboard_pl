@@ -190,6 +190,9 @@ details.card > summary { color: inherit; font-weight: 600; }
 details.card[open] > summary { margin-bottom: 12px; }
 .areas label { display: block; padding: 8px 0; font-size: 16px; }
 input[type=text], input[type=url], textarea, select { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; box-sizing: border-box; background: var(--surface); color: var(--fg); }
+/* Domyślny placeholder przeglądarki jest za blady (Firefox dodatkowo tłumi go
+   przezroczystością do ~2:1) — jawny kolor z palety i pełna nieprzezroczystość. */
+::placeholder { color: var(--muted); opacity: 1; }
 .field { margin-bottom: 14px; }
 .field > label { display: block; font-weight: 600; margin-bottom: 4px; }
 /* Instrukcja komentarza do zadania — rozwija się dopiero po zaznaczeniu checkboxa,
