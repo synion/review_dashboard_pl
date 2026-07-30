@@ -6,12 +6,60 @@ class GithubClient
   VERDICT_EVENTS = { "approve" => "APPROVE", "reject" => "REQUEST_CHANGES", "comment" => "COMMENT" }.freeze
   PR_URL = %r{github\.com/(?<owner>[^/]+)/(?<repo>[^/]+)/pull/(?<number>\d+)}
 
+  # Jedyne miejsce rozbierające link do PR-a na nazwane grupy — walidacje Review
+  # i endpoint niżej nie znają kształtu regexa, tylko wynik.
+  def self.parse_pr_url(url)
+    PR_URL.match(url.to_s)
+  end
+
+  # Kanoniczny identyfikator PR-a ("owner/repo#123", małymi literami): ten sam PR
+  # wkleja się też jako .../pull/123/files albo z inną wielkością liter.
+  # nil dla linku spoza wzorca.
+  def self.pr_key(url)
+    match = parse_pr_url(url)
+    "#{match[:owner]}/#{match[:repo]}##{match[:number]}".downcase if match
+  end
+
   def initialize(runner: CommandRunner)
     @runner = runner
   end
 
+  # Mój login na GitHubie — po nim poznajemy, że PR jest CZYJŚ (swojego kodu nie
+  # recenzuję) i że po moim review odezwał się ktoś inny. Pytamy o niego GITHUBA, nie
+  # configu: filtry `@me` w `gh search` rozwiązują się do zalogowanego konta, a ręcznie
+  # wpisany login potrafi się z nim rozjechać — i wtedy CUDZE PR-y wyglądają jak moje.
+  # GITHUB_REVIEWER_LOGIN zostaje jako obejście, gdy `gh api user` jest niedostępny.
+  def viewer_login(repo_dir:)
+    @viewer_login ||= ENV["GITHUB_REVIEWER_LOGIN"].presence ||
+                      run!([ "gh", "api", "user", "--jq", ".login" ], label: "gh api user", chdir: repo_dir).stdout.strip
+  end
+
+  # PR-y, w których jestem umoczony w danej roli: `review-requested` (GitHub prosi
+  # o moje review) albo `reviewed-by` (już się wypowiedziałem). `--repo` zawęża do
+  # repo projektu, żeby kolejka nie zaciągała całego GitHuba.
+  def search_prs(repo:, role:, repo_dir:, limit: 40)
+    result = run!([ "gh", "search", "prs", "--repo", repo, "--state", "open",
+                    "--#{role}", "@me", "--limit", limit.to_s,
+                    "--json", "number,title,url,author,updatedAt" ],
+                  label: "gh search prs --#{role}", chdir: repo_dir)
+    JSON.parse(result.stdout)
+  end
+
+  # Cała aktywność ludzi na PR-ze: po niej liczymy, czy ktoś odezwał się PO moim
+  # ostatnim review. Samo `updatedAt` nie wystarcza — podnosi je też mój własny
+  # komentarz i każdy push autora.
+  # `body` jedzie tu z aktywnością, żeby nie robić drugiego zapytania o ten sam PR —
+  # z opisu wyciągamy link do zadania (patrz TaskLink).
+  def pr_activity(pr_url, repo_dir:)
+    pr_view(pr_url, fields: "state,author,reviews,comments,body", repo_dir: repo_dir)
+  end
+
+  def pr_body(pr_url, repo_dir:)
+    pr_view(pr_url, fields: "body", repo_dir: repo_dir)["body"]
+  end
+
   def pr_info(pr_url, repo_dir:)
-    pr_view(pr_url, fields: "number,title,headRefName", repo_dir: repo_dir)
+    pr_view(pr_url, fields: "number,title,headRefName,body", repo_dir: repo_dir)
   end
 
   # Stan PR-a + kto jest poproszony o review — jedno `gh pr view` odpowiada na oba
@@ -50,7 +98,7 @@ class GithubClient
   end
 
   def reviews_endpoint(pr_url)
-    match = PR_URL.match(pr_url.to_s)
+    match = self.class.parse_pr_url(pr_url)
     raise Error, "Nie rozpoznaję linku do PR-a: #{pr_url}" unless match
 
     "repos/#{match[:owner]}/#{match[:repo]}/pulls/#{match[:number]}/reviews"

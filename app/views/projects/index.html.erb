@@ -1,45 +1,103 @@
-<h1>Projekty</h1>
+<%# Strona wejściowa odpowiada na jedno pytanie: co teraz kliknąć. Kolejki review
+    są więc PONAD listą projektów — projekty to nawigacja, a nie praca. %>
+<div class="pagehead">
+  <h1>Review dashboard</h1>
+  <p class="summary">
+    <span class="pill pill-attention"><b><%= @inbox_items.size %></b> czeka na Twoje review</span>
+    <span class="pill"><b><%= @attention_reviews.size %></b> do dokończenia</span>
+    <span class="pill pill-progress"><b><%= @in_progress_reviews.size %></b> w toku</span>
+  </p>
+</div>
 
-<table id="projects">
-  <thead>
-    <tr>
-      <th>Projekt</th>
-      <th>Czeka na Ciebie</th>
-      <th>W toku</th>
-      <th>Wszystkich</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
+<%# „Czeka na Ciebie" to WYŁĄCZNIE piłka z GitHuba na czyimś PR-ze: prośba o moje
+    review albo cudzy komentarz po moim review. Własne PR-y nie wchodzą — swojego
+    kodu nie recenzuję. Stany dashboardu (opis gotowy, decyzja do wysłania, padnięta
+    sesja) są niżej, bo to moja robota, a nie cudze oczekiwanie. %>
+<section id="attention" class="queue">
+  <h2>Czeka na Twoje review</h2>
+  <% if @inbox_items.any? %>
+    <%= render partial: "projects/inbox_item", collection: @inbox_items, as: :item %>
+  <% else %>
+    <p class="empty">
+      <% if @projects.none? { |project| project.repo_url.present? } %>
+        Żaden projekt nie ma adresu repo na GitHubie — bez niego nie ma czego pytać.
+      <% elsif @inbox_checked_at.nil? %>
+        GitHub jeszcze nie odpytany. Odświeżenie chodzi w tle — wróć tu za chwilę.
+      <% else %>
+        Nikt nie czeka na Twoje review.
+      <% end %>
+    </p>
+  <% end %>
+  <p class="qfoot">
+    <span class="muted">
+      <%= @inbox_checked_at ? "sprawdzone #{review_waiting_for(Review.new(updated_at: @inbox_checked_at))} temu" : "brak odczytu z GitHuba" %>
+      · odświeża się samo co <%= GithubInbox::STALE_AFTER.in_minutes.to_i %> min
+    </span>
+    <%= button_to "🔄 Sprawdź teraz", refresh_inbox_projects_path, class: "btn btn-small" %>
+  </p>
+</section>
+
+<% if @attention_reviews.any? %>
+  <section id="dashboard_work" class="queue queue-quiet">
+    <h2>Rozpoczęte w dashboardzie</h2>
+    <%= render partial: "reviews/queue_item", collection: @attention_reviews, as: :review,
+               locals: { running_ids: @running_review_ids } %>
+  </section>
+<% end %>
+
+<% if @in_progress_reviews.any? %>
+  <section id="in_progress" class="queue queue-quiet">
+    <h2>W toku — nic tu nie klikasz</h2>
+    <%= render partial: "reviews/queue_item", collection: @in_progress_reviews, as: :review,
+               locals: { running_ids: @running_review_ids } %>
+  </section>
+<% end %>
+
+<section id="projects">
+  <h2>Projekty</h2>
+  <div class="projgrid">
     <% @projects.each do |project| %>
       <% counts = @counts[project.id] %>
-      <tr id="project_row_<%= project.id %>">
-        <td><%= link_to project.name, project_reviews_path(project) %></td>
-        <td><%= counts[:attention] %></td>
-        <td><%= counts[:in_progress] %></td>
-        <td><%= counts[:total] %></td>
-        <td>
-          <%= link_to "Edytuj", edit_project_path(project), class: "btn" %>
-          <%= button_to "Archiwizuj", archive_project_path(project), class: "btn",
+      <article class="projcard" id="project_row_<%= project.id %>">
+        <h3><%= link_to project.name, project_reviews_path(project) %></h3>
+        <div class="counts">
+          <span class="count<%= " count-hot" if counts[:attention].positive? %>">
+            <b data-count="attention"><%= counts[:attention] %></b> czeka
+          </span>
+          <span class="count"><b data-count="in_progress"><%= counts[:in_progress] %></b> w toku</span>
+          <span class="count"><b data-count="total"><%= counts[:total] %></b> łącznie</span>
+        </div>
+        <div class="project-links">
+          <%= link_to "+ Nowy review", new_project_review_path(project), class: "btn btn-primary" %>
+          <%= link_to "Wszystkie review", project_reviews_path(project), class: "btn" %>
+        </div>
+        <div class="projmeta">
+          <code class="inline"><%= project.repo_path %></code>
+          <%= "· #{project.default_model}" if project.default_model.present? %>
+          <%= "/ #{project.default_effort}" if project.default_effort.present? %>
+        </div>
+        <div class="projadmin">
+          <%= link_to "Edytuj", edit_project_path(project) %>
+          <%= button_to "Archiwizuj", archive_project_path(project),
                 form: { data: { turbo_confirm: "Zarchiwizować projekt #{project.name}? Zniknie z listy aktywnych, ale będzie można go przywrócić." } } %>
-        </td>
-      </tr>
+        </div>
+      </article>
     <% end %>
-  </tbody>
-</table>
-<p><%= link_to "+ Nowy projekt", new_project_path, class: "btn btn-primary" %></p>
+  </div>
+  <p><%= link_to "+ Nowy projekt", new_project_path, class: "btn" %></p>
+</section>
 
 <% if @archived_projects.any? %>
-  <h2>Zarchiwizowane</h2>
-  <table id="archived_projects">
-    <tbody>
-      <% @archived_projects.each do |project| %>
-        <tr id="project_row_<%= project.id %>">
-          <td><%= link_to project.name, project_reviews_path(project) %></td>
-          <td><%= @counts[project.id][:total] %> review</td>
-          <td><%= button_to "Przywróć", unarchive_project_path(project), class: "btn" %></td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
+  <%# Zwinięte: archiwum jest potrzebne raz na kwartał i nie może wyglądać jak druga,
+      równorzędna lista projektów. %>
+  <details id="archived_projects">
+    <summary>Zarchiwizowane (<%= @archived_projects.size %>)</summary>
+    <% @archived_projects.each do |project| %>
+      <div class="archrow" id="project_row_<%= project.id %>">
+        <%= link_to project.name, project_reviews_path(project) %>
+        <span class="muted"><%= @counts[project.id][:total] %> review</span>
+        <%= button_to "Przywróć", unarchive_project_path(project), class: "btn" %>
+      </div>
+    <% end %>
+  </details>
 <% end %>

@@ -4,7 +4,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   test "index renderuje listę projektów" do
     get root_path
     assert_response :success
-    assert_select "table#projects tbody tr", count: Project.active.count
+    assert_select "#projects .projcard", count: Project.active.count
   end
 
   test "kubełki liczników liczą failed jako czeka na Ciebie, a reviewing jako w toku" do
@@ -14,9 +14,9 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     get root_path
 
-    assert_select "tr#project_row_#{project.id} td:nth-child(2)", text: "1"
-    assert_select "tr#project_row_#{project.id} td:nth-child(3)", text: "1"
-    assert_select "tr#project_row_#{project.id} td:nth-child(4)", text: "2"
+    assert_select "#project_row_#{project.id} [data-count=attention]", text: "1"
+    assert_select "#project_row_#{project.id} [data-count=in_progress]", text: "1"
+    assert_select "#project_row_#{project.id} [data-count=total]", text: "2"
   end
 
   # Fixtures stoją domyślnie w "created" — to okno między ReviewsController#create
@@ -30,8 +30,8 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     get root_path
 
-    assert_select "tr#project_row_#{project.id} td:nth-child(2)", text: "0"
-    assert_select "tr#project_row_#{project.id} td:nth-child(3)", text: "2"
+    assert_select "#project_row_#{project.id} [data-count=attention]", text: "0"
+    assert_select "#project_row_#{project.id} [data-count=in_progress]", text: "2"
   end
 
   test "projekt bez żadnego review pokazuje same zera" do
@@ -40,16 +40,30 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     get root_path
 
-    assert_select "tr#project_row_#{project.id} td:nth-child(2)", text: "0"
-    assert_select "tr#project_row_#{project.id} td:nth-child(3)", text: "0"
-    assert_select "tr#project_row_#{project.id} td:nth-child(4)", text: "0"
+    assert_select "#project_row_#{project.id} [data-count=attention]", text: "0"
+    assert_select "#project_row_#{project.id} [data-count=in_progress]", text: "0"
+    assert_select "#project_row_#{project.id} [data-count=total]", text: "0"
   end
 
-  test "index liczy review jednym zapytaniem niezależnie od liczby projektów" do
-    queries = 0
-    counter = ->(*, payload) { queries += 1 if payload[:sql].include?("FROM \"reviews\"") }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { get root_path }
-    assert_equal 1, queries
+  # Nie „dokładnie N zapytań", a „liczba nie rośnie z liczbą projektów": strona
+  # ładuje też kolejki review, więc sztywna liczba pilnowałaby przypadkowego
+  # szczegółu implementacji zamiast realnego N+1.
+  test "index nie mnoży zapytań o review z liczbą projektów" do
+    count_queries = lambda do
+      queries = 0
+      counter = ->(*, payload) { queries += 1 if payload[:sql].include?("FROM \"reviews\"") }
+      ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { get root_path }
+      queries
+    end
+    before = count_queries.call
+
+    3.times do |i|
+      Project.create!(name: "extra#{i}", repo_path: Dir.tmpdir,
+                      default_claude_config: Review::CLAUDE_CONFIGS.first.last,
+                      worktree_command: "git worktree add ../%{branch} %{branch}")
+    end
+
+    assert_equal before, count_queries.call
   end
 
   test "tworzy projekt" do
@@ -118,7 +132,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   # być wyjątkiem, mimo że sam w sobie nic nie kasuje (dane zostają, tylko znikają z oczu).
   test "przycisk archiwizacji ma potwierdzenie" do
     get root_path
-    assert_select "table#projects form[action=?][data-turbo-confirm]", archive_project_path(projects(:webapp))
+    assert_select "#projects form[action=?][data-turbo-confirm]", archive_project_path(projects(:webapp))
   end
 
   test "archiwizuje projekt i zdejmuje go z listy aktywnych" do
@@ -127,8 +141,8 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert projects(:dashboard).reload.archived?
 
     get root_path
-    assert_select "table#projects tr#project_row_#{projects(:dashboard).id}", count: 0
-    assert_select "table#archived_projects tr#project_row_#{projects(:dashboard).id}", count: 1
+    assert_select "#projects #project_row_#{projects(:dashboard).id}", count: 0
+    assert_select "#archived_projects #project_row_#{projects(:dashboard).id}", count: 1
   end
 
   test "przywraca zarchiwizowany projekt" do
@@ -136,6 +150,18 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     post unarchive_project_path(projects(:dashboard))
     assert_redirected_to projects_path
     assert_not projects(:dashboard).reload.archived?
+  end
+
+  # Archiwum zdejmuje projekt z oczu — jego review nie mogą wracać na stronę
+  # wejściową przez kolejki „do dokończenia" / „w toku" ani zawyżać pigułek.
+  test "review zarchiwizowanego projektu nie wchodzą do kolejek strony wejściowej" do
+    reviews(:pr_review).update!(status: "failed")
+    projects(:webapp).update!(archived_at: Time.current)
+
+    get root_path
+
+    assert_select "#review_queue_#{reviews(:pr_review).id}", count: 0
+    assert_select ".pill", text: /0 do dokończenia/
   end
 
   test "dashboard zarchiwizowanego projektu nie proponuje nowego review" do
@@ -157,5 +183,139 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".archived-notice", text: /zarchiwizowany/
     assert_select ".archived-notice form[action=?]", unarchive_project_path(project)
+  end
+
+  # „Czeka na Ciebie" = piłka z GitHuba na CZYIMŚ PR-ze. Stany dashboardu (decyzja
+  # do wysłania, padnięta sesja) to moja robota, a nie cudze oczekiwanie — mają
+  # osobną sekcję i nie wolno im wracać do kolejki z GitHuba.
+  test "should list only GitHub signals in the waiting-for-you queue" do
+    inbox_items(:commented).destroy
+    reviews(:pr_review).update!(status: "reviewed")
+
+    get root_path
+
+    assert_select "#attention .qitem", count: 1
+    assert_select "#attention #inbox_pr_9001"
+    assert_select "#dashboard_work #review_queue_#{reviews(:pr_review).id}"
+  end
+
+  test "should put review requests above post-review comments" do
+    inbox_items(:requested, :commented)
+
+    get root_path
+
+    assert_equal %w[inbox_pr_9001 inbox_pr_9002],
+                 css_select("#attention .qitem").map { |item| item["id"] }
+  end
+
+  test "should offer to start a review for a PR the dashboard has never seen" do
+    item = inbox_items(:requested)
+
+    get root_path
+
+    assert_select "##{"inbox_pr_9001"} a[href=?]",
+                  new_project_review_path(item.project, pr_url: item.url), text: /Zleć review/
+  end
+
+  test "should link to the existing review when the PR is already in the dashboard" do
+    item = inbox_items(:requested)
+    reviews(:pr_review).update!(pr_number: item.pr_number, status: "reviewing")
+
+    get root_path
+
+    assert_select "#inbox_pr_9001 a[href=?]", review_path(reviews(:pr_review)), text: /Otwórz review/
+    assert_select "#inbox_pr_9001 a", text: /Zleć review/, count: 0
+  end
+
+  test "should show how long each GitHub signal has been waiting" do
+    inbox_items(:requested).update!(signal_at: 3.days.ago)
+
+    get root_path
+
+    assert_select "#inbox_pr_9001 .qwait", text: /czeka 3 dni/
+  end
+
+  test "should say plainly when nobody waits for my review" do
+    InboxItem.delete_all
+    Project.update_all(inbox_checked_at: Time.current)
+
+    get root_path
+
+    assert_select "#attention .empty", text: /Nikt nie czeka/
+  end
+
+  # Bez tego rozróżnienia pusty raport po świeżej instalacji wyglądałby jak
+  # „nikt nie czeka", zamiast „jeszcze nie pytaliśmy GitHuba".
+  test "should distinguish an empty queue from one never fetched" do
+    InboxItem.delete_all
+    projects(:webapp).update_columns(inbox_checked_at: nil)
+    projects(:dashboard).update_columns(inbox_checked_at: nil)
+
+    get root_path
+
+    assert_select "#attention .empty", text: /jeszcze nie odpytany/
+  end
+
+  test "should refresh a stale queue in the background and leave a fresh one alone" do
+    projects(:webapp).update_columns(inbox_checked_at: 1.hour.ago)
+    projects(:dashboard).update_columns(inbox_checked_at: Time.current, repo_url: nil)
+
+    assert_enqueued_with job: RefreshInboxJob, args: [ projects(:webapp) ] do
+      get root_path
+    end
+  end
+
+  test "should let me force a GitHub check from the page" do
+    # Po jednym jobie na projekt z adresem repo — oba fixture'owe je mają.
+    assert_enqueued_jobs Project.active.with_repo.count, only: RefreshInboxJob do
+      post refresh_inbox_projects_path
+    end
+    assert_redirected_to projects_path
+  end
+
+  test "should keep running reviews in their own section" do
+    reviews(:pr_review).update!(status: "reviewing")
+    reviews(:task_only).update!(status: "describing")
+
+    get root_path
+
+    assert_select "#dashboard_work", count: 0
+    assert_select "#in_progress .qitem", count: 2
+  end
+
+  test "should show how long a dashboard review has been waiting" do
+    reviews(:pr_review).update!(status: "reviewed", updated_at: 3.days.ago)
+    reviews(:task_only).update!(status: "merged")
+
+    get root_path
+
+    assert_select "#review_queue_#{reviews(:pr_review).id}", text: /3 dni/
+  end
+
+  test "should name the project on every waiting review" do
+    reviews(:pr_review).update!(status: "reviewed")
+
+    get root_path
+
+    assert_select "#review_queue_#{reviews(:pr_review).id}", text: /webapp/
+  end
+
+  test "should offer a new review straight from the project card" do
+    project = projects(:webapp)
+
+    get root_path
+
+    assert_select "#project_row_#{project.id} a[href=?]", new_project_review_path(project)
+    assert_select "#project_row_#{project.id} a[href=?]", project_reviews_path(project)
+  end
+
+  # Zarchiwizowane projekty są rzadko potrzebne, ale ich sekcja nie może wyglądać
+  # jak druga, równorzędna lista projektów — stąd zwinięte <details>.
+  test "should fold archived projects away" do
+    projects(:dashboard).update!(archived_at: Time.current)
+
+    get root_path
+
+    assert_select "details#archived_projects"
   end
 end

@@ -21,6 +21,10 @@ class Review < ApplicationRecord
   # Kubełki liczników na liście projektów. „Czeka na Ciebie" to wszystko, co stoi
   # i czeka na kliknięcie — łącznie z `failed`, bo tam też decyzja należy do człowieka.
   ATTENTION_STATUSES = %w[ready reviewed waiting_review failed].freeze
+  # Kolejność sekcji „Rozpoczęte w dashboardzie" na stronie wejściowej. Najpierw to,
+  # co jest zepsute albo blokuje kogoś innego (padnięta sesja, gotowe znaleziska,
+  # autor czekający na ponowne review), na końcu review jeszcze nieodpalone.
+  ATTENTION_ORDER = %w[failed reviewed waiting_review ready].freeze
   # „created" jest tu, bo review siedzi w tym statusie od stworzenia aż do startu
   # DescribeReviewJob — a między zakolejkowaniem a workerem potrafi minąć kilkanaście
   # minut (patrz komentarze w ReviewsController). Bez tego świeżo założone review
@@ -112,9 +116,21 @@ class Review < ApplicationRecord
   # bo joby aktualizują je przez update!, a fail! jest awaryjną ścieżką
   # raportowania błędów (bez rescue) używaną też przez OrphanedRunsCleanup.
   validate :pr_url_matches_project_repo, on: :create
+  # Drugi review tego samego PR-a to niemal zawsze pomyłka — podwójna praca i drugi
+  # komplet komentarzy na PR. Zamiast tworzyć duplikat, kontroler linkuje w błędzie
+  # do istniejącego review (stąd duplicate_review niżej). Porównanie po kluczu
+  # z GithubClient.pr_key, nie po surowym stringu — patrz komentarz tam.
+  # on: :create jak wyżej. To zapora przed pomyłką w formularzu, nie twardy
+  # niezmiennik: bez znormalizowanej kolumny nie ma na czym postawić unikalnego
+  # indeksu, więc dwa submity w wyścigu teoretycznie przejdą oba.
+  validate :pr_url_not_duplicated, on: :create
   # To samo dotyczy archiwizacji projektu — ma zamknąć drogę do NOWYCH review,
   # a nie zamrozić istniejące — te wciąż aktualizują status z jobów.
   validate :project_not_archived, on: :create
+
+  # Ustawiane przez pr_url_not_duplicated — kontroler buduje z tego link
+  # w komunikacie błędu.
+  attr_reader :duplicate_review
 
   # Co w ogóle warto pytać GitHuba — bez względu na cache. Osobno od
   # due_for_github_check, bo ręczne „Sprawdź teraz" potrzebuje tego warunku
@@ -382,13 +398,32 @@ class Review < ApplicationRecord
     expected = project&.github_slug
     return if expected.blank?
 
-    match = GithubClient::PR_URL.match(pr_url.to_s)
+    match = GithubClient.parse_pr_url(pr_url)
     return errors.add(:pr_url, "nie wygląda na link do PR-a na GitHubie") if match.nil?
 
     actual = "#{match[:owner]}/#{match[:repo]}"
     return if actual.casecmp?(expected)
 
     errors.add(:pr_url, "należy do #{actual}, a projekt #{project.name} wskazuje na #{expected}")
+  end
+
+  # errors[:pr_url].any? — pr_url_matches_project_repo już odrzucił ten link, więc
+  # skan po review projektu byłby pracą na submit, który i tak nie przejdzie.
+  # select(:id, :pr_url) — porównujemy jeden krótki string, a pełne wiersze
+  # ciągnęłyby z bazy raw_result i resztę długich kolumn tekstowych; id wystarcza
+  # kontrolerowi do zbudowania linku.
+  def pr_url_not_duplicated
+    return if pr_url.blank? || project.nil? || errors[:pr_url].any?
+
+    key = pr_canonical(pr_url)
+    @duplicate_review = project.reviews.select(:id, :pr_url).find { |other| pr_canonical(other.pr_url) == key }
+    errors.add(:pr_url, "ma już review w tym projekcie") if @duplicate_review
+  end
+
+  # Linki spoza wzorca GitHubowego (projekt bez repo_url może trzymać PR-y skądinąd)
+  # porównujemy dosłownie; review bez pr_url daje "" i nigdy nie dorówna kluczowi.
+  def pr_canonical(url)
+    GithubClient.pr_key(url) || url.to_s
   end
 
   def project_not_archived

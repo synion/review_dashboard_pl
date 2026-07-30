@@ -21,6 +21,9 @@ class ReviewsController < ApplicationController
     # Jednym zapytaniem, nie raz na wiersz: „reviewing" bez pracującej sesji znaczy,
     # że job czeka na wolny wątek workera — i to musi być widać już na liście.
     @running_review_ids = ClaudeRun.where(status: "running").distinct.pluck(:review_id)
+    # Liczniki nad tabelą liczą CAŁY projekt, nie przefiltrowaną listę: mają odpowiadać
+    # „ile tu jest roboty", a nie „ile widzisz po filtrze". Jedno GROUP BY.
+    @status_counts = @project.reviews.group(:status).count
     enqueue_github_checks(@project.reviews.due_for_github_check)
   end
 
@@ -58,9 +61,13 @@ class ReviewsController < ApplicationController
       return redirect_to project_reviews_path(@project), alert: @project.archived_notice
     end
 
+    # pr_url i task_url z parametrów: kafel kolejki „czeka na Twoje review" prowadzi tu
+    # z adresem PR-a i wyłuskanym z jego opisu linkiem do zadania, żeby nie przeklejać
+    # ręcznie tego, co GitHub już wie.
     @review = @project.reviews.new(claude_config: @project.default_claude_config,
                                    model: @project.default_model,
-                                   effort: @project.default_effort)
+                                   effort: @project.default_effort,
+                                   pr_url: params[:pr_url], task_url: params[:task_url])
   end
 
   def create
@@ -74,7 +81,7 @@ class ReviewsController < ApplicationController
       DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued"
       redirect_to @review
     else
-      flash.now[:error] = @review.errors.full_messages.to_sentence
+      flash.now[:error] = create_error_message
       render :new, status: :unprocessable_entity
     end
   end
@@ -237,6 +244,16 @@ class ReviewsController < ApplicationController
 
   def set_project
     @project = Project.find(params[:project_id])
+  end
+
+  # Przy duplikacie PR-a doklejamy do błędów link do istniejącego review — sam tekst
+  # walidacji nie mówi, gdzie go szukać. safe_join, nie html_safe na sklejce: tekst
+  # błędu przechodzi przez escape, bezpieczny zostaje tylko link z link_to.
+  def create_error_message
+    message = @review.errors.full_messages.to_sentence
+    return message unless (existing = @review.duplicate_review)
+
+    helpers.safe_join([ message, helpers.link_to("przejdź do review ##{existing.id}", review_path(existing)) ], " — ")
   end
 
   # Wznawiamy dokładnie ten krok, który padł — po to jest ten przycisk. Followup

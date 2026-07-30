@@ -49,6 +49,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130537) do
     t.index ["review_id"], name: "index_findings_on_review_id"
   end
 
+  create_table "inbox_items", force: :cascade do |t|
+    t.string "actor"
+    t.string "author"
+    t.datetime "created_at", null: false
+    t.integer "pr_number"
+    t.integer "project_id", null: false
+    t.string "reason"
+    t.datetime "signal_at"
+    t.string "task_url"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.string "url"
+    t.index ["project_id", "pr_number"], name: "index_inbox_items_on_project_id_and_pr_number", unique: true
+    t.index ["project_id"], name: "index_inbox_items_on_project_id"
+  end
+
   create_table "playwright_runs", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "exit_code"
@@ -67,11 +83,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130537) do
     t.string "default_effort"
     t.string "default_model"
     t.string "docs_path", default: "doc/llm"
+    t.datetime "inbox_checked_at"
     t.string "name"
     t.string "repo_path"
     t.string "repo_url"
     t.text "review_prompt_extra"
     t.text "task_comment_instructions"
+    t.string "task_url_prefix"
     t.datetime "updated_at", null: false
     t.string "worktree_command"
     t.string "worktree_delete_command"
@@ -114,6 +132,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130537) do
 
   add_foreign_key "claude_runs", "reviews"
   add_foreign_key "findings", "reviews"
+  add_foreign_key "inbox_items", "projects"
   add_foreign_key "playwright_runs", "reviews"
   add_foreign_key "reviews", "projects"
 end

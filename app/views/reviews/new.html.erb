@@ -9,8 +9,10 @@
       <%= f.url_field :pr_url, placeholder: "https://github.com/#{@project.github_slug.presence || "…"}/pull/…" %>
     </div>
     <div class="field">
-      <%= f.label :task_url, "…albo link do zadania (gdy PR-a nie ma)" %>
+      <%= f.label :task_url, "Link do zadania" %>
       <%= f.url_field :task_url, placeholder: "https://…" %>
+      <span class="hint">Wypełnia się sam z opisu PR-a. Wpisz ręcznie, gdy PR-a nie ma
+        albo gdy w opisie zabrakło linku.</span>
     </div>
     <div class="field">
       <%= f.label :branch, "Branch (opcjonalnie — tylko dla zadania bez PR-a)" %>
