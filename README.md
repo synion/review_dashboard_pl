@@ -132,8 +132,9 @@ GitHub pokazuje w „Needs your review", plus PR-y, gdzie ktoś odezwał się PO
 
 Dwie reguły: **własne PR-y nie wchodzą** (swojego kodu nie recenzuję; login bierze się
 z `gh api user`, nie z configu) i **komentarz sam z siebie nie jest piłką** — liczy się
-dopiero cudzy ruch późniejszy niż moje ostatnie review. Kolejka odświeża się w tle co
-`GithubInbox::STALE_AFTER` (10 min) i przyciskiem „🔄 Sprawdź teraz"; padnięte `gh`
+dopiero cudzy ruch późniejszy niż moje ostatnie review. Kolejka odświeża się z harmonogramu
+(`config/recurring.yml` → `RefreshAllInboxesJob`, co `GithubInbox::STALE_AFTER` — więc
+także bez wchodzenia na stronę), przy wejściu na stronę i przyciskiem „🔄 Sprawdź teraz"; padnięte `gh`
 nigdy jej nie czyści (pusty wynik wyglądałby jak „nikt nie czeka"). PR bez review
 w dashboardzie prowadzi do formularza z wypełnionym `pr_url` i linkiem do zadania
 wyłuskanym z opisu PR-a.

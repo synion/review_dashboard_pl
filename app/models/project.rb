@@ -56,7 +56,7 @@ class Project < ApplicationRecord
   # Kolejka z GitHuba jest odświeżana w tle, więc strona wejściowa pokazuje ostatni
   # znany stan i zleca odświeżenie tylko, gdy zdążył się zestarzeć.
   def inbox_stale?
-    inbox_checked_at.nil? || inbox_checked_at < GithubInbox::STALE_AFTER.ago
+    inbox_checked_at.nil? || inbox_checked_at < (GithubInbox::STALE_AFTER - GithubInbox::TICK_GRACE).ago
   end
 
   def github_slug
