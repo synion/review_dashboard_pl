@@ -1,6 +1,12 @@
 <% findings_by_priority = review.findings.order(:priority).group_by(&:priority) %>
+<% fix_summary = review.fix_summary %>
 <div class="card">
   <h2>Znaleziska (<%= findings_by_priority.values.sum(&:size) %>)</h2>
+  <% if fix_summary.any? %>
+    <p class="muted">Po poprawkach autora:
+      <%= Finding::FIX_LABELS.filter_map { |status, label| "#{fix_summary[status]} #{label}" if fix_summary[status] }.join(" · ") %>
+    </p>
+  <% end %>
   <% Finding::PRIORITY_LABELS.each do |priority, label| %>
     <% findings = findings_by_priority[priority] %>
     <% next if findings.blank? %>
@@ -8,6 +14,9 @@
     <% findings.each do |f| %>
       <div class="finding finding-<%= f.priority %>">
         <strong><%= f.title %></strong>
+        <% if f.fix_status.present? %>
+          <span class="status-badge fix-<%= f.fix_status %>" title="<%= f.fix_note %>"><%= f.fix_label %></span>
+        <% end %>
         <% if f.file_location.present? %><code class="inline"><%= f.file_location %></code><% end %>
         <details><summary>szczegóły</summary><%= markdown f.body %></details>
       </div>

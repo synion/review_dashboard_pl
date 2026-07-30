@@ -7,7 +7,8 @@ class DecisionsController < ApplicationController
 
     body = params[:body].to_s
     notice = DecisionPublisher.call(@review, verdict: verdict, body: body, inline: params[:inline_comments] == "1")
-    attrs = { status: "decided", decision: verdict, decision_body: body, decided_at: Time.current }
+    attrs = { status: "decided", decision: verdict, decision_body: body, decided_at: Time.current,
+              decision_head_sha: head_sha_at_decision }
     # Instrukcję mrozimy na review (nawet identyczną z projektową) — „Ponów" ma
     # użyć dokładnie tej, którą user widział przy decyzji, a nie późniejszego
     # stanu projektu. Status kolejki tu, nie w jobie — patrz refresh_task_description;
@@ -25,6 +26,16 @@ class DecisionsController < ApplicationController
   end
 
   private
+
+  # Stan kodu, na który człowiek właśnie patrzył — bez niego późniejsze „sprawdź, czy
+  # uwagi wdrożone" nie ma od czego liczyć diffu. Padnięty gh nie może wywalić wysyłki
+  # decyzji, która już wyszła na GitHuba, więc błąd kończy się brakiem SHA.
+  def head_sha_at_decision
+    GithubClient.new.pr_head_sha(@review.pr_url, repo_dir: @review.workdir)
+  rescue GithubClient::Error => e
+    Rails.logger.warn("DecisionsController review #{@review.id}: #{e.message}")
+    nil
+  end
 
   # Kolejkujemy tylko na jawne życzenie i tylko, gdy jest dokąd pisać — formularz
   # bez task_url w ogóle nie pokazuje checkboxa, ale parametr można spreparować.

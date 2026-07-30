@@ -86,4 +86,11 @@ class GithubClientTest < ActiveSupport::TestCase
     assert_includes error.message, "https://example.com/foo"
     assert_empty fake.calls
   end
+
+  test "should read the head sha of a PR" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: { headRefOid: "abc123" }.to_json, stderr: "", timed_out: false) ])
+
+    assert_equal "abc123", GithubClient.new(runner: fake).pr_head_sha(PR_URL, repo_dir: "/repo")
+    assert_equal [ "gh", "pr", "view", PR_URL, "--json", "headRefOid" ], fake.calls.sole[:cmd]
+  end
 end

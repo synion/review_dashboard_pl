@@ -16,9 +16,11 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     @@ -0,0 +1,5 @@
   HEAD
 
-  def fake_client(submitted, diff: DIFF)
+  def fake_client(submitted, diff: DIFF, head_sha: "aaa1111")
     Object.new.tap do |o|
       o.define_singleton_method(:pr_diff) { |_url, repo_dir:| diff }
+      # Stan kodu w chwili decyzji — punkt odniesienia późniejszej weryfikacji poprawek.
+      o.define_singleton_method(:pr_head_sha) { |_url, repo_dir:| head_sha }
       o.define_singleton_method(:submit_review) do |url, verdict:, body:, repo_dir:, comments: []|
         submitted << { url: url, verdict: verdict, body: body, repo_dir: repo_dir, comments: comments }
       end
@@ -35,6 +37,7 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ status: "decided", decision: "approve", decision_body: "LGTM" },
                  { status: @review.status, decision: @review.decision, decision_body: @review.decision_body })
     assert_not_nil @review.decided_at
+    assert_equal "aaa1111", @review.decision_head_sha
     assert_redirected_to review_path(@review)
   end
 

@@ -1,0 +1,55 @@
+Sprawdź, co autor PR-a zrobił z uwagami z mojego review. To NIE jest nowe review — nie szukaj nowych problemów, nie oceniaj całej zmiany, nie ruszaj `result.json`.
+
+PR: <%= review.pr_url %>
+Branch: `<%= review.branch %>`
+Stan kodu, na który patrzyłem przy decyzji: `<%= review.decision_head_sha %>`
+
+<%= switched_context %>
+
+Najpierw dowieź sobie materiał:
+
+```
+git fetch origin <%= review.branch %>
+git diff <%= review.decision_head_sha %>..origin/<%= review.branch %>
+```
+
+To jest dokładnie to, co autor zrobił PO moim review. Gdy `git diff` wyjdzie pusty, wszystkie werdykty to `unclear` z notką „autor nic nie wypchnął od decyzji".
+
+Dla KAŻDEGO znaleziska z listy niżej ustal jedno z trzech:
+
+- `implemented` — zmiana w diffie faktycznie usuwa przyczynę, którą opisałem. Nie wystarcza, że autor dotknął tego pliku ani że dopisał komentarz.
+- `ignored` — kod w tym miejscu został bez zmian albo zmiana nie dotyka przyczyny.
+- `unclear` — z diffu nie wynika, czy problem zniknął (np. poprawka jest w kodzie, którego diff nie pokazuje, albo zależy od danych produkcyjnych).
+
+Nie zgaduj na korzyść autora: przy wątpliwościach `unclear`, nie `implemented`.
+
+## Znaleziska do sprawdzenia
+
+<% review.findings.order(:priority).each do |finding| -%>
+### id <%= finding.id %> — [<%= finding.priority %>] <%= finding.title %>
+<% if finding.file_location.present? -%>
+Miejsce: `<%= finding.file_location %>`
+<% end -%>
+
+<%= finding.body %>
+
+<% end -%>
+## Czego oczekuję
+
+Zapisz plik `<%= review.artifacts_dir.join("fixes.json") %>`:
+
+```json
+{
+  "fixes": [
+    { "id": <%= review.findings.first&.id || 1 %>, "status": "implemented", "note": "jedno zdanie: co konkretnie w diffie to załatwia (plik i linia)" }
+  ]
+}
+```
+
+- `id` przepisz DOKŁADNIE z listy wyżej — po nim wiążę werdykt ze znaleziskiem.
+- Każde znalezisko musi mieć wpis; `status` tylko z trzech wartości wyżej.
+- `note`: jedno zdanie, konkret (plik, linia, nazwa metody). Przy `ignored` napisz, czego brakuje; przy `unclear` — czego nie da się rozstrzygnąć z diffu.
+
+<%= style %>
+
+Bez zapisania `fixes.json` odpowiedź uznaję za niedokończoną.

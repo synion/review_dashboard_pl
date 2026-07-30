@@ -339,4 +339,34 @@ class ReviewTest < ActiveSupport::TestCase
   ensure
     FileUtils.remove_entry(config)
   end
+
+  # Weryfikacja poprawek potrzebuje czterech rzeczy naraz; brak którejkolwiek znaczy,
+  # że nie ma od czego liczyć diffu albo czego sprawdzać.
+  test "should allow verifying fixes only after a decision on a PR with findings" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "comment", decision_head_sha: "aaa1111",
+                   branch: "sl-fix-vat")
+    assert_not review.fixes_verifiable?, "bez znalezisk nie ma czego sprawdzać"
+
+    review.findings.create!(priority: "minor", title: "literówka", body: "x")
+    assert review.reload.fixes_verifiable?
+
+    review.update!(status: "reviewed")
+    assert_not review.reload.fixes_verifiable?, "przed decyzją nie ma punktu odniesienia"
+
+    review.update!(status: "waiting_review")
+    assert review.reload.fixes_verifiable?, "po prośbie o ponowne review tym bardziej"
+
+    review.update_columns(decision_head_sha: nil)
+    assert_not review.reload.fixes_verifiable?
+  end
+
+  test "should summarise fix verdicts for the findings header" do
+    review = reviews(:pr_review)
+    review.findings.create!(priority: "critical", title: "a", body: "x", fix_status: "implemented")
+    review.findings.create!(priority: "minor", title: "b", body: "y", fix_status: "implemented")
+    review.findings.create!(priority: "minor", title: "c", body: "z")
+
+    assert_equal({ "implemented" => 2 }, review.fix_summary)
+  end
 end

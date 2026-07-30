@@ -4,7 +4,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact verify_fixes]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -36,6 +36,18 @@ class ReviewsController < ApplicationController
   end
 
   def show
+  end
+
+  # Weryfikacja poprawek autora — osobna, krótka sesja, która nie rusza statusu
+  # review ani znalezisk (tylko dokłada im werdykt).
+  def verify_fixes
+    unless @review.fixes_verifiable?
+      return redirect_to review_path(@review),
+                         alert: "Nie ma czego weryfikować: potrzebna wysłana decyzja, znaleziska i znany stan kodu z chwili decyzji"
+    end
+
+    VerifyFixesJob.perform_later(@review)
+    redirect_to review_path(@review), notice: "Sprawdzam, co autor zrobił z uwagami…"
   end
 
   def new

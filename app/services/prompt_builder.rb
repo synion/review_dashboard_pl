@@ -22,6 +22,13 @@ class PromptBuilder
     render("review", review)
   end
 
+  # Weryfikacja poprawek idzie ZAWSZE świeżą sesją (nie ma czego wznawiać: pytanie
+  # dotyczy kodu wypchniętego po decyzji), więc kontekst po przełączeniu konta
+  # wymuszamy tak samo jak w followupie bez `--resume`.
+  def self.verify_fixes(review)
+    render("verify_fixes", review, force_context: true)
+  end
+
   # `resumed` przychodzi z joba, bo tylko on wie, czy sesja faktycznie dostała
   # `--resume`. Świeża sesja nie zna poprzedniego przebiegu, więc kontekst musi
   # przyjechać w prompcie także wtedy, gdy konto się nie zmieniło, a plik sesji

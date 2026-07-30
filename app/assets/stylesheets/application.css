@@ -33,6 +33,11 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
    nie mylił się z zielonym „decided", które jeszcze czeka na losy PR-a. */
 .status-merged { background: #f3e8ff; color: #7e22ce; }
 .status-closed { background: #fee2e2; color: var(--danger); }
+/* Werdykt weryfikacji poprawek na znalezisku — te same kolory co statusy review,
+   bo znaczą to samo: zielone = zrobione, czerwone = zostało, szare = nie wiadomo. */
+.fix-implemented { background: #dcfce7; color: var(--ok); }
+.fix-ignored { background: #fee2e2; color: var(--danger); }
+.fix-unclear { background: #e5e7eb; color: var(--muted); }
 .done-box { border-left: 4px solid var(--ok); background: #f0fdf4; }
 .done-box p { margin: 4px 0; }
 .archived-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px;
