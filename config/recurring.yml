@@ -12,6 +12,9 @@
 # Kolejka „czeka na Twoje review" ma się odświeżać bez wchodzenia na stronę — inaczej
 # PR do recenzji widać dopiero, gdy się o niego zapyta. Interwał trzyma się
 # GithubInbox::STALE_AFTER, a margines na spóźnienie tiku daje GithubInbox::TICK_GRACE.
+# Zadanie jest zarejestrowane zawsze, ale odpytuje GitHuba tylko przy INBOX_SCHEDULE=1
+# (patrz RefreshAllInboxesJob.enabled?) — świeżo pobrany dashboard nie rusza sieci
+# bez zgody właściciela maszyny, a włączenie to restart, nie edycja tego pliku.
 # Środowisko testowe świadomie bez wpisu: harmonogram w testach dorzucałby joby
 # w tle i zamazywał asercje o kolejkowaniu.
 default: &default

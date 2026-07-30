@@ -7,7 +7,11 @@ class RefreshAllInboxesJobTest < ActiveSupport::TestCase
     @with_repo = projects(:webapp)
     @without_repo = projects(:dashboard)
     @without_repo.update_columns(repo_url: nil)
+    @flag = ENV[RefreshAllInboxesJob::ENV_FLAG]
+    ENV[RefreshAllInboxesJob::ENV_FLAG] = "1"
   end
+
+  teardown { ENV[RefreshAllInboxesJob::ENV_FLAG] = @flag }
 
   test "should queue a refresh for every stale project with a repo" do
     Project.update_all(inbox_checked_at: nil)
@@ -43,6 +47,29 @@ class RefreshAllInboxesJobTest < ActiveSupport::TestCase
 
     assert_no_enqueued_jobs only: RefreshInboxJob do
       RefreshAllInboxesJob.perform_now
+    end
+  end
+
+  # Świeżo pobrany dashboard nie może sam zacząć wołać `gh` w tle — o odpytywaniu
+  # decyduje właściciel maszyny, a nie domyślna wartość w repo.
+  test "should do nothing until the schedule is enabled" do
+    Project.update_all(inbox_checked_at: nil)
+    ENV.delete(RefreshAllInboxesJob::ENV_FLAG)
+
+    assert_not RefreshAllInboxesJob.enabled?
+    assert_no_enqueued_jobs only: RefreshInboxJob do
+      RefreshAllInboxesJob.perform_now
+    end
+  end
+
+  test "should read the flag in the forms people actually type" do
+    %w[1 true TRUE yes on].each do |value|
+      ENV[RefreshAllInboxesJob::ENV_FLAG] = value
+      assert RefreshAllInboxesJob.enabled?, "#{value.inspect} ma włączać harmonogram"
+    end
+    [ "0", "false", "no", "", "  " ].each do |value|
+      ENV[RefreshAllInboxesJob::ENV_FLAG] = value
+      assert_not RefreshAllInboxesJob.enabled?, "#{value.inspect} ma zostawiać harmonogram wyłączony"
     end
   end
 
