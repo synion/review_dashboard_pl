@@ -152,6 +152,18 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_not projects(:dashboard).reload.archived?
   end
 
+  # Archiwum zdejmuje projekt z oczu — jego review nie mogą wracać na stronę
+  # wejściową przez kolejki „do dokończenia" / „w toku" ani zawyżać pigułek.
+  test "review zarchiwizowanego projektu nie wchodzą do kolejek strony wejściowej" do
+    reviews(:pr_review).update!(status: "failed")
+    projects(:webapp).update!(archived_at: Time.current)
+
+    get root_path
+
+    assert_select "#review_queue_#{reviews(:pr_review).id}", count: 0
+    assert_select ".pill", text: /0 do dokończenia/
+  end
+
   test "dashboard zarchiwizowanego projektu nie proponuje nowego review" do
     projects(:webapp).update!(archived_at: Time.current)
     get project_reviews_path(projects(:webapp))

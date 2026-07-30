@@ -88,7 +88,10 @@ class ProjectsController < ApplicationController
   # bo kolejność „Czeka na Ciebie" jest po statusie wg ATTENTION_ORDER, czego SQLite
   # nie wyrazi bez CASE dłuższego niż cała ta metoda.
   def load_queues
-    waiting = Review.where(status: Review::ATTENTION_STATUSES + Review::IN_PROGRESS_STATUSES)
+    # Scope na @projects: archiwum zdejmuje projekt z oczu, więc jego review nie
+    # mogą wracać na stronę wejściową (load_inbox wyżej filtruje tak samo).
+    waiting = Review.where(project: @projects,
+                           status: Review::ATTENTION_STATUSES + Review::IN_PROGRESS_STATUSES)
                     .includes(:project, :findings).to_a
     @attention_reviews = waiting.select { |r| r.status.in?(Review::ATTENTION_STATUSES) }
                                 .sort_by { |r| [ Review::ATTENTION_ORDER.index(r.status), r.updated_at ] }
