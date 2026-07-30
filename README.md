@@ -174,6 +174,29 @@ Wszystkie opcjonalne. Wzorzec w [`.env.example`](.env.example) — **Rails nie
 
 ---
 
+## Trzymanie apki uruchomionej (opcjonalne, macOS)
+
+Domyślnie dashboard żyje tyle, ile `bin/dev` w terminalu. `bin/autostart` instaluje
+agenta launchd, który startuje go przy logowaniu i podnosi po padzie:
+
+```bash
+bin/autostart install --port 3020   # apka wstaje sama na tym porcie
+bin/autostart install --schedule    # dodatkowo INBOX_SCHEDULE=1 (kolejka odświeża się w tle)
+bin/autostart status
+bin/autostart uninstall
+```
+
+Nic nie instaluje się samo: ani `bin/setup`, ani pierwsze uruchomienie nie tykają
+launchd — o tym, co chodzi w tle na Twojej maszynie, decydujesz jawną komendą.
+
+Plist jest **generowany z Twojej instalacji**, nie kopiowany z repo: katalog repo,
+`ruby` z Twojego PATH-u (`.rbenv`/`asdf`), port i login z zalogowanego `gh`. Wymusza
+też `SOLID_QUEUE_IN_PUMA=1` — launchd startuje `bin/rails server` wprost, więc bez tego
+apka wstałaby bez workerów i żadne review nigdy nie ruszyłoby (patrz „Problemy").
+Logi: `log/autostart.out.log` i `log/autostart.err.log`.
+
+---
+
 ## Problemy
 
 - **Review wisi w „created" / nic nie startuje** — apka odpalona bez workerów.
