@@ -34,9 +34,11 @@
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
 body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--fg); }
-/* Bez tej reguły linki bez klasy dostają domyślny granat przeglądarki (a odwiedzone —
-   fiolet spoza palety), które na ciemnym tle są nieczytelne. */
-a, a:visited { color: var(--accent); }
+/* Bez tej reguły linki bez klasy dostają domyślny granat przeglądarki, nieczytelny
+   na ciemnym tle. Celowo bez a:visited — fiolet UA i tak przegrywa z regułą autora
+   (kaskada wg originu), a a:visited (0,1,1) wygrywałby z klasami typu .btn-primary
+   (0,1,0) i malował tekst odwiedzonych linków-przycisków kolorem tła. */
+a { color: var(--accent); }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 700; color: var(--fg); text-decoration: none; font-size: 18px; }
 .topbar nav { font-size: 14px; }
