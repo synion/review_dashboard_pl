@@ -1,9 +1,30 @@
-:root { --accent: #2563eb; --danger: #dc2626; --ok: #16a34a; --muted: #6b7280; }
-body { font-family: -apple-system, sans-serif; margin: 0; background: #f8fafc; color: #111827; }
-.topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: white; border-bottom: 1px solid #e5e7eb; }
-.brand { font-weight: 700; color: #111827; text-decoration: none; font-size: 18px; }
+/* Paleta w zmiennych, bo dashboard jest czytany też w ciemnym motywie systemowym —
+   twarde #fff w tłach dawało tam białe płachty. */
+:root {
+  --accent: #2563eb; --danger: #dc2626; --ok: #16a34a; --warn: #a16207;
+  --muted: #6b7280; --fg: #111827; --bg: #f8fafc; --surface: #ffffff;
+  --line: #e5e7eb; --line-soft: #f3f4f6; --shadow: 0 1px 2px rgba(15, 23, 42, .06);
+  --badge-bg: #e5e7eb; --badge-fg: #374151;
+  --info-bg: #dbeafe; --wait-bg: #fef9c3; --done-bg: #dcfce7;
+  --err-bg: #fee2e2; --merged-bg: #f3e8ff; --merged-fg: #7e22ce;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #60a5fa; --danger: #f87171; --ok: #4ade80; --warn: #fbbf24;
+    --muted: #9ca3af; --fg: #e5e7eb; --bg: #111318; --surface: #1b1e26;
+    --line: #2f3440; --line-soft: #23262f; --shadow: none;
+    --badge-bg: #2f3440; --badge-fg: #d1d5db;
+    --info-bg: #1e3a5f; --wait-bg: #4a3a12; --done-bg: #14432a;
+    --err-bg: #4c1d1d; --merged-bg: #3b1d54; --merged-fg: #d8b4fe;
+  }
+}
+body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--fg); }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.brand { font-weight: 700; color: var(--fg); text-decoration: none; font-size: 18px; }
+.topbar nav { font-size: 14px; }
+.topbar nav a { color: var(--muted); }
 .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-.btn { display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #111827; text-decoration: none; font-size: 15px; cursor: pointer; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); text-decoration: none; font-size: 15px; cursor: pointer; }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
 .btn-danger { background: var(--danger); border-color: var(--danger); color: white; }
 .btn-ok { background: var(--ok); border-color: var(--ok); color: white; }
@@ -13,37 +34,98 @@ body { font-family: -apple-system, sans-serif; margin: 0; background: #f8fafc; c
    żeby nie ruszać układu formularzy w tabelach. */
 .project-links form.button_to { display: inline-block; }
 .flash { padding: 10px 24px; }
-.flash-error, .flash-alert { background: #fef2f2; color: var(--danger); }
-.flash-notice { background: #f0fdf4; color: var(--ok); }
-table#reviews { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
-table#reviews th, table#reviews td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+.flash-error, .flash-alert { background: var(--err-bg); color: var(--danger); }
+.flash-notice { background: var(--done-bg); color: var(--ok); }
+table#reviews { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; }
+table#reviews th, table#reviews td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }
 /* „wczoraj 14:03" łamało się na dwie linie i rozpychało wiersz w wąskim oknie. */
 table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: nowrap; }
 .wt-ok { color: var(--ok); }
 /* Zniknięty worktree to nie ozdoba, tylko zapowiedź błędu przy followupie. */
 .wt-gone { color: var(--danger); font-weight: 600; }
-.wt-none { color: #9ca3af; }
+.wt-none { color: var(--muted); }
 .worktree-line { font-size: 13px; }
-.status-badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #e5e7eb; }
-.status-reviewing, .status-describing { background: #dbeafe; color: var(--accent); }
-.status-reviewed { background: #fef9c3; color: #a16207; }
-.status-decided { background: #dcfce7; color: var(--ok); }
-.status-failed { background: #fee2e2; color: var(--danger); }
+.status-badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--badge-bg); color: var(--badge-fg); white-space: nowrap; }
+.status-reviewing, .status-describing { background: var(--info-bg); color: var(--accent); }
+/* Trzy statusy z piłką u usera dostają jeden kolor „Twój ruch" — na liście i w kolejce
+   mają wyglądać tak samo, bo znaczą to samo. */
+.status-reviewed, .status-ready, .status-waiting_review { background: var(--wait-bg); color: var(--warn); }
+.status-decided { background: var(--done-bg); color: var(--ok); }
+.status-failed { background: var(--err-bg); color: var(--danger); }
 /* Kolory jak na GitHubie: merged fioletowy, closed czerwony — żeby stan końcowy
    nie mylił się z zielonym „decided", które jeszcze czeka na losy PR-a. */
-.status-merged { background: #f3e8ff; color: #7e22ce; }
-.status-closed { background: #fee2e2; color: var(--danger); }
-.done-box { border-left: 4px solid var(--ok); background: #f0fdf4; }
+.status-merged { background: var(--merged-bg); color: var(--merged-fg); }
+.status-closed { background: var(--err-bg); color: var(--danger); }
+
+/* ===================== strona wejściowa: kolejki + projekty ===================== */
+.pagehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 4px; }
+.pagehead h1 { font-size: 22px; margin: 0; }
+.summary { margin: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.pill { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.pill b { color: var(--fg); }
+/* Jedyna liczba, która ma zatrzymać wzrok przy wejściu na stronę. */
+.pill-attention { background: var(--wait-bg); border-color: transparent; color: var(--warn); }
+.pill-attention b { color: var(--warn); }
+.pill-progress { background: var(--info-bg); border-color: transparent; color: var(--accent); }
+.pill-progress b { color: var(--accent); }
+.queue { margin: 20px 0; }
+.queue h2, #projects h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+/* Sekcja „w toku" jest do przeczytania, nie do klikania — mniejszy kontrast trzyma
+   uwagę na kolejce wyżej. */
+.queue-quiet .qitem { opacity: .78; }
+.qitem { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; box-shadow: var(--shadow); }
+/* Lewa krawędź niesie pilność, żeby wybór pracy dał się zrobić przelotem wzroku
+   w dół kolumny, bez czytania badge'ów. */
+.qitem.q-failed { border-left-color: var(--danger); }
+.qitem.q-reviewed, .qitem.q-waiting_review { border-left-color: var(--warn); }
+.qitem.q-ready { border-left-color: var(--accent); }
+/* Piłka z GitHuba dostaje najmocniejszą krawędź: to jedyna sekcja, w której ktoś
+   inny czeka na moją robotę. */
+.qitem.q-requested { border-left-color: var(--danger); }
+.qitem.q-commented { border-left-color: var(--warn); }
+.status-requested { background: var(--err-bg); color: var(--danger); }
+.status-commented { background: var(--wait-bg); color: var(--warn); }
+.qfoot { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; }
+.btn-small { padding: 4px 10px; font-size: 13px; }
+.qfoot form.button_to { display: inline-block; }
+.qtop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.qproj { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+.qwait { color: var(--muted); }
+.qttl { display: block; margin: 4px 0 2px; font-size: 15px; font-weight: 600; color: var(--fg); text-decoration: none; }
+.qttl:hover { color: var(--accent); }
+.qact { font-size: 14px; }
+.qmeta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.qmeta:empty { display: none; }
+.empty { color: var(--muted); font-size: 14px; background: var(--surface); border: 1px dashed var(--line); border-radius: 8px; padding: 12px 14px; margin: 0; }
+#projects h2 { margin-top: 24px; }
+.projgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.projcard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); }
+.projcard h3 { margin: 0 0 8px; font-size: 16px; }
+.projcard h3 a { color: var(--fg); text-decoration: none; }
+.counts { display: flex; gap: 12px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.counts b { font-size: 17px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.count-hot b { color: var(--warn); }
+.projmeta { font-size: 12px; color: var(--muted); margin-top: 10px; word-break: break-all; }
+/* Edycja i archiwizacja to czynności robione raz na projekt — nie mogą wyglądać
+   równorzędnie z „+ Nowy review". */
+.projadmin { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 12px; }
+.projadmin a, .projadmin button { color: var(--muted); font-size: 12px; }
+.projadmin button { background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; font-family: inherit; }
+#archived_projects { margin-top: 24px; }
+.archrow { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 14px; }
+.muted { color: var(--muted); font-size: 13px; }
+
+.done-box { border-left: 4px solid var(--ok); background: var(--done-bg); }
 .done-box p { margin: 4px 0; }
 .archived-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px;
-                   border-left: 4px solid var(--muted); background: #f9fafb; padding: 10px 16px; margin-bottom: 16px; }
-.queued-hint { margin-left: 8px; font-size: 12px; color: #a16207; white-space: nowrap; }
+                   border-left: 4px solid var(--muted); background: var(--surface); padding: 10px 16px; margin-bottom: 16px; }
+.queued-hint { margin-left: 8px; font-size: 12px; color: var(--warn); white-space: nowrap; }
 .done-hint { margin-left: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-.card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
 .card h2, details.card > summary { margin-top: 0; font-size: 17px; }
-.finding { border-left: 4px solid var(--muted); padding: 8px 12px; margin: 8px 0; background: #f9fafb; }
+.finding { border-left: 4px solid var(--muted); padding: 8px 12px; margin: 8px 0; background: var(--line-soft); }
 .finding-critical { border-color: var(--danger); }
-.finding-important { border-color: #d97706; }
+.finding-important { border-color: var(--warn); }
 .progress-line { color: var(--muted); font-size: 14px; white-space: pre-wrap; }
 details { margin: 8px 0; }
 summary { cursor: pointer; color: var(--muted); }
@@ -51,29 +133,29 @@ summary { cursor: pointer; color: var(--muted); }
 details.card > summary { color: inherit; font-weight: 600; }
 details.card[open] > summary { margin-bottom: 12px; }
 .areas label { display: block; padding: 8px 0; font-size: 16px; }
-input[type=text], input[type=url], textarea, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; box-sizing: border-box; }
+input[type=text], input[type=url], textarea, select { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; box-sizing: border-box; background: var(--surface); color: var(--fg); }
 .field { margin-bottom: 14px; }
 .field > label { display: block; font-weight: 600; margin-bottom: 4px; }
 /* Instrukcja komentarza do zadania — rozwija się dopiero po zaznaczeniu checkboxa,
    żeby formularz decyzji nie puchł dla opcji, która domyślnie jest wyłączona. */
 .task-comment-details { display: none; margin-top: 8px; }
 .task-comment-field:has(.task-comment-toggle:checked) .task-comment-details { display: block; }
-code.inline { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
 .md { line-height: 1.55; }
 .md h1, .md h2 { font-size: 17px; margin: 12px 0 6px; }
 .md h3, .md h4 { font-size: 15px; margin: 10px 0 4px; }
 .md ul, .md ol { padding-left: 22px; margin: 6px 0; }
 .md li { margin: 3px 0; }
 .md p { margin: 6px 0; }
-.md code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
-.md pre { background: #f3f4f6; padding: 10px; border-radius: 8px; overflow-x: auto; }
+.md code { background: var(--line-soft); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+.md pre { background: var(--line-soft); padding: 10px; border-radius: 8px; overflow-x: auto; }
 .md pre code { background: none; padding: 0; }
-.md blockquote { border-left: 3px solid #d1d5db; margin: 6px 0; padding-left: 10px; color: var(--muted); }
+.md blockquote { border-left: 3px solid var(--line); margin: 6px 0; padding-left: 10px; color: var(--muted); }
 .md table { border-collapse: collapse; margin: 8px 0; }
-.md th, .md td { border: 1px solid #e5e7eb; padding: 4px 8px; font-size: 13px; }
+.md th, .md td { border: 1px solid var(--line); padding: 4px 8px; font-size: 13px; }
 /* Pasek kontekstu — jedyna liczba w panelu, która rośnie w trakcie sesji. */
-.ctx-bar { height: 10px; border-radius: 5px; background: #e5e7eb; overflow: hidden; margin-bottom: 8px; }
+.ctx-bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin-bottom: 8px; }
 .ctx-fill { height: 100%; }
 .ctx-ok { background: var(--ok); }
-.ctx-warn { background: #d97706; }
+.ctx-warn { background: var(--warn); }
 .ctx-danger { background: var(--danger); }

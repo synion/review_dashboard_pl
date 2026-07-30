@@ -21,6 +21,10 @@ class Review < ApplicationRecord
   # Kubełki liczników na liście projektów. „Czeka na Ciebie" to wszystko, co stoi
   # i czeka na kliknięcie — łącznie z `failed`, bo tam też decyzja należy do człowieka.
   ATTENTION_STATUSES = %w[ready reviewed waiting_review failed].freeze
+  # Kolejność sekcji „Rozpoczęte w dashboardzie" na stronie wejściowej. Najpierw to,
+  # co jest zepsute albo blokuje kogoś innego (padnięta sesja, gotowe znaleziska,
+  # autor czekający na ponowne review), na końcu review jeszcze nieodpalone.
+  ATTENTION_ORDER = %w[failed reviewed waiting_review ready].freeze
   # „created" jest tu, bo review siedzi w tym statusie od stworzenia aż do startu
   # DescribeReviewJob — a między zakolejkowaniem a workerem potrafi minąć kilkanaście
   # minut (patrz komentarze w ReviewsController). Bez tego świeżo założone review

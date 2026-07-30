@@ -6,6 +6,7 @@ class ProjectsController < ApplicationController
     @archived_projects = Project.archived.order(:name)
     @counts = review_counts
     load_inbox
+    load_queues
   end
 
   # Kolejka odświeża się sama co GithubInbox::STALE_AFTER; ten przycisk pomija okno,
@@ -80,6 +81,22 @@ class ProjectsController < ApplicationController
     @inbox_checked_at = @projects.filter_map(&:inbox_checked_at).min
     @projects.select { |project| project.repo_url.present? && project.inbox_stale? }
              .each { |project| RefreshInboxJob.perform_later(project) }
+  end
+
+  # Dwie kolejki jednym zapytaniem: sama liczba w kubełku nie mówi, CO zrobić, a to
+  # jedyne pytanie, na które ta strona ma odpowiadać przy wejściu. Sortowanie w Ruby,
+  # bo kolejność „Czeka na Ciebie" jest po statusie wg ATTENTION_ORDER, czego SQLite
+  # nie wyrazi bez CASE dłuższego niż cała ta metoda.
+  def load_queues
+    waiting = Review.where(status: Review::ATTENTION_STATUSES + Review::IN_PROGRESS_STATUSES)
+                    .includes(:project, :findings).to_a
+    @attention_reviews = waiting.select { |r| r.status.in?(Review::ATTENTION_STATUSES) }
+                                .sort_by { |r| [ Review::ATTENTION_ORDER.index(r.status), r.updated_at ] }
+    @in_progress_reviews = waiting.select { |r| r.status.in?(Review::IN_PROGRESS_STATUSES) }
+                                  .sort_by(&:updated_at).reverse
+    # Ten sam sygnał co na liście review: „reviewing" bez pracującej sesji znaczy,
+    # że job stoi w kolejce workera. Pytamy tylko, gdy jest o co pytać.
+    @running_review_ids = @in_progress_reviews.any? ? ClaudeRun.where(status: "running").distinct.pluck(:review_id) : []
   end
 
   # Jedno zapytanie na całą listę zamiast trzech na projekt. GROUP BY oddaje

@@ -6,7 +6,22 @@ module ReviewsHelper
     "failed" => "Błąd"
   }.freeze
 
+  # Następny ruch, nie stan. Badge odpowiada „w jakim stanie jest review", a strona
+  # wejściowa musi odpowiadać „co mam z tym zrobić" — bez tego zdania user tłumaczy
+  # sobie status na czynność przy każdym wejściu.
+  NEXT_STEPS = {
+    "created" => "Czeka na wolnego workera — nic nie klikaj",
+    "describing" => "Claude czyta PR i zadanie",
+    "ready" => "Zaznacz obszary i odpal review",
+    "reviewing" => "Sesja review pracuje",
+    "reviewed" => "Przejrzyj znaleziska i wyślij decyzję",
+    "waiting_review" => "Autor poprawił — sprawdź zmiany followupem",
+    "failed" => "Sesja padła — ponów krok albo przełącz konto"
+  }.freeze
+
   def review_status_label(review) = STATUS_LABELS.fetch(review.status, review.status)
+
+  def review_next_step(review) = NEXT_STEPS[review.status]
 
   # „czeka 3 dni" zamiast daty: przy wejściu liczy się, czy coś stoi od rana, czy od
   # tygodnia. Formy polskie odmieniamy ręcznie — apka stoi na locale `en`.
@@ -26,6 +41,25 @@ module ReviewsHelper
     return "chwilę" if item.signal_at.blank?
 
     review_waiting_for(Review.new(updated_at: item.signal_at))
+  end
+
+  # Liczba znalezisk z wyróżnieniem blokerów: przy wyborze, co przejrzeć pierwsze,
+  # „7 znalezisk · 2 krytyczne" mówi więcej niż sam status „Review zakończony".
+  def review_findings_summary(review)
+    return nil if review.findings.empty?
+
+    critical = review.findings.count { |finding| finding.priority == "critical" }
+    count = review.findings.size
+    [ "#{count} #{findings_noun(count)}", critical.positive? ? "#{critical} krytyczne" : nil ].compact.join(" · ")
+  end
+
+  # Polska liczba mnoga w trzech formach — apka stoi na locale `en`, więc
+  # pluralizacja z i18n dałaby „3 znaleziskos".
+  def findings_noun(count)
+    return "znalezisko" if count == 1
+    return "znaleziska" if (2..4).cover?(count % 10) && !(12..14).cover?(count % 100)
+
+    "znalezisk"
   end
 
   # Nagłówek sortujący listy review. Kierunek przełącza się tylko na kolumnie, po
