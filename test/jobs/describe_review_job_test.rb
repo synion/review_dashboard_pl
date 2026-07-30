@@ -2,7 +2,10 @@ require "test_helper"
 
 class DescribeReviewJobTest < ActiveSupport::TestCase
   class FakeGithub
-    def pr_info(_url, repo_dir:) = { "number" => 1234, "title" => "Fix VAT", "headRefName" => "sl-fix-vat" }
+    def initialize(body: nil) = @body = body
+
+    def pr_info(_url, repo_dir:) = { "number" => 1234, "title" => "Fix VAT",
+                                     "headRefName" => "sl-fix-vat", "body" => @body }
   end
 
   class FakeWorktrees
@@ -58,5 +61,30 @@ class DescribeReviewJobTest < ActiveSupport::TestCase
     review.update!(claude_config: "/Users/dev/.claude-b")
     DescribeReviewJob.perform_now(review, github: FakeGithub.new, worktrees: FakeWorktrees.new, session_factory: ->(_run) { FakeSession.new("OPIS") })
     assert_equal [ "/Users/dev/.claude-b" ], review.claude_runs.map(&:claude_config)
+  end
+
+  # PR wklejony ręcznie też ma dostać link do zadania — bez niego cały poboczny cykl
+  # (opis zadania, komentarz po decyzji) zostaje wyłączony.
+  test "should take the task link from the PR description when the form left it empty" do
+    projects(:webapp).update!(task_url_prefix: "https://tracker.example.com/organize/tasks/")
+    review = reviews(:pr_review)
+    github = FakeGithub.new(body: "Zadanie [#32586](https://tracker.example.com/organize/tasks/32586)")
+
+    DescribeReviewJob.perform_now(review, github: github, worktrees: FakeWorktrees.new,
+                                          session_factory: ->(_run) { FakeSession.new("OPIS") })
+
+    assert_equal "https://tracker.example.com/organize/tasks/32586", review.reload.task_url
+  end
+
+  test "should never overwrite a task link that came from the form" do
+    projects(:webapp).update!(task_url_prefix: "https://tracker.example.com/organize/tasks/")
+    review = reviews(:pr_review)
+    review.update!(task_url: "https://tracker.example.com/organize/tasks/1")
+    github = FakeGithub.new(body: "Zadanie https://tracker.example.com/organize/tasks/99")
+
+    DescribeReviewJob.perform_now(review, github: github, worktrees: FakeWorktrees.new,
+                                          session_factory: ->(_run) { FakeSession.new("OPIS") })
+
+    assert_equal "https://tracker.example.com/organize/tasks/1", review.reload.task_url
   end
 end

@@ -19,6 +19,4 @@ class ReviewsHelperTest < ActionView::TestCase
     review.updated_at = 9.days.ago
     assert_equal "9 dni", review_waiting_for(review)
   end
-
-
 end

@@ -46,9 +46,13 @@ class ReviewsController < ApplicationController
       return redirect_to project_reviews_path(@project), alert: @project.archived_notice
     end
 
+    # pr_url i task_url z parametrów: kafel kolejki „czeka na Twoje review" prowadzi tu
+    # z adresem PR-a i wyłuskanym z jego opisu linkiem do zadania, żeby nie przeklejać
+    # ręcznie tego, co GitHub już wie.
     @review = @project.reviews.new(claude_config: @project.default_claude_config,
                                    model: @project.default_model,
-                                   effort: @project.default_effort)
+                                   effort: @project.default_effort,
+                                   pr_url: params[:pr_url], task_url: params[:task_url])
   end
 
   def create
