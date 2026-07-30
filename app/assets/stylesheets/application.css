@@ -3,9 +3,12 @@
    w jednej definicji; o tym, która obowiązuje, decyduje color-scheme niżej. */
 :root {
   color-scheme: light dark;
-  --accent: light-dark(#2563eb, #60a5fa);
-  --danger: light-dark(#dc2626, #f87171);
-  --ok: light-dark(#16a34a, #4ade80);
+  /* Jasne warianty o stopień ciemniejsze niż typowe -600, bo te kolory są też
+     tekstem na tintowanych badge'ach (info/done/err-bg) — z -600 kontrast spadał
+     do 3.0–4.2, poniżej AA 4.5. */
+  --accent: light-dark(#1d4ed8, #60a5fa);
+  --danger: light-dark(#b91c1c, #f87171);
+  --ok: light-dark(#15803d, #4ade80);
   --warn: light-dark(#a16207, #fbbf24);
   --muted: light-dark(#6b7280, #9ca3af);
   --fg: light-dark(#111827, #e5e7eb);
