@@ -936,4 +936,56 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='review[pr_url]'][value=?]", "https://github.com/acme/webapp/pull/77"
     assert_select "input[name='review[task_url]'][value=?]", "https://tracker.example.com/organize/tasks/32586"
   end
+
+  # Liczniki nad tabelą mówią „ile tu jest roboty", więc liczą cały projekt — także
+  # wtedy, gdy patrzysz na listę przefiltrowaną po statusie.
+  test "should count the whole project above the list regardless of the filter" do
+    reviews(:pr_review).update!(status: "reviewed")
+    reviews(:task_only).update!(status: "reviewing")
+
+    get project_reviews_path(@project, status: "reviewed")
+
+    assert_select "table#reviews tbody tr", count: 1
+    assert_select ".pill-attention", text: /1 czeka na Ciebie/
+    assert_select ".pill-progress", text: /1 w toku/
+  end
+
+  # Pusta tabela bez słowa wygląda jak zepsuta strona, a najczęstszą przyczyną jest
+  # filtr statusu — komunikat musi więc podać drogę powrotną.
+  test "should explain an empty list and offer a way back from the filter" do
+    get project_reviews_path(@project, status: "merged")
+
+    assert_select ".empty", text: /Żadne review nie ma statusu/
+    assert_select ".empty a[href=?]", project_reviews_path(@project), text: "Pokaż wszystkie"
+  end
+
+  test "should explain an empty project without blaming a filter" do
+    @project.reviews.destroy_all
+
+    get project_reviews_path(@project)
+
+    assert_select ".empty", text: /Jeszcze żadnego review/
+    assert_select ".empty a", count: 0
+  end
+
+  # button_to renderuje blokowy <form>, więc bez wspólnego paska każdy przycisk zjeżdżał
+  # do osobnej linii — pasek akcji ma być jeden.
+  test "should keep the project actions and the status filter in one bar" do
+    get project_reviews_path(@project)
+
+    assert_select ".toolbar a[href=?]", new_project_review_path(@project)
+    assert_select ".toolbar form[action=?]", recheck_github_project_reviews_path(@project)
+    assert_select ".toolbar form.filter select[name=status]"
+  end
+
+  # Tytuły PR-ów w jednym projekcie bywają bliźniacze — wiersz musi mówić, której
+  # zmiany dotyczy.
+  test "should name the PR and branch under the title" do
+    reviews(:pr_review).update!(pr_number: 1234, branch: "sl-fix-vat", model: "opus")
+
+    get project_reviews_path(@project)
+
+    assert_select "tr#review_row_#{reviews(:pr_review).id} td.title-cell .muted",
+                  text: /PR #1234 · sl-fix-vat · opus/
+  end
 end

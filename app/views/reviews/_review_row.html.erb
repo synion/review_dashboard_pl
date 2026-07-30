@@ -1,7 +1,13 @@
 <tr id="review_row_<%= review.id %>">
-  <td><%= l review.created_at, format: :short %></td>
+  <td class="date-cell"><%= l review.created_at, format: :short %></td>
   <td class="activity-cell"><%= review_last_activity(review) %></td>
-  <td><%= link_to (review.pr_title.presence || review.task_link), review_path(review) %></td>
+  <td class="title-cell">
+    <%= link_to (review.pr_title.presence || review.task_link), review_path(review) %>
+    <%# Numer PR-a i branch pod tytułem: bez nich wiersz nie mówi, KTÓREJ zmiany dotyczy,
+        a tytuły PR-ów w jednym projekcie bywają bliźniacze. %>
+    <div class="muted"><%= [ review.pr_number ? "PR ##{review.pr_number}" : nil, review.branch.presence,
+                             review.model.presence ].compact.join(" · ") %></div>
+  </td>
   <td>
     <span class="status-badge status-<%= review.status %>"><%= review_status_label(review) %></span>
     <% if review.status == "reviewing" && running_ids.exclude?(review.id) %>
@@ -14,7 +20,8 @@
   <td><%= review.decision || "—" %></td>
   <td class="worktree-cell"><%= worktree_badge(review) %></td>
   <%# Confirm wymienia worktree z nazwy: usuwanie review kasuje też jego katalog i bazę
-      devową, a to znacznie więcej, niż sugeruje samo „usuń review". %>
-  <td><%= button_to "Usuń", review_path(review), method: :delete, class: "btn btn-danger",
+      devową, a to znacznie więcej, niż sugeruje samo „usuń review". Przycisk jest cichy:
+      to najrzadsza akcja w wierszu, a jako duża czerwona plama przykrywała tytuł PR-a. %>
+  <td class="action-cell"><%= button_to "Usuń", review_path(review), method: :delete, class: "btn-quiet-danger",
         form: { data: { turbo_confirm: review_destroy_confirm(review) } } %></td>
 </tr>
