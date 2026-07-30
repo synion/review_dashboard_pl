@@ -1,3 +1,49 @@
+<%# Kolejka PR-ów czekających na MOJE review — cudze PR-y z GitHuba, nie review
+    założone w dashboardzie. Stoi nad projektami, bo to jedyna sekcja, w której ktoś
+    inny czeka na moją robotę. %>
+<h1>Czeka na Twoje review</h1>
+<% if @inbox_items.any? %>
+  <table id="attention">
+    <tbody>
+      <% @inbox_items.each do |item| %>
+        <% review = @inbox_reviews[[ item.project_id, item.pr_number ]] %>
+        <tr id="inbox_pr_<%= item.pr_number %>">
+          <td><%= item.label %></td>
+          <td><%= link_to item.title.presence || "PR ##{item.pr_number}", item.url %></td>
+          <td><%= item.project.name %></td>
+          <td><%= item.author %></td>
+          <td class="qwait">czeka <%= inbox_waiting_for(item) %></td>
+          <td>
+            <% if review %>
+              <%= link_to "Otwórz review", review_path(review) %>
+            <% else %>
+              <%= link_to "Zleć review",
+                          new_project_review_path(item.project, pr_url: item.url, task_url: item.task_url) %>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% else %>
+  <p class="empty">
+    <% if @projects.none? { |project| project.repo_url.present? } %>
+      Żaden projekt nie ma adresu repo na GitHubie — bez niego nie ma czego pytać.
+    <% elsif @inbox_checked_at.nil? %>
+      GitHub jeszcze nie odpytany. Odświeżenie chodzi w tle — wróć tu za chwilę.
+    <% else %>
+      Nikt nie czeka na Twoje review.
+    <% end %>
+  </p>
+<% end %>
+<p>
+  <span class="muted">
+    <%= @inbox_checked_at ? "sprawdzone #{review_waiting_for(Review.new(updated_at: @inbox_checked_at))} temu" : "brak odczytu z GitHuba" %>
+    · odświeża się samo co <%= GithubInbox::STALE_AFTER.in_minutes.to_i %> min
+  </span>
+  <%= button_to "🔄 Sprawdź teraz", refresh_inbox_projects_path, class: "btn" %>
+</p>
+
 <h1>Projekty</h1>
 
 <table id="projects">
