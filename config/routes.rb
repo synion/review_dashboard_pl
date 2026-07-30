@@ -5,6 +5,11 @@ Rails.application.routes.draw do
   # projektu na stałe, więc :project_id w adresie pokazu byłby redundantny — a jego
   # brak zostawia wszystkie akcje pojedynczego review nietknięte.
   resources :projects, except: :destroy do
+    # Kolejka „czeka na Twoje review" jest wspólna dla wszystkich projektów, więc
+    # jej odświeżenie nie należy do żadnego pojedynczego.
+    collection do
+      post :refresh_inbox
+    end
     member do
       post :archive
       post :unarchive

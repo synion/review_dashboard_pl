@@ -4,11 +4,14 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
   class FakeGithub
     attr_reader :calls
 
-    def initialize(response = nil, error: nil)
+    def initialize(response = nil, error: nil, login: "synion")
       @response = response
       @error = error
+      @login = login
       @calls = []
     end
+
+    def viewer_login(repo_dir:) = @login
 
     def pr_review_state(pr_url, repo_dir:)
       @calls << { pr_url: pr_url, repo_dir: repo_dir }
@@ -89,13 +92,12 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_not_nil @review.github_checked_at
   end
 
-  test "login reviewera bierze się z ENV" do
-    github = FakeGithub.new({ "reviewRequests" => [ { "login" => "inny_login" } ], "state" => "OPEN" })
-    original = ENV["GITHUB_REVIEWER_LOGIN"]
-    ENV["GITHUB_REVIEWER_LOGIN"] = "inny_login"
+  # Login bierze się z GitHuba (gh api user), a nie z configu — ręcznie wpisany
+  # potrafił się rozjechać z kontem, do którego rozwiązuje się `@me`.
+  test "login reviewera bierze się z zalogowanego konta gh" do
+    github = FakeGithub.new({ "reviewRequests" => [ { "login" => "inny_login" } ], "state" => "OPEN" },
+                            login: "inny_login")
     CheckReviewRequestJob.perform_now(@review, github: github)
     assert_equal "waiting_review", @review.reload.status
-  ensure
-    ENV["GITHUB_REVIEWER_LOGIN"] = original
   end
 end

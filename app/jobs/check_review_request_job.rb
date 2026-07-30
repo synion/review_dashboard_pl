@@ -17,7 +17,7 @@ class CheckReviewRequestJob < ApplicationJob
 
     if (final_status = FINAL_STATES[info["state"]])
       review.update!(status: final_status, github_checked_at: Time.current)
-    elsif review.status == "decided" && rerequested?(info)
+    elsif review.status == "decided" && rerequested?(info, github, review)
       review.update!(status: "waiting_review", github_checked_at: Time.current)
     else
       # Sam stempel przez update_columns — rutynowe „nic się nie zmieniło" nie ma
@@ -36,11 +36,10 @@ class CheckReviewRequestJob < ApplicationJob
     {}
   end
 
-  def rerequested?(info)
-    info["state"] == "OPEN" && Array(info["reviewRequests"]).any? { |r| r["login"] == reviewer_login }
-  end
+  def rerequested?(info, github, review)
+    return false unless info["state"] == "OPEN"
 
-  def reviewer_login
-    ENV.fetch("GITHUB_REVIEWER_LOGIN", "synion")
+    login = github.viewer_login(repo_dir: review.workdir)
+    Array(info["reviewRequests"]).any? { |request| request["login"] == login }
   end
 end

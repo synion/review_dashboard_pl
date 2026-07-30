@@ -14,6 +14,12 @@
       <span class="hint">Po co: PR wklejony z innego repo zostanie odrzucony, zanim powstanie worktree.</span>
     </div>
     <div class="field">
+      <%= f.label :task_url_prefix, "Prefiks adresu zadania w trackerze" %>
+      <%= f.text_field :task_url_prefix, placeholder: "https://tracker.example.com/organize/tasks/" %>
+      <span class="hint">Po co: link do zadania jest wyłuskiwany z opisu PR-a i wpisywany
+        do formularza review. Puste = przepisujesz go ręcznie.</span>
+    </div>
+    <div class="field">
       <%= f.label :default_claude_config, "Domyślny config Claude" %>
       <%= f.select :default_claude_config, Review::CLAUDE_CONFIGS %>
     </div>

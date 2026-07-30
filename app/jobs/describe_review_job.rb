@@ -7,7 +7,13 @@ class DescribeReviewJob < ApplicationJob
 
     if review.pr_url.present?
       info = github.pr_info(review.pr_url, repo_dir: review.project.repo_path)
-      review.update!(pr_number: info["number"], pr_title: info["title"], branch: info["headRefName"])
+      # task_url z opisu PR-a, gdy nie przyszedł z formularza: konwencja zespołu mówi,
+      # że zadanie jest w opisie podlinkowane, a bez tego linku cały poboczny cykl
+      # (opis zadania, komentarz po decyzji) zostaje wyłączony.
+      task_url = review.task_url.presence ||
+                 TaskLink.find(info["body"], prefix: review.project.task_url_prefix)
+      review.update!(pr_number: info["number"], pr_title: info["title"],
+                     branch: info["headRefName"], task_url: task_url)
     end
 
     if review.branch.present?

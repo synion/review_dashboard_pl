@@ -8,6 +8,26 @@ module ReviewsHelper
 
   def review_status_label(review) = STATUS_LABELS.fetch(review.status, review.status)
 
+  # „czeka 3 dni" zamiast daty: przy wejściu liczy się, czy coś stoi od rana, czy od
+  # tygodnia. Formy polskie odmieniamy ręcznie — apka stoi na locale `en`.
+  def review_waiting_for(review)
+    seconds = (Time.current - review.updated_at).round
+    days, hours, minutes = seconds / 86_400, seconds / 3600, seconds / 60
+    return "#{days} #{days == 1 ? "dzień" : "dni"}" if days >= 1
+    return "#{hours} godz." if hours >= 1
+    return "#{minutes} min" if minutes >= 1
+
+    "chwilę"
+  end
+
+  # Ten sam format co przy review, ale liczony od sygnału z GitHuba (prośby o review
+  # albo cudzego komentarza), a nie od ruchu w dashboardzie.
+  def inbox_waiting_for(item)
+    return "chwilę" if item.signal_at.blank?
+
+    review_waiting_for(Review.new(updated_at: item.signal_at))
+  end
+
   # Nagłówek sortujący listy review. Kierunek przełącza się tylko na kolumnie, po
   # której już sortujemy — inaczej kliknięcie w „Aktywność" po wcześniejszym
   # przestawieniu „Daty" na rosnąco dziedziczyłoby ten kierunek i lista otwierałaby

@@ -5,6 +5,14 @@ class ProjectsController < ApplicationController
     @projects = Project.active.order(:name)
     @archived_projects = Project.archived.order(:name)
     @counts = review_counts
+    load_inbox
+  end
+
+  # Kolejka odświeża się sama co GithubInbox::STALE_AFTER; ten przycisk pomija okno,
+  # gdy wiem, że ktoś właśnie poprosił mnie o review i nie chcę czekać.
+  def refresh_inbox
+    Project.active.with_repo.each { |project| RefreshInboxJob.perform_later(project) }
+    redirect_to projects_path, notice: "Pytam GitHuba o PR-y czekające na Twoje review…"
   end
 
   # docs_path ma "doc/llm" jako default w schemacie — jawne podanie tu byłoby
@@ -57,7 +65,21 @@ class ProjectsController < ApplicationController
   def project_params
     params.require(:project).permit(:name, :repo_path, :repo_url, :default_claude_config, :default_model,
                                     :default_effort, :docs_path, :review_prompt_extra, :task_comment_instructions,
-                                    :worktree_command, :worktree_delete_command)
+                                    :worktree_command, :worktree_delete_command, :task_url_prefix)
+  end
+
+  # Kolejka „czeka na Ciebie" to PR-y CZYJEGOŚ autorstwa, na których wisi moje review.
+  # Renderujemy ostatni znany stan i dopiero zlecamy odświeżenie — inaczej pierwsze
+  # wejście na stronę czekałoby kilka sekund na `gh`.
+  def load_inbox
+    @inbox_items = InboxItem.where(project: @projects).includes(:project).by_urgency.to_a
+    # Review dla tych PR-ów, żeby kafel wiedział, czy prowadzi do istniejącego review,
+    # czy proponuje założenie nowego. Jedno zapytanie, nie jedno na kafel.
+    @inbox_reviews = Review.where(project: @projects, pr_number: @inbox_items.map(&:pr_number))
+                          .index_by { |review| [ review.project_id, review.pr_number ] }
+    @inbox_checked_at = @projects.filter_map(&:inbox_checked_at).min
+    @projects.select { |project| project.repo_url.present? && project.inbox_stale? }
+             .each { |project| RefreshInboxJob.perform_later(project) }
   end
 
   # Jedno zapytanie na całą listę zamiast trzech na projekt. GROUP BY oddaje

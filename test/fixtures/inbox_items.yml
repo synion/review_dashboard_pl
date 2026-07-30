@@ -1,0 +1,18 @@
+requested:
+  project: webapp
+  pr_number: 9001
+  title: "[PL][KSeF] Wybór wariantu stawki 0%"
+  url: https://github.com/acme/webapp/pull/9001
+  author: kolega
+  reason: requested
+  signal_at: <%= 2.hours.ago.to_fs(:db) %>
+
+commented:
+  project: webapp
+  pr_number: 9002
+  title: "Poprawka kursu na korekcie"
+  url: https://github.com/acme/webapp/pull/9002
+  author: kolezanka
+  actor: kolezanka
+  reason: commented
+  signal_at: <%= 30.minutes.ago.to_fs(:db) %>

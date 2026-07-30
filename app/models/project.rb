@@ -7,9 +7,12 @@ class Project < ApplicationRecord
   GITHUB_REPO_URL = %r{\Ahttps?://(?:www\.)?github\.com/(?<owner>[\w.-]+)/(?<repo>[\w.-]+?)(?:\.git)?/?\z}
 
   has_many :reviews, dependent: :destroy
+  has_many :inbox_items, dependent: :destroy
 
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
+  # Bez adresu repo nie ma czego pytać GitHuba o kolejkę „czeka na Twoje review".
+  scope :with_repo, -> { where.not(repo_url: [ nil, "" ]) }
 
   validates :name, :repo_path, :worktree_command, presence: true
   # Nazwa identyfikuje projekt na liście i w nagłówkach — duplikatów nie dałoby
@@ -48,6 +51,12 @@ class Project < ApplicationRecord
   # dwóch literalnie identycznych stringów.
   def archived_notice
     "Projekt #{name} jest zarchiwizowany — przywróć go, żeby dodać review"
+  end
+
+  # Kolejka z GitHuba jest odświeżana w tle, więc strona wejściowa pokazuje ostatni
+  # znany stan i zleca odświeżenie tylko, gdy zdążył się zestarzeć.
+  def inbox_stale?
+    inbox_checked_at.nil? || inbox_checked_at < GithubInbox::STALE_AFTER.ago
   end
 
   def github_slug

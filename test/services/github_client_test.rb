@@ -21,7 +21,7 @@ class GithubClientTest < ActiveSupport::TestCase
     fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: { number: 1234, title: "Fix VAT", headRefName: "sl-fix-vat" }.to_json, stderr: "", timed_out: false) ])
     info = GithubClient.new(runner: fake).pr_info(PR_URL, repo_dir: "/repo")
     assert_equal({ "number" => 1234, "title" => "Fix VAT", "headRefName" => "sl-fix-vat" }, info)
-    assert_equal [ { cmd: [ "gh", "pr", "view", PR_URL, "--json", "number,title,headRefName" ], chdir: "/repo", stdin_data: nil } ], fake.calls
+    assert_equal [ { cmd: [ "gh", "pr", "view", PR_URL, "--json", "number,title,headRefName,body" ], chdir: "/repo", stdin_data: nil } ], fake.calls
   end
 
   test "pr_info rzuca Error z treścią stderr" do
@@ -75,6 +75,47 @@ class GithubClientTest < ActiveSupport::TestCase
     fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "", stderr: "", timed_out: false) ])
     GithubClient.new(runner: fake).submit_review(PR_URL, verdict: "comment", body: "x", repo_dir: "/repo", comments: [])
     assert_equal "gh pr review", fake.calls.sole[:cmd].first(3).join(" ")
+  end
+
+  test "should ask GitHub who I am and cache the answer" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "wilkszymon\n", stderr: "", timed_out: false) ])
+    client = GithubClient.new(runner: fake)
+
+    assert_equal "wilkszymon", client.viewer_login(repo_dir: "/repo")
+    assert_equal "wilkszymon", client.viewer_login(repo_dir: "/repo"), "drugie pytanie idzie z pamięci"
+    assert_equal [ [ "gh", "api", "user", "--jq", ".login" ] ], fake.calls.map { |call| call[:cmd] }
+  end
+
+  # Obejście na wypadek niedostępnego `gh api user` — a zarazem jedyny sposób
+  # przetestowania tej ścieżki bez sieci.
+  test "should prefer the configured login over asking GitHub" do
+    fake = FakeRunner.new([])
+    original = ENV["GITHUB_REVIEWER_LOGIN"]
+    ENV["GITHUB_REVIEWER_LOGIN"] = "z-configu"
+
+    assert_equal "z-configu", GithubClient.new(runner: fake).viewer_login(repo_dir: "/repo")
+    assert_empty fake.calls
+  ensure
+    ENV["GITHUB_REVIEWER_LOGIN"] = original
+  end
+
+  test "should search PRs by my role in a single repo" do
+    payload = [ { "number" => 7, "title" => "t", "url" => "u", "author" => { "login" => "kolega" },
+                  "updatedAt" => "2026-07-30T08:00:00Z" } ]
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: payload.to_json, stderr: "", timed_out: false) ])
+
+    result = GithubClient.new(runner: fake).search_prs(repo: "acme/webapp", role: "review-requested", repo_dir: "/repo")
+
+    assert_equal payload, result
+    assert_equal [ "gh", "search", "prs", "--repo", "acme/webapp", "--state", "open",
+                   "--review-requested", "@me", "--limit", "40",
+                   "--json", "number,title,url,author,updatedAt" ], fake.calls.sole[:cmd]
+  end
+
+  test "should ask for the whole human activity on a PR" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "{}", stderr: "", timed_out: false) ])
+    GithubClient.new(runner: fake).pr_activity(PR_URL, repo_dir: "/repo")
+    assert_equal [ "gh", "pr", "view", PR_URL, "--json", "state,author,reviews,comments,body" ], fake.calls.sole[:cmd]
   end
 
   test "link do PR-a nie do rozpoznania — błąd zamiast requestu w próżnię" do

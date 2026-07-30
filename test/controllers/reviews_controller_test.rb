@@ -934,4 +934,15 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     manager.define_singleton_method(:remove) { |branch| handler.call(branch) }
     WorktreeManager.stub(:new, manager, &block)
   end
+
+  # Kafel kolejki „czeka na Twoje review" prowadzi tu z adresem PR-a i linkiem do
+  # zadania wyłuskanym z jego opisu — formularz ma je pokazać wpisane.
+  test "should prefill the new-review form from the queue tile" do
+    get new_project_review_path(@project, pr_url: "https://github.com/acme/webapp/pull/77",
+                                          task_url: "https://tracker.example.com/organize/tasks/32586")
+
+    assert_response :success
+    assert_select "input[name='review[pr_url]'][value=?]", "https://github.com/acme/webapp/pull/77"
+    assert_select "input[name='review[task_url]'][value=?]", "https://tracker.example.com/organize/tasks/32586"
+  end
 end
