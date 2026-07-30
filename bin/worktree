@@ -1,0 +1,235 @@
+#!/bin/bash
+# Zarządzanie git worktrees dla review-dashboard (Rails 8 + SQLite).
+# Wzorowane na zaprosik/bin/worktree (tam PostgreSQL + puma-dev).
+#
+# ZASADA: główne repo ZAWSZE zostaje na master. Każda nowa zmiana = osobny worktree.
+#
+# Użycie:
+#   bin/worktree <branch>            - tworzy worktree (port + bundle + migracje)
+#   bin/worktree <branch> <start>    - j.w., ale od podanego commitu/brancha
+#   bin/worktree -s <branch>         - startuje `bin/dev` na worktree
+#   bin/worktree -l                  - lista worktrees z portami
+#   bin/worktree -d <branch>         - usuwa worktree (katalog z bazami SQLite)
+#   bin/worktree -d                  - usuwa aktualny worktree (jeśli w nim jesteś)
+#   bin/worktree -f                  - pomiń potwierdzenie przy usuwaniu
+#   bin/worktree -h                  - pomoc
+#
+# Izolacja bazy: SQLite trzyma bazy w storage/ wewnątrz worktree (gitignored),
+#   więc każdy worktree ma własne bazy automatycznie — bez konfiguracji.
+# Sekrety: config/master.key i config/claude_configs.yml są gitignorowane,
+#   skrypt kopiuje je z głównego repo.
+# Główna apka chodzi na :3020 (bin/dev), worktrees dostają porty od 3030 co 10.
+
+set -u
+
+MAIN_REPO="$(git -C "$(dirname "$0")/.." worktree list --porcelain | head -1 | sed 's/^worktree //')"
+PARENT_DIR="$(dirname "$MAIN_REPO")"
+APP_NAME="$(basename "$MAIN_REPO")"
+PORT_BASE=3030
+PORT_STEP=10
+
+RAILS="bin/rails"
+
+usage() {
+    cat <<EOF
+Użycie: bin/worktree [opcje] [branch] [start-point]
+
+Opcje:
+  -d, --delete    Usuń worktree (aktualny jeśli nie podano brancha)
+  -f, --force     Pomiń potwierdzenie przy usuwaniu
+  -l, --list      Lista wszystkich worktrees
+  -s, --server    Uruchom bin/dev na worktree
+  -h, --help      Ta pomoc
+
+Przykłady:
+  bin/worktree sl-review-queue          # Nowy worktree od origin/master
+  bin/worktree feat-x some-branch       # Nowy worktree od podanego brancha
+  bin/worktree -s sl-review-queue       # Startuje server
+  bin/worktree -d sl-review-queue       # Usuwa worktree
+  bin/worktree -l                       # Lista
+EOF
+    exit 1
+}
+
+sanitize_branch() { echo "${1//\//-}"; }
+
+worktree_path_for_branch() { echo "$PARENT_DIR/${APP_NAME}-$(sanitize_branch "$1")"; }
+
+next_free_port() {
+    local port=$PORT_BASE
+    local max_port=$(( PORT_BASE + PORT_STEP * 100 ))
+    while [ "$port" -lt "$max_port" ]; do
+        local taken=false
+        for wt_dir in "$PARENT_DIR/${APP_NAME}-"*/; do
+            [ -d "$wt_dir" ] || continue
+            if [ -f "$wt_dir/.worktree-port" ] && [ "$(cat "$wt_dir/.worktree-port")" = "$port" ]; then
+                taken=true; break
+            fi
+        done
+        # port zajęty przez inny proces?
+        if [ "$taken" = false ] && ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+            echo "$port"; return
+        fi
+        port=$((port + PORT_STEP))
+    done
+    echo "Błąd: brak wolnego portu ($PORT_BASE-$max_port)" >&2; exit 1
+}
+
+detect_current_worktree_branch() {
+    local dir; dir="$(pwd)"
+    [[ "$dir" == "$MAIN_REPO"* ]] && return 1
+    local parent="$dir"
+    while [[ "$parent" != "/" ]]; do
+        local base; base="$(basename "$parent")"
+        if [[ "$base" =~ ^${APP_NAME}-(.+)$ ]]; then
+            echo "${BASH_REMATCH[1]}"; return 0
+        fi
+        parent="$(dirname "$parent")"
+    done
+    return 1
+}
+
+list_worktrees() {
+    echo "Worktrees:"; echo ""
+    printf "  %-42s %-8s %s\n" "KATALOG" "PORT" "BRANCH"
+    printf "  %-42s %-8s %s\n" "-------" "----" "------"
+    printf "  %-42s %-8s %s\n" "$(basename "$MAIN_REPO")/" "3020" "master (główne)"
+    for wt_dir in "$PARENT_DIR/${APP_NAME}-"*/; do
+        [ -d "$wt_dir" ] || continue
+        local dir_name branch port="?"
+        dir_name="$(basename "$wt_dir")"
+        branch="${dir_name#${APP_NAME}-}"
+        [ -f "$wt_dir/.worktree-port" ] && port="$(cat "$wt_dir/.worktree-port")"
+        printf "  %-42s %-8s %s\n" "$dir_name/" "$port" "$branch"
+    done
+    echo ""; exit 0
+}
+
+start_server() {
+    local branch="$1"
+    local wt; wt="$(worktree_path_for_branch "$branch")"
+    [ -d "$wt" ] || { echo "Błąd: worktree $wt nie istnieje"; exit 1; }
+    local port=$PORT_BASE
+    [ -f "$wt/.worktree-port" ] && port="$(cat "$wt/.worktree-port")"
+    echo "==> bin/dev (branch: $branch)"
+    echo "    http://127.0.0.1:$port"
+    echo ""
+    cd "$wt" || exit 1
+    exec bin/dev -p "$port" -b 127.0.0.1
+}
+
+create_worktree() {
+    local branch="$1" start_point="$2"
+    local wt
+    wt="$(worktree_path_for_branch "$branch")"
+
+    [ -d "$wt" ] && { echo "Worktree już istnieje: $wt"; exit 0; }
+
+    echo "==> Tworzę worktree '$branch'..."
+    if git -C "$MAIN_REPO" show-ref --verify --quiet "refs/heads/$branch"; then
+        git -C "$MAIN_REPO" worktree add "$wt" "$branch" || exit 1
+    elif git -C "$MAIN_REPO" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+        git -C "$MAIN_REPO" worktree add "$wt" -b "$branch" "origin/$branch" || exit 1
+    else
+        local base="${start_point:-origin/master}"
+        echo "    Nowy branch '$branch' od '$base'"
+        git -C "$MAIN_REPO" worktree add "$wt" -b "$branch" "$base" || exit 1
+    fi
+
+    # Port
+    local port; port="$(next_free_port)"
+    echo "$port" > "$wt/.worktree-port"
+    echo "==> Port: $port"
+
+    # Gitignorowane sekrety potrzebne do bootu
+    echo "==> Kopiuję master.key i claude_configs.yml..."
+    [ -f "$MAIN_REPO/config/master.key" ] && cp "$MAIN_REPO/config/master.key" "$wt/config/master.key"
+    # claude_configs.yml tylko gdy branch go NIE śledzi — nadpisanie śledzonego pliku
+    # lokalnym configiem grozi zacommitowaniem prywatnych ścieżek (repo publiczne).
+    if [ -f "$MAIN_REPO/config/claude_configs.yml" ] && \
+       ! git -C "$wt" ls-files --error-unmatch config/claude_configs.yml >/dev/null 2>&1; then
+        cp "$MAIN_REPO/config/claude_configs.yml" "$wt/config/claude_configs.yml"
+    fi
+
+    cd "$wt" || exit 1
+
+    echo "==> bundle install..."
+    bundle install --quiet 2>&1 | tail -3
+
+    echo "==> Bazy SQLite (storage/) + migracje..."
+    $RAILS db:prepare 2>&1 | tail -5
+
+    cd "$MAIN_REPO" || exit 1
+    cat <<EOF
+
+Gotowe! Worktree utworzony.
+
+  Katalog:  $wt
+  Branch:   $branch
+  Port:     $port
+  Bazy:     $wt/storage/*.sqlite3
+
+Start serwera:
+  bin/worktree -s $branch
+  # lub: cd $wt && bin/dev -p $port
+EOF
+}
+
+delete_worktree() {
+    local branch="$1"
+    local wt
+    wt="$(worktree_path_for_branch "$branch")"
+    [ -d "$wt" ] || { echo "Błąd: worktree $wt nie istnieje"; exit 1; }
+
+    # Ostrzeżenie o niezacommitowanych zmianach (pomija pliki lokalne worktree)
+    local changes
+    changes=$(git -C "$wt" status --porcelain -- . ':(exclude).worktree-port' 2>/dev/null)
+    if [ -n "$changes" ] && [ "${FORCE:-false}" != true ]; then
+        echo "UWAGA: worktree ma niezacommitowane zmiany:"; echo "$changes" | head -20
+        echo "Zostaną UTRACONE. Kontynuować? [t/N]"
+        read -r r; case "$r" in [tTyY]*) ;; *) echo "Anulowano."; exit 0;; esac
+    fi
+
+    # Zatrzymaj server na porcie worktree
+    if [ -f "$wt/.worktree-port" ]; then
+        local port; port="$(cat "$wt/.worktree-port")"
+        lsof -ti tcp:"$port" 2>/dev/null | xargs kill 2>/dev/null && echo "==> Zatrzymano server (:$port)"
+    fi
+
+    [[ "$(pwd)" == "$wt"* ]] && cd "$MAIN_REPO"
+    echo "==> Usuwam worktree (bazy SQLite idą razem z katalogiem)..."
+    if ! git -C "$MAIN_REPO" worktree remove "$wt" --force 2>/dev/null; then
+        rm -rf "$wt"; git -C "$MAIN_REPO" worktree prune
+    fi
+    echo ""; echo "Gotowe! Worktree '$branch' usunięty. Jesteś w: $(pwd)"
+}
+
+# --- Argumenty ---
+DELETE=false; FORCE=false; LIST=false; SERVER=false; BRANCH=""; START_POINT=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -d|--delete) DELETE=true; shift;;
+        -f|--force)  FORCE=true; shift;;
+        -l|--list)   LIST=true; shift;;
+        -s|--server) SERVER=true; shift;;
+        -h|--help)   usage;;
+        -*)          echo "Nieznana opcja: $1"; usage;;
+        *)           if [ -z "$BRANCH" ]; then BRANCH="$1"; else START_POINT="$1"; fi; shift;;
+    esac
+done
+
+[ "$LIST" = true ] && list_worktrees
+
+if [ "$SERVER" = true ]; then
+    [ -z "$BRANCH" ] && { BRANCH="$(detect_current_worktree_branch)" || { echo "Błąd: nie jesteś w worktree. Podaj branch."; usage; }; }
+    start_server "$BRANCH"
+fi
+
+if [ "$DELETE" = true ] && [ -z "$BRANCH" ]; then
+    BRANCH="$(detect_current_worktree_branch)" || { echo "Błąd: nie jesteś w worktree. Podaj branch."; usage; }
+    echo "==> Wykryto worktree: $BRANCH"
+fi
+
+[ -z "$BRANCH" ] && { echo "Błąd: podaj nazwę brancha."; usage; }
+
+if [ "$DELETE" = true ]; then delete_worktree "$BRANCH"; else create_worktree "$BRANCH" "$START_POINT"; fi
