@@ -16,7 +16,12 @@
 
 <% case review.task_description_status %>
 <% when "queued", "running" %>
-  <div class="card"><p>📋 Pobieram opis zadania…</p></div>
+  <%# Live: karta ma mówić, co Claude właśnie robi i od jak dawna — bez tego jedynym
+      sposobem sprawdzenia, czy skończył, było odświeżanie strony z palca. %>
+  <div class="card">
+    <h2>📋 Czytam zadanie…</h2>
+    <div id="review_<%= review.id %>_side_progress"><%= render "reviews/task_progress", review: review %></div>
+  </div>
 <% when "failed" %>
   <div class="card error-box">
     <p>Nie udało się pobrać opisu zadania<%= ": #{review.task_description_error}" if review.task_description_error.present? %></p>

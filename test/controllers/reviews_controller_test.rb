@@ -301,7 +301,10 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
 
     review.update!(task_description_status: "running")
     get review_path(review)
-    assert_match "Pobieram opis zadania", response.body
+    assert_match "Czytam zadanie", response.body
+    # Live: karta ma własny target broadcastu, inaczej postęp cyklu pobocznego nie ma
+    # gdzie wejść i o końcu pracy dowiadujesz się dopiero z odświeżenia strony.
+    assert_select "##{"review_#{review.id}_side_progress"} .progress-line"
 
     review.update!(task_description_status: "failed")
     review.claude_runs.create!(kind: "describe_task", claude_config: review.effective_claude_config,

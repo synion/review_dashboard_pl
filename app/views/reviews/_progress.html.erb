@@ -1,4 +1,4 @@
-<% run = review.running_claude_run %>
+<% run = review.running_review_run %>
 <% if run %>
   <p class="progress-line"><%= run.last_message.presence || "Startuję…" %></p>
   <% if run.started_at %><p class="progress-line">Działa od: <%= l run.started_at, format: :short %></p><% end %>

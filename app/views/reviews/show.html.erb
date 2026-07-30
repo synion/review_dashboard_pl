@@ -1,9 +1,19 @@
 <%= turbo_stream_from @review %>
-<p><%= link_to "← wróć do listy", project_reviews_path(@review.project) %></p>
-<h1><%= @review.pr_title.presence || "Review ##{@review.id}" %></h1>
-<p>
-  <% if @review.pr_url.present? %><%= link_to @review.pr_url, @review.pr_url, target: "_blank" %><% end %>
-  <% if @review.task_url.present? %><%= link_to @review.task_url, @review.task_url, target: "_blank" %><% end %>
+<div class="nav-back"><%= link_to "← wróć do listy", project_reviews_path(@review.project) %></div>
+<div class="pagehead">
+  <h1><%= @review.pr_title.presence || "Review ##{@review.id}" %></h1>
+  <p class="summary">
+    <span class="status-badge status-<%= @review.status %>"><%= review_status_label(@review) %></span>
+    <%# Meta w jednej linii pod tytułem: bez tego trzeba było wracać na listę, żeby
+        sprawdzić, którego PR-a i brancha dotyczy otwarte review. %>
+    <span class="pill"><%= [ @review.pr_number ? "PR ##{@review.pr_number}" : nil, @review.branch.presence,
+                             @review.model.presence, @review.effort.presence ].compact.join(" · ") %></span>
+  </p>
+</div>
+<p class="review-links">
+  <% if @review.pr_url.present? %><%= link_to "PR na GitHubie ↗", @review.pr_url, target: "_blank" %><% end %>
+  <% if @review.task_url.present? %><%= link_to "zadanie ↗", @review.task_url, target: "_blank" %><% end %>
+  <%= link_to "wszystkie review projektu", project_reviews_path(@review.project) %>
 </p>
 <div id="review_<%= @review.id %>_panel">
   <%= render "reviews/panel", review: @review %>

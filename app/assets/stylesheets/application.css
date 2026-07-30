@@ -190,8 +190,22 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
                    border-left: 4px solid var(--muted); background: var(--surface); padding: 10px 16px; margin-bottom: 16px; }
 .queued-hint { margin-left: 8px; font-size: 12px; color: var(--warn); white-space: nowrap; }
 .done-hint { margin-left: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* Strona jednego review: tytuł, stan i meta w jednym bloku, linki wychodzące osobno
+   i ściszone — to nawigacja, nie treść. */
+.pagehead .status-badge { font-size: 13px; }
+.review-links { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 16px; font-size: 13px; }
+.review-links a { color: var(--muted); }
+.review-links a:hover { color: var(--accent); }
+/* Postęp sesji: monospace, bo to surowe linie z modelu, i bez rozpychania karty przy
+   długim komunikacie. */
+.progress-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; }
+.progress-line.muted { font-family: inherit; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
 .card h2, details.card > summary { margin-top: 0; font-size: 17px; }
+.card h2 { margin-bottom: 8px; }
+/* Formularze i przyciski w kartach nie mogą się kleić do treści ani do siebie. */
+.card form.button_to { display: inline-block; margin-right: 8px; }
+.error-box { border-left: 4px solid var(--danger); background: var(--err-bg); }
 .finding { border-left: 4px solid var(--muted); padding: 8px 12px; margin: 8px 0; background: var(--line-soft); }
 .finding-critical { border-color: var(--danger); }
 .finding-important { border-color: var(--warn); }
@@ -231,3 +245,17 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .ctx-ok { background: var(--ok); }
 .ctx-warn { background: var(--warn); }
 .ctx-danger { background: var(--danger); }
+
+/* ===================== wąskie ekrany ===================== */
+/* Tabela review ma 7 kolumn — na telefonie chowamy to, co da się odczytać z karty
+   review (data utworzenia, worktree), zamiast pozwolić jej rozpychać stronę. */
+@media (max-width: 720px) {
+  .container { padding: 0 12px; }
+  .pagehead { gap: 6px 10px; }
+  .toolbar .filter { margin-left: 0; width: 100%; }
+  .toolbar .filter select { width: 100%; }
+  table#reviews td.date-cell, table#reviews th:first-child,
+  table#reviews td.worktree-cell, table#reviews th:nth-child(6) { display: none; }
+  .projgrid { grid-template-columns: 1fr; }
+  .qtop { row-gap: 4px; }
+}

@@ -318,6 +318,19 @@ class Review < ApplicationRecord
     claude_runs.where(status: "running").order(:id).last
   end
 
+  # Postępy dwóch cykli, każdy do swojej karty w panelu. running_claude_run zostaje
+  # szerokie (abort i guard przy przełączaniu konta mają widzieć KAŻDĄ pracującą sesję),
+  # a te dwie metody odpowiadają na węższe pytanie „co pokazać w tej karcie".
+  def running_review_run
+    claude_runs.where(status: "running", kind: ClaudeRun::LIFECYCLE_KINDS + [ "compact" ]).order(:id).last
+  end
+
+  # Cykl poboczny (opis zadania, komentarz do zadania, weryfikacja poprawek) — bez filtra
+  # statusu, bo karta ma odróżnić „czeka w kolejce" od „pracuje".
+  def side_claude_run
+    claude_runs.where.not(kind: ClaudeRun::LIFECYCLE_KINDS + [ "compact" ]).order(:id).last
+  end
+
   # Wszystkie sesje, do których da się wrócić — najnowsza pierwsza. Świadomie nie
   # jedna: po nieudanym ponowieniu ostatnia sesja bywa tą, która padła po kilku
   # sekundach, a cała praca została w poprzedniej.

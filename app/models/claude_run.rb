@@ -33,9 +33,13 @@ class ClaudeRun < ApplicationRecord
 
   attribute :status, :string, default: "pending"
 
+  # Postęp leci do targetu WŁAŚCIWEGO cyklu: opis zadania (i inne kroki poboczne) chodzi
+  # równolegle z review, więc wspólny target znaczyłby, że obie sesje nadpisują sobie
+  # treść w losowej kolejności — i „Pobieram opis zadania" znikało pod logiem review.
   after_update_commit -> {
-    broadcast_replace_to review, target: "review_#{review_id}_progress",
-                         partial: "reviews/progress", locals: { review: review.reload }
+    broadcast_replace_to review, target: "review_#{review_id}_#{progress_scope}_progress",
+                         partial: "reviews/#{progress_scope == "side" ? "task_progress" : "progress"}",
+                         locals: { review: review.reload }
   }, if: -> { saved_change_to_last_message? || saved_change_to_status? || saved_change_to_started_at? }
 
   # Licznik kontekstu ma rosnąć w trakcie sesji, a nie dopiero po odświeżeniu —
@@ -44,6 +48,10 @@ class ClaudeRun < ApplicationRecord
     broadcast_replace_to review, target: "review_#{review_id}_context",
                          partial: "reviews/context", locals: { review: review.reload }
   }, if: -> { saved_change_to_context_tokens? || saved_change_to_context_window? || saved_change_to_status? }
+
+  # „lifecycle" = describe/review/followup (+compact, który pożycza panel review),
+  # „side" = kroki poboczne z własnym cyklem życia i własną kartą w panelu.
+  def progress_scope = LIFECYCLE_KINDS.include?(kind) || kind == "compact" ? "review" : "side"
 
   def log_path
     review.artifacts_dir.join("#{kind}.log")

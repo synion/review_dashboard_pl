@@ -61,4 +61,27 @@ class ClaudeRunTest < ActiveSupport::TestCase
       assert_not run.session_available_in?("#{dir}/pryw")
     end
   end
+
+  # Opis zadania chodzi RÓWNOLEGLE z review, więc wspólny target broadcastu znaczyłby,
+  # że obie sesje nadpisują sobie treść w losowej kolejności.
+  test "should keep the progress of side cycles on its own channel" do
+    review = reviews(:pr_review)
+
+    %w[describe review followup compact].each do |kind|
+      assert_equal "review", review.claude_runs.new(kind: kind).progress_scope, kind
+    end
+    %w[describe_task comment_task verify_fixes].each do |kind|
+      assert_equal "side", review.claude_runs.new(kind: kind).progress_scope, kind
+    end
+  end
+
+  test "should expose the latest side-cycle run separately from the review one" do
+    review = reviews(:pr_review)
+    review.claude_runs.create!(kind: "review", claude_config: "/x", status: "running")
+    side = review.claude_runs.create!(kind: "describe_task", claude_config: "/x", status: "running")
+
+    assert_equal side, review.side_claude_run
+    assert_equal "review", review.running_review_run.kind, "postęp review nie może zniknąć pod cyklem pobocznym"
+    assert_equal side, review.running_claude_run, "abort i guardy widzą każdą pracującą sesję"
+  end
 end
