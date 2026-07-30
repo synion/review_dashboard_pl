@@ -134,7 +134,9 @@ skrypt istnieje i czy wzorzec `%{branch}` jest poprawny.
 Dwie reguły kolejki z GitHuba: **własne PR-y nie wchodzą** (swojego kodu nie recenzuję;
 login bierze się z `gh api user`, nie z configu) i **komentarz sam z siebie nie liczy się
 jako piłka** — dopiero cudzy ruch późniejszy niż moje ostatnie review. Kolejka odświeża
-się w tle co `GithubInbox::STALE_AFTER` (1 h) i przyciskiem „🔄 Sprawdź teraz";
+się przy wejściu na stronę co `GithubInbox::STALE_AFTER` (1 h) i przyciskiem
+„🔄 Sprawdź teraz", a po ustawieniu `INBOX_SCHEDULE=1` także z harmonogramu
+(`config/recurring.yml` → `RefreshAllInboxesJob`) — czyli bez wchodzenia tutaj;
 padnięte `gh` nigdy jej nie czyści (pusty wynik wyglądałby jak „nikt nie czeka").
 Kafel PR-a bez review w dashboardzie prowadzi do formularza z wypełnionym `pr_url`
 i linkiem do zadania wyłuskanym z opisu PR-a.
@@ -168,6 +170,7 @@ Wszystkie opcjonalne. Wzorzec w [`.env.example`](.env.example) — **Rails nie
 |---|---|---|
 | `PORT` | `3000` | port serwera |
 | `GITHUB_REVIEWER_LOGIN` | login z `gh api user` | obejście: normalnie login bierze się z zalogowanego `gh` (tego samego konta, do którego rozwiązuje się `@me` w `gh search`) |
+| `INBOX_SCHEDULE` | wyłączone | `1` włącza odświeżanie kolejki „czeka na Twoje review" w tle (co `GithubInbox::STALE_AFTER`); bez tego dashboard pyta GitHuba tylko przy wejściu na stronę i po kliknięciu „Sprawdź teraz" |
 | `SOLID_QUEUE_IN_PUMA` | ustawia `bin/dev` | workery jobów w procesie Pumy; bez tego joby nie ruszają |
 | `JOB_CONCURRENCY` | `1` | liczba procesów workerów |
 | `RAILS_MAX_THREADS` | `5` | pula połączeń do SQLite |

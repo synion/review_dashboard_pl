@@ -11,6 +11,10 @@ class GithubInbox
   # Godzina zamiast minut: GitHub nie jest tu źródłem pilnych sygnałów, a każde
   # odpytanie to seria spawnów `gh`; kto chce świeżej, ma przycisk „Sprawdź teraz".
   STALE_AFTER = 1.hour
+  # Luz dla harmonogramu, który tika równo co STALE_AFTER: odpytanie GitHuba kończy się
+  # kilka sekund PO tiku, więc bez marginesu następny tik wypadałby o te sekundy za
+  # wcześnie, uznawał kolejkę za świeżą i cadencja rozjeżdżałaby się na dwa interwały.
+  TICK_GRACE = 1.minute
 
   def initialize(github: GithubClient.new, login: nil)
     @github = github
