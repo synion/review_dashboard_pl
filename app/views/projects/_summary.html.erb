@@ -1,0 +1,24 @@
+<%# Przełącznik na górze i radio „główny" na kartach to dwa uchwyty tej samej
+    dźwigni — oba POST-ują select, a odpowiedź turbo_stream podmienia #summary,
+    #queues i #projects, więc zawsze pokazują ten sam wybór. Partial czyta ivary
+    jak _inbox_item: to prywatne kawałki tej jednej strony, nie komponenty. %>
+<div id="summary">
+  <% if @projects.many? %>
+    <nav class="proj-switcher" aria-label="Projekt główny">
+      <% @projects.each do |project| %>
+        <%= button_to project.name, select_projects_path(project_id: project.id),
+                      form_class: class_names("button_to", "is-main": project == @main_project) %>
+      <% end %>
+    </nav>
+  <% end %>
+  <p class="summary">
+    <% if @main_project.nil? %>
+      <span class="pill"><b>brak projektów</b></span>
+    <% elsif @projects.one? %>
+      <span class="pill"><b><%= @main_project.name %></b></span>
+    <% end %>
+    <span class="pill pill-attention"><b><%= @inbox_items.size %></b> czeka na Twoje review</span>
+    <span class="pill"><b><%= @attention_reviews.size %></b> do dokończenia</span>
+    <span class="pill pill-progress"><b><%= @in_progress_reviews.size %></b> w toku</span>
+  </p>
+</div>

@@ -1,0 +1,47 @@
+<%# Sekcja jest celem turbo_stream po przełączeniu projektu głównego, bo radio
+    „główny" na karcie musi zsynchronizować się z przełącznikiem u góry strony
+    (dwa uchwyty tej samej dźwigni — patrz _summary). %>
+<section id="projects">
+  <h2>Projekty</h2>
+  <%# Pusty form dla radiów „główny": radia na kartach wskazują go atrybutem form=,
+      dzięki czemu tworzą JEDNĄ natywną grupę (stare radio odznacza się samo), choć
+      karty mają własne formy button_to — zagnieżdżenie formów byłoby nielegalne. %>
+  <%= form_with url: select_projects_path, id: "main-switcher" do %><% end %>
+  <div class="projgrid">
+    <% @projects.each do |project| %>
+      <% counts = @counts[project.id] %>
+      <article class="projcard" id="project_row_<%= project.id %>">
+        <h3>
+          <%= link_to project.name, project_reviews_path(project) %>
+          <label class="main-radio" title="Pokazuj kolejki tego projektu na tej stronie">
+            <%= radio_button_tag :project_id, project.id, project == @main_project,
+                                 form: "main-switcher", onchange: "this.form.requestSubmit()" %>
+            główny
+          </label>
+        </h3>
+        <div class="counts">
+          <span class="count<%= " count-hot" if counts[:attention].positive? %>">
+            <b data-count="attention"><%= counts[:attention] %></b> czeka
+          </span>
+          <span class="count"><b data-count="in_progress"><%= counts[:in_progress] %></b> w toku</span>
+          <span class="count"><b data-count="total"><%= counts[:total] %></b> łącznie</span>
+        </div>
+        <div class="project-links">
+          <%= link_to "+ Nowy review", new_project_review_path(project), class: "btn btn-primary" %>
+          <%= link_to "Wszystkie review", project_reviews_path(project), class: "btn" %>
+        </div>
+        <div class="projmeta">
+          <code class="inline"><%= project.repo_path %></code>
+          <%= "· #{project.default_model}" if project.default_model.present? %>
+          <%= "/ #{project.default_effort}" if project.default_effort.present? %>
+        </div>
+        <div class="projadmin">
+          <%= link_to "Edytuj", edit_project_path(project) %>
+          <%= button_to "Archiwizuj", archive_project_path(project),
+                form: { data: { turbo_confirm: "Zarchiwizować projekt #{project.name}? Zniknie z listy aktywnych, ale będzie można go przywrócić." } } %>
+        </div>
+      </article>
+    <% end %>
+  </div>
+  <p><%= link_to "+ Nowy projekt", new_project_path, class: "btn" %></p>
+</section>

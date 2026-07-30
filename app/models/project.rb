@@ -11,6 +11,9 @@ class Project < ApplicationRecord
 
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
+  # Jedyny porządek list projektów (grid, archiwum, fallback main) — wspólny scope,
+  # żeby „domyślny główny = pierwsza karta gridu" było strukturalne, nie umowne.
+  scope :by_name, -> { order(:name) }
   # Bez adresu repo nie ma czego pytać GitHuba o kolejkę „czeka na Twoje review".
   scope :with_repo, -> { where.not(repo_url: [ nil, "" ]) }
 
@@ -41,6 +44,18 @@ class Project < ApplicationRecord
   # coś, co na nią wpływa — zapis niepowiązanych pól (np. archived_at) nie
   # wywali się na projekcie, któremu ktoś w międzyczasie przeniósł repo.
   validate :worktree_executables_exist, if: :worktree_setup_changed?
+
+  # Strona wejściowa pokazuje kolejki dokładnie JEDNEGO projektu — tego. Wybór
+  # (make_main!) to touch main_at i najpóźniejszy wygrywa, więc przełączenie nie
+  # musi zerować pozostałych wierszy. Fallback: pierwszy aktywny wg by_name — ten
+  # sam porządek co grid projektów, więc „domyślny" jest przewidywalny.
+  def self.main
+    active.where.not(main_at: nil).order(main_at: :desc).first || active.by_name.first
+  end
+
+  def make_main!
+    update!(main_at: Time.current)
+  end
 
   def archived?
     archived_at.present?

@@ -158,8 +158,19 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 #projects h2 { margin-top: 24px; }
 .projgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .projcard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); }
-.projcard h3 { margin: 0 0 8px; font-size: 16px; }
+.projcard h3 { margin: 0 0 8px; font-size: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .projcard h3 a { color: var(--fg); text-decoration: none; }
+/* Switcher projektu głównego u góry strony — drugi uchwyt tej samej dźwigni co
+   radio „główny" na kartach. Aktywny wygląda jak btn-primary, reszta jak pigułki. */
+.proj-switcher { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.proj-switcher form.button_to { display: inline-block; }
+.proj-switcher button { padding: 5px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13px; font-family: inherit; cursor: pointer; }
+.proj-switcher button:hover { border-color: var(--accent); color: var(--accent); }
+.proj-switcher .is-main button { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+/* Radio „główny" wybiera projekt, którego kolejki widać na górze strony. */
+.main-radio { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: normal; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.main-radio input { accent-color: var(--accent); margin: 0; cursor: pointer; }
+.projcard:has(.main-radio input:checked) { border-color: var(--accent); }
 .counts { display: flex; gap: 12px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
 .counts b { font-size: 17px; color: var(--fg); font-variant-numeric: tabular-nums; }
 .count-hot b { color: var(--warn); }

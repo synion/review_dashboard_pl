@@ -158,6 +158,31 @@ class ProjectTest < ActiveSupport::TestCase
     assert_includes project.errors[:repo_path], "nie istnieje na dysku"
   end
 
+  test "main to aktywny projekt z najpóźniejszym main_at" do
+    projects(:webapp).update!(main_at: 2.days.ago)
+    projects(:dashboard).update!(main_at: 1.hour.ago)
+
+    assert_equal projects(:dashboard), Project.main
+  end
+
+  test "main pomija zarchiwizowane projekty mimo ustawionego main_at" do
+    projects(:dashboard).update!(main_at: 1.hour.ago, archived_at: Time.current)
+
+    assert_equal projects(:webapp), Project.main
+  end
+
+  test "main bez oznaczonego projektu to pierwszy aktywny po nazwie" do
+    assert_nil Project.maximum(:main_at)
+    # Fixtures: "review-dashboard" < "webapp" alfabetycznie.
+    assert_equal projects(:dashboard), Project.main
+  end
+
+  test "main jest puste, gdy nie ma aktywnych projektów" do
+    Project.update_all(archived_at: Time.current)
+
+    assert_nil Project.main
+  end
+
   test "scope active i archived rozdzielają projekty po archived_at" do
     archived = projects(:dashboard)
     archived.update!(archived_at: Time.current)

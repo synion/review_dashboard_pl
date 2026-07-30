@@ -9,6 +9,9 @@ Rails.application.routes.draw do
     # jej odświeżenie nie należy do żadnego pojedynczego.
     collection do
       post :refresh_inbox
+      # Przełącznik głównego projektu — collection, bo odpowiedzią jest przebudowa
+      # kolejek całej strony wejściowej, a nie widok jednego projektu.
+      post :select
     end
     member do
       post :archive

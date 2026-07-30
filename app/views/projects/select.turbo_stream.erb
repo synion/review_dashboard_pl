@@ -1,0 +1,11 @@
+<%# Grid też, bo wybór ma dwa uchwyty (switcher u góry i radio na karcie) —
+    kliknięty aktualizuje się sam, ten drugi dopiero po re-renderze. %>
+<%= turbo_stream.replace "summary" do %>
+  <%= render "projects/summary" %>
+<% end %>
+<%= turbo_stream.replace "queues" do %>
+  <%= render "projects/queues" %>
+<% end %>
+<%= turbo_stream.replace "projects" do %>
+  <%= render "projects/grid" %>
+<% end %>

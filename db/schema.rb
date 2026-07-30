@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_130537) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_193659) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -84,6 +84,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_130537) do
     t.string "default_model"
     t.string "docs_path", default: "doc/llm"
     t.datetime "inbox_checked_at"
+    t.datetime "main_at"
     t.string "name"
     t.string "repo_path"
     t.string "repo_url"

@@ -2,11 +2,24 @@ class ProjectsController < ApplicationController
   before_action :set_project, only: %i[edit update archive unarchive]
 
   def index
-    @projects = Project.active.order(:name)
-    @archived_projects = Project.archived.order(:name)
+    @archived_projects = Project.archived.by_name
     @counts = review_counts
-    load_inbox
-    load_queues
+    load_dashboard
+  end
+
+  # Przełącznik projektu głównego — switcher u góry strony i radio „główny" na
+  # karcie POST-ują tu to samo. Odpowiedź turbo_stream podmienia piguły, kolejki
+  # i grid (żeby oba uchwyty pokazywały ten sam wybór) bez przeładowania strony.
+  def select
+    Project.active.find(params[:project_id]).make_main!
+    respond_to do |format|
+      format.turbo_stream do
+        load_dashboard
+        @counts = review_counts
+      end
+      # Fallback bez JS — pełny redirect i index policzy wszystko sam.
+      format.html { redirect_to projects_path }
+    end
   end
 
   # Kolejka odświeża się sama co GithubInbox::STALE_AFTER; ten przycisk pomija okno,
@@ -63,6 +76,16 @@ class ProjectsController < ApplicationController
     @project = Project.find(params[:id])
   end
 
+  # Wszystko, czego potrzebują partiale strony wejściowej (_summary, _queues, _grid)
+  # — jedno miejsce dla index i select, żeby odpowiedź turbo_stream nie mogła się
+  # rozjechać z pełnym renderem o brakujący ivar.
+  def load_dashboard
+    @projects = Project.active.by_name
+    @main_project = Project.main
+    load_inbox
+    load_queues
+  end
+
   def project_params
     params.require(:project).permit(:name, :repo_path, :repo_url, :default_claude_config, :default_model,
                                     :default_effort, :docs_path, :review_prompt_extra, :task_comment_instructions,
@@ -73,12 +96,15 @@ class ProjectsController < ApplicationController
   # Renderujemy ostatni znany stan i dopiero zlecamy odświeżenie — inaczej pierwsze
   # wejście na stronę czekałoby kilka sekund na `gh`.
   def load_inbox
-    @inbox_items = InboxItem.where(project: @projects).includes(:project).by_urgency.to_a
+    # Widok pokazuje wyłącznie projekt główny — kolejki różnych projektów mieszały
+    # się nie do odróżnienia. Odświeżanie w tle zostaje jednak dla WSZYSTKICH
+    # aktywnych projektów, żeby przełączenie radia pokazywało świeży stan od razu.
+    @inbox_items = InboxItem.where(project: @main_project).includes(:project).by_urgency.to_a
     # Review dla tych PR-ów, żeby kafel wiedział, czy prowadzi do istniejącego review,
     # czy proponuje założenie nowego. Jedno zapytanie, nie jedno na kafel.
-    @inbox_reviews = Review.where(project: @projects, pr_number: @inbox_items.map(&:pr_number))
+    @inbox_reviews = Review.where(project: @main_project, pr_number: @inbox_items.map(&:pr_number))
                           .index_by { |review| [ review.project_id, review.pr_number ] }
-    @inbox_checked_at = @projects.filter_map(&:inbox_checked_at).min
+    @inbox_checked_at = @main_project&.inbox_checked_at
     @projects.select { |project| project.repo_url.present? && project.inbox_stale? }
              .each { |project| RefreshInboxJob.perform_later(project) }
   end
@@ -88,9 +114,9 @@ class ProjectsController < ApplicationController
   # bo kolejność „Czeka na Ciebie" jest po statusie wg ATTENTION_ORDER, czego SQLite
   # nie wyrazi bez CASE dłuższego niż cała ta metoda.
   def load_queues
-    # Scope na @projects: archiwum zdejmuje projekt z oczu, więc jego review nie
-    # mogą wracać na stronę wejściową (load_inbox wyżej filtruje tak samo).
-    waiting = Review.where(project: @projects,
+    # Scope na projekt główny (load_inbox wyżej filtruje tak samo) — archiwum
+    # i tak odpada, bo Project.main widzi tylko aktywne.
+    waiting = Review.where(project: @main_project,
                            status: Review::ATTENTION_STATUSES + Review::IN_PROGRESS_STATUSES)
                     .includes(:project, :findings).to_a
     @attention_reviews = waiting.select { |r| r.status.in?(Review::ATTENTION_STATUSES) }

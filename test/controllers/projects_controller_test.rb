@@ -1,6 +1,13 @@
 require "test_helper"
 
 class ProjectsControllerTest < ActionDispatch::IntegrationTest
+  # Kolejki strony wejściowej pokazują wyłącznie projekt główny, a fixture'owe
+  # inbox itemy i review należą do webapp — bez tego fallback (pierwszy po nazwie)
+  # wskazywałby review-dashboard i wszystkie testy kolejek oglądałyby pustkę.
+  setup do
+    projects(:webapp).update!(main_at: Time.current)
+  end
+
   test "index renderuje listę projektów" do
     get root_path
     assert_response :success
@@ -298,6 +305,48 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_select "#review_queue_#{reviews(:pr_review).id}", text: /webapp/
+  end
+
+  # Sedno switchera: kolejki różnych projektów nie mogą się mieszać. Po zmianie
+  # projektu głównego rzeczy webappa (inbox z GH i review) znikają z widoku.
+  test "kolejki pokazują wyłącznie projekt główny" do
+    reviews(:pr_review).update!(status: "reviewed")
+    projects(:dashboard).update!(main_at: Time.current)
+
+    get root_path
+
+    assert_select "#attention .qitem", count: 0
+    assert_select "#dashboard_work", count: 0
+    assert_select "#summary .proj-switcher .is-main button", text: "review-dashboard"
+  end
+
+  test "select ustawia projekt główny i odpowiada turbo_stream z kolejkami, pigułami i gridem" do
+    post select_projects_path(project_id: projects(:dashboard).id), as: :turbo_stream
+
+    assert_response :success
+    assert_equal projects(:dashboard), Project.main
+    %w[summary queues projects].each do |target|
+      assert_match %(turbo-stream action="replace" target="#{target}"), response.body
+    end
+  end
+
+  test "select nie przyjmuje zarchiwizowanego projektu" do
+    projects(:dashboard).update!(archived_at: Time.current)
+
+    post select_projects_path(project_id: projects(:dashboard).id), as: :turbo_stream
+
+    assert_response :not_found
+  end
+
+  # Dwa uchwyty tego samego wyboru: switcher u góry i radio na karcie muszą
+  # wskazywać ten sam projekt.
+  test "radio na karcie i switcher u góry oznaczają projekt główny" do
+    get root_path
+
+    assert_select "#project_row_#{projects(:webapp).id} input[type=radio][checked]"
+    assert_select "#project_row_#{projects(:dashboard).id} input[type=radio][checked]", count: 0
+    assert_select "#summary .proj-switcher .is-main button", text: "webapp"
+    assert_select "#summary .proj-switcher form", count: Project.active.count
   end
 
   test "should offer a new review straight from the project card" do
