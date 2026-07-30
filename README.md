@@ -108,6 +108,7 @@ Wszystko klika się w UI (**Nowy projekt**). Pola:
 | Komenda usuwania worktree | nie | np. `bin/worktree-docker -d %{branch}` — bez niej dashboard nie posprząta worktree po usunięciu review |
 | Adres repo na GitHubie | nie | pilnuje, żeby wklejony PR należał do tego projektu |
 | Domyślny config / model / effort | config: tak | wartości startowe formularza nowego review |
+| Prefiks adresu zadania (`task_url_prefix`) | nie | link do zadania jest wyłuskiwany z opisu PR-a i wpisywany w formularz review; puste = wyłączone |
 | Katalog dokumentacji (`docs_path`) | nie (default `doc/llm`) | jeśli istnieje w repo, review czyta stamtąd konwencje projektu |
 | Stałe zasady review | nie | tekst doklejany do każdego promptu review w tym projekcie |
 | Instrukcja komentarza do zadania | nie | jak ma wyglądać komentarz w trackerze po decyzji |
@@ -116,6 +117,29 @@ Wszystko klika się w UI (**Nowy projekt**). Pola:
 (z configami i bazą — surowy `git worktree add` nie wystarcza) i wypisuje go tak,
 żeby był widoczny w `git worktree list`. Dashboard waliduje przy zapisie, czy
 skrypt istnieje i czy wzorzec `%{branch}` jest poprawny.
+
+---
+
+## Kolejka „czeka na Twoje review"
+
+Strona główna zaczyna się listą PR-ów, na których wisi **moje** review — to samo, co
+GitHub pokazuje w „Needs your review", plus PR-y, gdzie ktoś odezwał się PO moim review:
+
+| Sygnał | Skąd |
+|---|---|
+| „prosi o Twoje review" | `gh search prs --repo <repo> --state open --review-requested=@me` |
+| „odezwał się po Twoim review" | `gh search prs --reviewed-by=@me` + `gh pr view` (reviews, comments) |
+
+Dwie reguły: **własne PR-y nie wchodzą** (swojego kodu nie recenzuję; login bierze się
+z `gh api user`, nie z configu) i **komentarz sam z siebie nie jest piłką** — liczy się
+dopiero cudzy ruch późniejszy niż moje ostatnie review. Kolejka odświeża się w tle co
+`GithubInbox::STALE_AFTER` (10 min) i przyciskiem „🔄 Sprawdź teraz"; padnięte `gh`
+nigdy jej nie czyści (pusty wynik wyglądałby jak „nikt nie czeka"). PR bez review
+w dashboardzie prowadzi do formularza z wypełnionym `pr_url` i linkiem do zadania
+wyłuskanym z opisu PR-a.
+
+Własne PR-y nie znikają z apki — review swojego kodu zakładasz normalnie przez
+**+ Nowy review**, tylko nie zaśmieca ono kolejki.
 
 ---
 
@@ -142,7 +166,7 @@ Wszystkie opcjonalne. Wzorzec w [`.env.example`](.env.example) — **Rails nie
 | Zmienna | Default | Opis |
 |---|---|---|
 | `PORT` | `3000` | port serwera |
-| `GITHUB_REVIEWER_LOGIN` | login autora dashboardu | **ustaw swój login GitHub** — po nim dashboard poznaje, że autor PR-a poprosił Cię o ponowne review |
+| `GITHUB_REVIEWER_LOGIN` | login z `gh api user` | obejście: normalnie login bierze się z zalogowanego `gh` (tego samego konta, do którego rozwiązuje się `@me` w `gh search`) |
 | `SOLID_QUEUE_IN_PUMA` | ustawia `bin/dev` | workery jobów w procesie Pumy; bez tego joby nie ruszają |
 | `JOB_CONCURRENCY` | `1` | liczba procesów workerów |
 | `RAILS_MAX_THREADS` | `5` | pula połączeń do SQLite |
