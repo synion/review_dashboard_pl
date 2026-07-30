@@ -1,0 +1,29 @@
+<%# Opis zadania żyje własnym cyklem (task_description_status), niezależnie od statusu
+    review — najpierw „co miało być zrobione", potem „co zrobiono" (opis zmian niżej).
+    Treść renderujemy zawsze, gdy jest — także przy odświeżaniu i po błędzie: stary
+    opis to wciąż najlepsza wiedza o zadaniu, dopóki nowy go nie zastąpi.
+    `open` jak w karcie opisu zmian: rozwinięta jako materiał do decyzji w „ready",
+    potem zwinięta, żeby ustąpić miejsca wynikowi. %>
+<% if review.task_description.present? %>
+  <details class="card" <%= "open" if review.status == "ready" %>>
+    <summary>Opis zadania</summary>
+    <%= markdown review.task_description %>
+    <% if review.task_description_status == "ready" %>
+      <%= button_to "↻ Odśwież opis zadania (dogra nowe komentarze)", refresh_task_description_review_path(review), class: "btn" %>
+    <% end %>
+  </details>
+<% end %>
+
+<% case review.task_description_status %>
+<% when "queued", "running" %>
+  <div class="card"><p>📋 Pobieram opis zadania…</p></div>
+<% when "failed" %>
+  <div class="card error-box">
+    <p>Nie udało się pobrać opisu zadania<%= ": #{review.task_description_error}" if review.task_description_error.present? %></p>
+    <%= button_to "↻ Ponów opis zadania", refresh_task_description_review_path(review), class: "btn" %>
+  </div>
+<% when "skipped" %>
+  <div class="card">
+    <%= button_to "📋 Generuj opis zadania", refresh_task_description_review_path(review), class: "btn" %>
+  </div>
+<% end %>

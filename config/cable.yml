@@ -1,0 +1,22 @@
+# W dev NIE używamy async: joby (review, Playwright) chodzą w forkowanych procesach
+# solid_queue (SOLID_QUEUE_IN_PUMA=1), a async trzyma pub/sub tylko w obrębie jednego
+# procesu — broadcasty z jobów nie docierałyby do Pumy trzymającej WebSockety i strona
+# nie odświeżałaby się na żywo. solid_cable (jak na produkcji) propaguje je przez bazę.
+development:
+  adapter: solid_cable
+  connects_to:
+    database:
+      writing: cable
+  polling_interval: 0.1.seconds
+  message_retention: 1.day
+
+test:
+  adapter: test
+
+production:
+  adapter: solid_cable
+  connects_to:
+    database:
+      writing: cable
+  polling_interval: 0.1.seconds
+  message_retention: 1.day

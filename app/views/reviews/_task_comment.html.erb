@@ -1,0 +1,19 @@
+<%# Komentarz do zadania po decyzji — cykl poboczny (task_comment_status), wzorzec
+    karty opisu zadania: status + treść + Ponów po porażce. `skipped` = user nie
+    chciał komentarza, więc nie renderujemy nic. %>
+<% case review.task_comment_status %>
+<% when "queued", "running" %>
+  <div class="card"><p>📝 Dodaję komentarz do zadania…</p></div>
+<% when "ready" %>
+  <details class="card">
+    <summary>Komentarz dodany do zadania</summary>
+    <%= markdown review.task_comment %>
+  </details>
+<% when "failed" %>
+  <% error = review.task_comment_error %>
+  <div class="card error-box">
+    <p>Nie udało się dodać komentarza do zadania<%= ": #{error}" if error.present? %></p>
+    <p><span class="hint">Najczęstszy powód: wygasła sesja trackera — odśwież ją i ponów.</span></p>
+    <%= button_to "↻ Ponów komentarz do zadania", review_task_comment_path(review), class: "btn" %>
+  </div>
+<% end %>

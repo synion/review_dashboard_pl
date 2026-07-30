@@ -1,0 +1,200 @@
+<p><span class="status-badge status-<%= review.status %>"><%= review_status_label(review) %></span></p>
+
+<%# Nad opisem i wynikiem, bo to jedyna informacja, której user tu szuka: czy jeszcze
+    coś do mnie należy. Poza `case`, żeby nie gubić się w gałęziach statusów. %>
+<% if review.finished? %>
+  <div class="card done-box">
+    <p><strong><%= review.status == "merged" ? "🎉 PR został zmergowany." : "🚫 PR został zamknięty bez merge'a." %></strong></p>
+    <p>Zadanie skończone na stałe — nie wymaga żadnej akcji. Dashboard przestał pytać GitHuba o ten PR.</p>
+  </div>
+<% end %>
+
+<%= render "reviews/task_description", review: review %>
+
+<%# Opis żyje poza `case`, bo to jedyny kontekst zadania widoczny po starcie review. Rozwinięty
+    tylko w „ready" (główna treść), potem zwinięty, żeby ustąpić miejsca wynikowi. Nagłówek
+    „Opis zmian", nie „O co chodzi" — tak nazywa się sekcja wewnątrz samego opisu. %>
+<% if review.description.present? %>
+  <details class="card" <%= "open" if review.status == "ready" %>>
+    <summary>Opis zmian</summary>
+    <%= markdown review.description %>
+  </details>
+<% end %>
+
+<% case review.status %>
+<% when "created", "describing" %>
+  <%= render "reviews/in_progress", review: review, title: "Claude czyta zadanie i pisze prosty opis…" %>
+<% when "ready" %>
+  <% if review.result_on_disk? %>
+    <div class="card">
+      <p>💾 Na dysku jest zapisany wynik wcześniejszego review — możesz go wczytać zamiast robić review od nowa.</p>
+      <%= button_to "📥 Wczytaj wynik z dysku", reimport_review_path(review), class: "btn btn-primary" %>
+    </div>
+  <% end %>
+  <div class="card">
+    <h2>Co sprawdzić?</h2>
+    <%= form_with url: start_review_path(review), method: :post do %>
+      <div class="areas">
+        <% Review::AREAS.each do |key, label| %>
+          <%# Po „Ponów" odtwarzamy poprzedni wybór; przy pierwszym podejściu wszystko zaznaczone. %>
+          <label><input type="checkbox" name="areas[]" value="<%= key %>" <%= "checked" if review.selected_areas.blank? || review.selected_areas.include?(key) %>> <%= label %></label>
+        <% end %>
+      </div>
+      <div class="field">
+        <label>Twoje uwagi (na co zwrócić uwagę)</label>
+        <textarea name="notes" rows="3"><%= review.scope_notes %></textarea>
+      </div>
+      <%# Nie tylko domyślna wartość dla formularza decyzji: włącza w prompcie wymóg
+          podania linii obecnej w diffie. Bez tego model podaje numery z pamięci,
+          a GitHub odrzuca komentarz przypięty do linii spoza zmian. %>
+      <div class="field">
+        <label><input type="checkbox" name="inline_comments" value="1" <%= "checked" if review.inline_comments? %>>
+          📍 Znaleziska jako komentarze przy liniach kodu</label>
+      </div>
+      <button class="btn btn-primary btn-big">Start review</button>
+    <% end %>
+  </div>
+<% when "reviewing" %>
+  <%= render "reviews/in_progress", review: review, title: in_progress_title(review) %>
+<% when "reviewed", "decided", "waiting_review", "merged", "closed" %>
+  <div class="card"><h2>Podsumowanie</h2><%= markdown review.summary %></div>
+  <%= render "reviews/findings", review: review %>
+  <% if review.status == "waiting_review" %>
+    <%= render "reviews/followup_form", review: review,
+          title: "🔁 Autor prosi o ponowne review",
+          label: "Claude wróci do tej samej sesji, pobierze aktualny kod i sprawdzi poprawki — możesz doprecyzować, na co zwrócić uwagę",
+          body: "Autor naniósł poprawki po mojej decyzji — pobierz najnowszy stan brancha (git pull) i sprawdź, czy uwagi zostały zaadresowane.",
+          submit: "Sprawdź poprawki" %>
+  <% elsif review.status == "reviewed" %>
+    <%= render "reviews/followup_form", review: review,
+          title: "💬 Nie zgadzasz się ze znaleziskami?",
+          label: "Napisz z czym i dlaczego — Claude wróci do kodu, ponownie zweryfikuje i zaktualizuje review (ta sama sesja, pełny kontekst)",
+          placeholder: "Np. znalezisko o braku testu to false positive, bo pokrywa to test X…",
+          submit: "Wyślij do Claude i zaktualizuj review" %>
+  <% end %>
+  <% if review.playwright_command.present? %>
+    <div class="card">
+      <h2>Test Playwright</h2>
+      <p><code class="inline"><%= review.playwright_test_path %></code></p>
+      <%= button_to "▶ Obejrzyj (headed)", review_playwright_runs_path(review, mode: "headed"), class: "btn btn-primary" %>
+      <%= button_to "⚡ Szybka weryfikacja (headless)", review_playwright_runs_path(review, mode: "headless"), class: "btn" %>
+      <% review.playwright_runs.order(id: :desc).each do |run| %>
+        <p class="progress-line"><%= run.mode %> — <%= run.status %><%= " (exit #{run.exit_code})" if run.exit_code %></p>
+      <% end %>
+    </div>
+  <% end %>
+  <% if review.status == "decided" || review.finished? %>
+    <div class="card">
+      <h2>Decyzja: <%= review.decision %></h2>
+      <% if review.decided_at %><p>Wysłana na GitHub <%= l review.decided_at, format: :short %></p><% end %>
+      <% if review.decision_body.present? %><%= markdown review.decision_body %><% end %>
+    </div>
+    <%= render "reviews/task_comment", review: review %>
+  <% elsif review.status == "reviewed" && review.github_actions_available? %>
+    <%# Warunek na status, nie samo github_actions_available?: waiting_review celowo nie dostaje
+        formularza decyzji — najpierw followup ma zweryfikować poprawki. %>
+    <div class="card">
+      <h2>Decyzja</h2>
+      <% body_draft = defined?(@body_draft) && @body_draft.present? ? @body_draft : decision_draft(review) %>
+      <details open>
+        <summary>Podgląd (tak zobaczy to GitHub)</summary>
+        <%= markdown body_draft %>
+      </details>
+      <%= form_with url: review_decision_path(review), method: :post do %>
+        <div class="field">
+          <label>Treść decyzji — możesz edytować i dopisać coś od siebie (markdown)</label>
+          <textarea name="body" rows="8"><%= body_draft %></textarea>
+        </div>
+        <%# Prefill z wyboru przy starcie, ale ostatnie słowo należy do tego miejsca:
+            dopiero tu widać konkretne znaleziska i to, czy mają sensowne linie. %>
+        <div class="field">
+          <label><input type="checkbox" name="inline_comments" value="1" <%= "checked" if review.inline_comments? %>>
+            📍 Wyślij znaleziska jako komentarze przy liniach kodu</label>
+        </div>
+        <%# Tylko przy znanym task_url — bez niego nie ma dokąd pisać, więc opcja
+            w ogóle się nie pokazuje. Default odznaczony: komentarz w trackerze to
+            wyjątek, nie reguła. Instrukcja rozwija się po zaznaczeniu (CSS :has). %>
+        <% if review.task_url.present? %>
+          <div class="field task-comment-field">
+            <label><input type="checkbox" name="task_comment" value="1" class="task-comment-toggle">
+              📝 Dodaj komentarz do zadania w trackerze</label>
+            <div class="task-comment-details">
+              <label>Instrukcja komentarza — edycja dotyczy tylko tej decyzji (default zmienisz w projekcie)</label>
+              <textarea name="task_comment_instructions" rows="4"><%= review.effective_task_comment_instructions %></textarea>
+            </div>
+          </div>
+        <% end %>
+        <button class="btn btn-ok btn-big" name="verdict" value="approve">✓ Approve</button>
+        <button class="btn btn-danger btn-big" name="verdict" value="reject">✗ Reject</button>
+        <button class="btn btn-big" name="verdict" value="comment">💬 Comment</button>
+      <% end %>
+    </div>
+  <% elsif review.status == "reviewed" %>
+    <div class="card"><p>Brak PR-a — wynik zostaje w dashboardzie (przyciski GitHub nieaktywne).</p></div>
+  <% end %>
+  <%# Ręczna furtka do followupu — dla PR-ów, których GitHub nigdy nie przestawi
+      w waiting_review (własny PR, obcy branch bez re-requestu). Pod kartą decyzji,
+      bo tu najpierw liczy się „co zdecydowałem", a ponowne sprawdzenie jest opcjonalne.
+      Treść bez „Autor naniósł poprawki" — przy self review autorem jestem ja. %>
+  <% if review.status == "decided" %>
+    <%= render "reviews/followup_form", review: review,
+          title: "🔁 Sprawdź zmiany ponownie",
+          label: "Claude wróci do tej samej sesji, pobierze aktualny kod i sprawdzi, co zmieniło się od decyzji",
+          body: "Pobierz najnowszy stan brancha (git pull) i sprawdź, czy uwagi z mojego review zostały zaadresowane.",
+          submit: "Sprawdź poprawki" %>
+  <% end %>
+<% when "failed" %>
+  <div class="card error-box">
+    <h2>Błąd</h2>
+    <p><%= review.error_message %></p>
+    <details><summary>Co Claude robił (ogon logu)</summary><pre class="progress-line"><%= claude_log_tail(review) %></pre></details>
+    <% if review.result_on_disk? %>
+      <%= button_to "📥 Wczytaj wynik z dysku", reimport_review_path(review), class: "btn btn-primary" %>
+    <% end %>
+    <%= button_to "↻ Ponów", retry_run_review_path(review), class: "btn" %>
+  </div>
+<% end %>
+
+<%# Stan katalogu, nie sam fakt ścieżki w bazie: worktree ginie też poza dashboardem,
+    a wtedy followup wystartuje w nieistniejącym katalogu i padnie bez wyjaśnienia.
+    Przycisk usuwania zostaje mimo braku katalogu — komenda projektu kasuje też bazy
+    devowe, które przeżywają skasowany katalog i inaczej nie ma czym ich posprzątać. %>
+<% if review.own_worktree_path %>
+  <p class="worktree-line <%= review.worktree_exists? ? "wt-ok" : "wt-gone" %>">
+    Worktree: <code><%= review.own_worktree_path %></code> —
+    <%= review.worktree_exists? ? "katalog istnieje" : "katalogu już nie ma (usunięty poza dashboardem)" %>
+  </p>
+<% end %>
+
+<% if review.worktree_removable? %>
+  <%= button_to "🗑 Usuń worktree (#{review.branch})", remove_worktree_review_path(review), class: "btn",
+        form: { data: { turbo_confirm: "Usunąć worktree i jego bazy? Niezacommitowane zmiany przepadną." } } %>
+<% end %>
+
+<%= render "reviews/context", review: review %>
+
+<%# Ratunek na wyczerpane limity subskrypcji. Widoczne w każdym statusie poza końcowymi:
+    konto trzeba czasem zmienić przed followupem, nie tylko po awarii. %>
+<% unless review.finished? %>
+  <div class="card">
+    <h2>Konto Claude</h2>
+    <p>Teraz: <strong><%= Review.claude_config_label(review.effective_claude_config) %></strong></p>
+    <% Review::CLAUDE_CONFIGS.each do |label, path| %>
+      <% next if path == review.effective_claude_config %>
+      <%= button_to "🔄 Przełącz na #{label}", switch_config_review_path(review, claude_config: path), class: "btn" %>
+    <% end %>
+  </div>
+<% end %>
+
+<%# Wszystkie sesje, nie tylko ostatnia: po nieudanym ponowieniu ostatnia bywa tą,
+    która padła po kilku sekundach, a praca została w poprzedniej. Kind, status
+    i czas trwania są tym, po czym da się je rozróżnić. %>
+<% if (runs = review.resumable_claude_runs).any? %>
+  <details>
+    <summary>Wróć do sesji Claude w terminalu</summary>
+    <% runs.each do |run| %>
+      <p class="progress-line"><strong><%= run.kind %></strong> — <%= run.status %>, <%= run_duration(run) %></p>
+      <p><code class="inline"><%= run.resume_command %></code></p>
+    <% end %>
+  </details>
+<% end %>

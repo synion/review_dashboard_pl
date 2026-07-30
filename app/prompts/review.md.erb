@@ -1,0 +1,115 @@
+Zrób gruntowny code review<% if review.pr_url.present? %> PR: <%= review.pr_url %> (branch jest już wycheckoutowany w bieżącym katalogu)<% else %> zmian opisanych w zadaniu: <%= review.task_url %><% end %>.
+
+<%= switched_context %>
+<% if review.task_description.present? -%>
+
+## Opis zadania (zebrany z zadania i jego komentarzy)
+
+To jest to, co MIAŁO być zrobione. Skonfrontuj z tym kod — zwłaszcza Acceptance
+Criteria: czy każdy punkt jest zrealizowany i czy zmiany nie wychodzą poza zakres
+zadania. Rozjazd kodu z opisem zadania to znalezisko.
+
+<%= review.task_description %>
+<% end -%>
+<% if review.description.present? -%>
+
+## Ogólny zarys zmian (z wcześniejszej analizy)
+
+Wstępny opis tej zmiany — traktuj jako mapę wejściową, nie prawdę objawioną;
+zweryfikuj ją z kodem:
+
+<%= review.description %>
+<% end -%>
+<% if (docs = review.available_docs_path) -%>
+
+## Dokumentacja projektu
+
+W repo jest `<%= docs %>/` — opisy mechanizmów i konwencji tego projektu, pisane dla modeli.
+Zanim ocenisz kod: zrób `ls <%= docs %>/` i przeczytaj TE pliki, które dotyczą obszarów ruszonych
+w tej zmianie. Nie czytaj wszystkich — bierz to, co pasuje do dotkniętych plików.
+Gdy kod łamie opisaną tam konwencję, powołaj się w `body` znaleziska na konkretny plik.
+<% end -%>
+
+Sprawdź WYŁĄCZNIE zaznaczone obszary:
+<% review.selected_areas.each do |area| -%>
+- **<%= Review::AREAS[area] %>**<%= " — poprawność logiki, edge case'y, nil handling, regresje" if area == "functionality" %><%= " — czy zachowanie i interfejs mają sens dla użytkownika końcowego" if area == "ux" %><%= " — nazewnictwo, struktura, zbędna złożoność, spójność z otoczeniem" if area == "readability" %><%= " — kontrakt, serializery, wsteczna kompatybilność, walidacja wejścia" if area == "api" %><%= " — reguły z doc/llm/, .claude/rules/, CLAUDE.md; wskaż którą zasadę łamie kod i gdzie" if area == "project_rules" %>
+<% end -%>
+<% if review.scope_notes.present? -%>
+
+Dodatkowe uwagi od reviewera (potraktuj priorytetowo):
+<%= review.scope_notes %>
+<% end -%>
+<% if review.project.review_prompt_extra.present? -%>
+
+Stałe zasady review w tym projekcie:
+<%= review.project.review_prompt_extra %>
+<% end -%>
+
+Każde znalezisko sklasyfikuj: `critical` / `important` / `minor`.
+<% if review.selected_areas.include?("qa_playwright") -%>
+
+## QA + Playwright (obowiązkowe)
+
+Po analizie statycznej przeklikaj feature na żywo i napisz test Playwright przeklikujący całą ścieżkę feature'a — WOLNY, do oglądania: headed + slowMo ~900 ms, spotlight na każdym elemencie ZANIM go dotkniesz lub zweryfikujesz (scrollIntoView + gruba ramka + etykieta z opisem; pomarańczowy = interakcja, zielony = asercja; pauza ~1500 ms w headed, 0 gdy env HEADLESS=1). Test zapisz w `tmp/` bieżącego katalogu. Dla KAŻDEGO znaleziska critical/important dopisz scenariusz wykazujący problem na żywo.
+<% end -%>
+
+## Jak opisać wynik
+
+<%= style %>
+
+`summary` (markdown) ma dokładnie taką strukturę:
+
+```
+**Krótko:** jedno zdanie — czy można approve'ować i ile rzeczy wymaga poprawki.
+
+**Co sprawdziłem**
+- **nazwa obszaru** — jedno zdanie o tym, co w nim zastałeś
+
+**Najważniejsze**
+- **słowo-klucz** — jedno zdanie (max 3 punkty, tylko critical i important)
+```
+
+Gdy nie ma żadnych znalezisk, sekcję „Najważniejsze" pomiń.
+
+`title` znaleziska: max 12 słów, mówi CO jest źle — nie „Rozważ refactor kalkulatora",
+tylko „Nil w kalkulacji VAT, gdy faktura nie ma pozycji".
+
+`body` znaleziska: dokładnie trzy akapity, każdy po 1–2 zdania, w tej kolejności:
+
+```
+**Problem:** co konkretnie jest nie tak w kodzie.
+
+**Co się stanie:** realny skutek dla użytkownika albo systemu.
+
+**Jak naprawić:** konkretna zmiana — plik, linia, krótki fragment kodu jeśli pomaga.
+```
+
+W `body` nie umieszczaj niczego poza tymi trzema akapitami.
+<% if review.inline_comments? -%>
+
+`file` znaleziska trafi na GitHuba jako komentarz przypięty do linii, więc musi wskazywać linię,
+która **jest w diffie tego PR-a** — numer z NOWEJ wersji pliku, nie sprzed zmian. Sprawdź to
+w `git diff`, nie zgaduj: linia spoza diffu przepada i uwaga traci odniesienie do kodu.
+Zakres zapisz jako `plik.rb:12-20`. Gdy uwaga nie dotyczy konkretnej linii (np. brak testu),
+zostaw `file` puste — trafi do treści zbiorczej review.
+<% end -%>
+
+## Wynik (OBOWIĄZKOWE)
+
+Na koniec zapisz plik `<%= review.artifacts_dir.join("result.json") %>` (utwórz katalog jeśli trzeba) dokładnie w formacie:
+
+```json
+{
+  "summary": "podsumowanie w markdown, w strukturze opisanej wyżej",
+  "findings": [
+    {"priority": "critical|important|minor", "title": "max 12 słów", "body": "Problem / Co się stanie / Jak naprawić", "file": "ścieżka/plik.rb:linia"}
+  ],
+<% if review.selected_areas.include?("qa_playwright") -%>
+  "playwright": {"test_path": "tmp/nazwa.spec.js", "command": "dokładna komenda uruchomienia z tego katalogu"}
+<% else -%>
+  "playwright": null
+<% end -%>
+}
+```
+
+Bez result.json review uznaję za niedokończony.

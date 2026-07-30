@@ -1,0 +1,37 @@
+<h1>Nowy review — <%= @project.name %></h1>
+<div class="card">
+  <%= form_with model: [ @project, @review ] do |f| %>
+    <div class="field">
+      <%= f.label :pr_url, "Link do PR na GitHubie" %>
+      <%# Ze slugu, nie z surowego repo_url: adres zakończony ukośnikiem albo .git
+          (oba przechodzą walidację Project) sklejony wprost dałby "//pull/…" albo
+          ".git/pull/…". %>
+      <%= f.url_field :pr_url, placeholder: "https://github.com/#{@project.github_slug.presence || "…"}/pull/…" %>
+    </div>
+    <div class="field">
+      <%= f.label :task_url, "…albo link do zadania (gdy PR-a nie ma)" %>
+      <%= f.url_field :task_url, placeholder: "https://…" %>
+    </div>
+    <div class="field">
+      <%= f.label :branch, "Branch (opcjonalnie — tylko dla zadania bez PR-a)" %>
+      <%= f.text_field :branch %>
+    </div>
+    <div class="field">
+      <%= f.label :claude_config, "Config Claude" %>
+      <%= f.select :claude_config, Review::CLAUDE_CONFIGS %>
+    </div>
+    <div class="field">
+      <%= f.label :model, "Model" %>
+      <%= f.select :model, [ [ "domyślny (z configu)", "" ] ] + Review::MODELS.map { |m| [ m, m ] } %>
+    </div>
+    <div class="field">
+      <%= f.label :effort, "Effort (głębokość myślenia)" %>
+      <%= f.select :effort, [ [ "domyślny", "" ] ] + Review::EFFORTS.map { |e| [ e, e ] } %>
+    </div>
+    <div class="field">
+      <label><%= check_box_tag :fetch_task_description, "1", true %>
+        📋 Pobierz opis zadania (z linku do zadania albo z opisu PR-a)</label>
+    </div>
+    <%= f.submit "Dalej → opisz mi to zadanie", class: "btn btn-primary btn-big" %>
+  <% end %>
+</div>

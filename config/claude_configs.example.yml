@@ -1,0 +1,9 @@
+# Configi Claude CLI dostępne w dashboardzie (wybierane per review).
+# Skopiuj ten plik jako config/claude_configs.yml (jest w .gitignore)
+# i wpisz swoje katalogi. Format: etykieta w UI → ścieżka do katalogu configu
+# (trafia do CLAUDE_CONFIG_DIR spawnowanej sesji).
+#
+# Bez tego pliku dashboard używa jednego domyślnego configu: ~/.claude.
+
+"claude (~/.claude)": /Users/twoj-login/.claude
+# "drugie konto (~/.claude-drugie)": /Users/twoj-login/.claude-drugie

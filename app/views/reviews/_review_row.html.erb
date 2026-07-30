@@ -1,0 +1,20 @@
+<tr id="review_row_<%= review.id %>">
+  <td><%= l review.created_at, format: :short %></td>
+  <td class="activity-cell"><%= review_last_activity(review) %></td>
+  <td><%= link_to (review.pr_title.presence || review.task_link), review_path(review) %></td>
+  <td>
+    <span class="status-badge status-<%= review.status %>"><%= review_status_label(review) %></span>
+    <% if review.status == "reviewing" && running_ids.exclude?(review.id) %>
+      <span class="queued-hint">⏳ Czeka w kolejce</span>
+    <% elsif review.finished? %>
+      <%# Sam badge mówi „Zmergowany", nie „możesz o tym zapomnieć" — dopisek mówi. %>
+      <span class="done-hint">✔ nie wymaga akcji</span>
+    <% end %>
+  </td>
+  <td><%= review.decision || "—" %></td>
+  <td class="worktree-cell"><%= worktree_badge(review) %></td>
+  <%# Confirm wymienia worktree z nazwy: usuwanie review kasuje też jego katalog i bazę
+      devową, a to znacznie więcej, niż sugeruje samo „usuń review". %>
+  <td><%= button_to "Usuń", review_path(review), method: :delete, class: "btn btn-danger",
+        form: { data: { turbo_confirm: review_destroy_confirm(review) } } %></td>
+</tr>

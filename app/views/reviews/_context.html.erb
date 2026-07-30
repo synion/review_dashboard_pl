@@ -1,0 +1,53 @@
+<%# Kontekst rośnie przez całe życie review: start i każdy followup wznawiają tę samą
+    sesję. Bez tej karty user dowiaduje się o wyczerpanym oknie dopiero z padniętej
+    sesji, po kilkunastu minutach pracy.
+
+    Id siedzi na korzeniu partiala, nie na wrapperze w panelu — broadcast_replace
+    podmienia CAŁY element o tym id, więc cel musi odtwarzać sam siebie. Inaczej
+    pierwszy broadcast zabiera id i kolejne trafiają w próżnię. %>
+<div id="review_<%= review.id %>_context">
+  <% if (usage = review.context_usage) %>
+    <div class="card">
+      <h2>Kontekst sesji</h2>
+      <% if !usage.measured? %>
+        <p class="progress-line">Rozmiar kontekstu zmierzy się przy następnej sesji.</p>
+      <% elsif usage.percent %>
+        <div class="ctx-bar">
+          <div class="ctx-fill <%= ctx_level_class(usage.percent) %>" style="width: <%= [ usage.percent, 100 ].min %>%"></div>
+        </div>
+        <p class="progress-line">
+          <strong><%= tokens_full usage.tokens %></strong> / <%= tokens_full usage.window %> tok — <%= usage.percent %>%
+        </p>
+      <% else %>
+        <%# Okno przychodzi z eventem `result`, więc pierwsza sesja review poznaje je
+            dopiero na końcu. Tokeny bez procentu są uczciwsze niż zmyślony mianownik. %>
+        <p class="progress-line"><strong><%= tokens_full usage.tokens %></strong> tok — rozmiar okna pozna się po zakończeniu sesji</p>
+      <% end %>
+
+      <%# Wynik ostatniego compactu. Bez tego „Not enough messages to compact."
+          znika bez śladu i kliknięcie wygląda na nieudane. Błąd ma pierwszeństwo:
+          nieudana kompakcja nie wrzuca review w „failed", więc to jedyne miejsce,
+          gdzie widać, że się nie powiodła. %>
+      <% if (last_compact = review.last_compact_run) %>
+        <p class="progress-line">🗜 ostatni compact: <%= l last_compact.created_at, format: :short %> — <%= last_compact.error_message.presence || last_compact.last_message.presence || last_compact.status %></p>
+      <% end %>
+
+      <%# Kompakcja jest stratna — historia zamienia się w podsumowanie — więc pyta. %>
+      <% if review.compactable? %>
+        <%= button_to "🗜 Skompaktuj sesję", compact_review_path(review), class: "btn",
+              form: { data: { turbo_confirm: "Skompaktować sesję? Claude zamieni dotychczasową historię w podsumowanie — szczegółów już nie odzyska." } } %>
+      <% end %>
+
+      <details>
+        <summary>Rozbicie na sesje</summary>
+        <% review.context_runs.each do |run| %>
+          <p class="progress-line">
+            <strong><%= run.kind %></strong> — <%= tokens_short(run.context_tokens) %> tok •
+            z cache <%= tokens_short(run.cache_read_tokens) %> • nowe <%= tokens_short(run.cache_creation_tokens) %> •
+            <%= run.cost_usd ? number_to_currency(run.cost_usd, unit: "$", precision: 2) : "—" %> • <%= run_duration(run) %>
+          </p>
+        <% end %>
+      </details>
+    </div>
+  <% end %>
+</div>

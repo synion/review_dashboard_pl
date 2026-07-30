@@ -1,0 +1,28 @@
+<% if resumed -%>
+Kontynuujesz code review — masz pełny kontekst poprzedniej sesji.
+<% else -%>
+Kontynuujesz code review, ale w świeżej sesji: poprzedniej rozmowy nie masz, więc cały potrzebny kontekst jest niżej.
+<% if review.result_on_disk? -%>
+Zanim cokolwiek napiszesz, przeczytaj `<%= review.artifacts_dir.join("result.json") %>` — masz tam pełny zapis poprzedniego przebiegu razem z treścią znalezisk, a niżej zażądam nadpisania tego pliku w całości.
+<% end -%>
+<% end -%>
+
+<%= switched_context %>
+
+Reviewer (człowiek) ustosunkował się do Twoich znalezisk:
+
+<%= message %>
+
+Zrób z tym rzetelną robotę:
+- Dla każdego zakwestionowanego znaleziska wróć do kodu i zweryfikuj ponownie — bez przywiązania do wcześniejszej opinii. Jeśli reviewer ma rację, usuń albo przeklasyfikuj znalezisko. Jeśli nie ma — zostaw je i krótko uzasadnij w `body`, odnosząc się do jego argumentu.
+- Zaktualizuj `summary`: dopisz na końcu sekcję „**Po dyskusji**" — max 3 bullety, każdy zaczyna się od **pogrubionego słowa-klucza** i mówi w jednym zdaniu, co się zmieniło i dlaczego.
+- Zaktualizuj też linię `**Krótko:**` na górze `summary`, jeśli dyskusja zmieniła wniosek.
+- Zapisz PONOWNIE CAŁY plik `<%= review.artifacts_dir.join("result.json") %>` w tym samym formacie co poprzednio (summary, findings, playwright) — pełna zawartość, nie różnica. Sekcję `playwright` zostaw bez zmian, chyba że zmiana znalezisk wymaga aktualizacji testu.
+
+<%= style %>
+
+`title` znaleziska: max 12 słów, mówi CO jest źle.
+`body` znaleziska: dokładnie trzy akapity po 1–2 zdania — `**Problem:**`, `**Co się stanie:**`, `**Jak naprawić:**`.
+Uzasadnienie wobec argumentu reviewera dopisz do akapitu `**Problem:**`, nie jako czwarty akapit.
+
+Bez zapisania result.json odpowiedź uznaję za niedokończoną.

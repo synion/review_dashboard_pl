@@ -1,0 +1,14 @@
+webapp:
+  name: webapp
+  repo_path: /Users/dev/projects/webapp
+  repo_url: https://github.com/acme/webapp
+  default_claude_config: /Users/dev/.claude
+  worktree_command: "bin/worktree-docker %{branch}"
+  worktree_delete_command: "bin/worktree-docker -d %{branch} --force"
+
+dashboard:
+  name: review-dashboard
+  repo_path: <%= Rails.root %>
+  repo_url: https://github.com/example/dashboard
+  default_claude_config: /Users/dev/.claude-b
+  worktree_command: "git worktree add ../rd-%{branch} %{branch}"

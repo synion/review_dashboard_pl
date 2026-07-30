@@ -1,0 +1,14 @@
+<% run = review.running_claude_run %>
+<% if run %>
+  <p class="progress-line"><%= run.last_message.presence || "Startuję…" %></p>
+  <% if run.started_at %><p class="progress-line">Działa od: <%= l run.started_at, format: :short %></p><% end %>
+<% else %>
+  <%# Job siedzi w kolejce, dopóki worker nie ma wolnego wątku — bez tego panel
+      wyglądał identycznie jak przed kliknięciem i wyglądało to na brak reakcji. %>
+  <p class="progress-line">⏳ Czeka w kolejce — Claude kończy inne zadanie…</p>
+  <%# Czas oczekiwania odróżnia normalną kolejkę od joba, który nigdy nie ruszy. %>
+  <p class="progress-line">W kolejce od: <%= l review.updated_at, format: :short %></p>
+  <%# Wyjście awaryjne z zakleszczenia: „Przerwij" nie ma tu czego zabić, a job,
+      który przepadł (restart workera, błąd kolejkowania), nie odblokuje się sam. %>
+  <%= button_to "Ponów", retry_run_review_path(review), class: "btn" %>
+<% end %>

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+export SOLID_QUEUE_IN_PUMA=1
+exec ./bin/rails server "$@"

@@ -1,0 +1,55 @@
+<div class="card">
+  <%= form_with model: project do |f| %>
+    <div class="field">
+      <%= f.label :name, "Nazwa" %>
+      <%= f.text_field :name %>
+    </div>
+    <div class="field">
+      <%= f.label :repo_path, "Ścieżka do repo na dysku" %>
+      <%= f.text_field :repo_path, placeholder: "/Users/ja/projekty/moje-repo" %>
+    </div>
+    <div class="field">
+      <%= f.label :repo_url, "Adres repo na GitHubie" %>
+      <%= f.url_field :repo_url, placeholder: "https://github.com/owner/repo" %>
+      <span class="hint">Po co: PR wklejony z innego repo zostanie odrzucony, zanim powstanie worktree.</span>
+    </div>
+    <div class="field">
+      <%= f.label :default_claude_config, "Domyślny config Claude" %>
+      <%= f.select :default_claude_config, Review::CLAUDE_CONFIGS %>
+    </div>
+    <div class="field">
+      <%= f.label :default_model, "Domyślny model" %>
+      <%= f.select :default_model, [ [ "domyślny (z configu)", "" ] ] + Review::MODELS.map { |m| [ m, m ] } %>
+    </div>
+    <div class="field">
+      <%= f.label :default_effort, "Domyślny effort" %>
+      <%= f.select :default_effort, [ [ "domyślny", "" ] ] + Review::EFFORTS.map { |e| [ e, e ] } %>
+    </div>
+    <div class="field">
+      <%= f.label :docs_path, "Katalog z dokumentacją dla modeli" %>
+      <%= f.text_field :docs_path, placeholder: "doc/llm" %>
+      <span class="hint">Trafia do promptu tylko wtedy, gdy katalog realnie istnieje w repo.</span>
+    </div>
+    <div class="field">
+      <%= f.label :review_prompt_extra, "Stałe zasady review w tym projekcie" %>
+      <%= f.text_area :review_prompt_extra, rows: 6 %>
+      <span class="hint">Doklejane do każdego promptu review w tym projekcie.</span>
+    </div>
+    <div class="field">
+      <%= f.label :task_comment_instructions, "Instrukcja komentarza do zadania po decyzji" %>
+      <%= f.text_area :task_comment_instructions, rows: 4 %>
+      <span class="hint">Default dla checkboxa „Dodaj komentarz do zadania" przy decyzji — tam da się ją jednorazowo nadpisać.</span>
+    </div>
+    <div class="field">
+      <%= f.label :worktree_command, "Komenda tworząca worktree" %>
+      <%= f.text_field :worktree_command, placeholder: "bin/worktree-docker %{branch}" %>
+      <span class="hint">Uruchamiana w katalogu repo. <code>%{branch}</code> zostanie podmienione na nazwę brancha.</span>
+    </div>
+    <div class="field">
+      <%= f.label :worktree_delete_command, "Komenda usuwająca worktree" %>
+      <%= f.text_field :worktree_delete_command, placeholder: "bin/worktree-docker -d %{branch} --force" %>
+      <span class="hint">Bez niej dashboard nie pokaże przycisku „Usuń worktree".</span>
+    </div>
+    <%= f.submit class: "btn btn-primary btn-big" %>
+  <% end %>
+</div>

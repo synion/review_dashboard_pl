@@ -1,0 +1,17 @@
+<% findings_by_priority = review.findings.order(:priority).group_by(&:priority) %>
+<div class="card">
+  <h2>Znaleziska (<%= findings_by_priority.values.sum(&:size) %>)</h2>
+  <% Finding::PRIORITY_LABELS.each do |priority, label| %>
+    <% findings = findings_by_priority[priority] %>
+    <% next if findings.blank? %>
+    <h3><%= label %> (<%= findings.size %>)</h3>
+    <% findings.each do |f| %>
+      <div class="finding finding-<%= f.priority %>">
+        <strong><%= f.title %></strong>
+        <% if f.file_location.present? %><code class="inline"><%= f.file_location %></code><% end %>
+        <details><summary>szczegóły</summary><%= markdown f.body %></details>
+      </div>
+    <% end %>
+  <% end %>
+  <% if findings_by_priority.empty? %><p>Brak znalezisk 🎉</p><% end %>
+</div>

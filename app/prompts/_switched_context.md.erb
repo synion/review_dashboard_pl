@@ -1,0 +1,37 @@
+## Kontekst poprzedniego review
+
+<% if switched -%>
+Konto Claude zmieniło się w trakcie tego review, więc Twoja sesja może nie mieć pełnej historii. Poniżej wszystko, czego potrzebujesz, żeby kontynuować bez zgadywania.
+<% else -%>
+Ta sesja startuje bez historii poprzedniej rozmowy — jej transkryptu nie ma już na dysku. Poniżej wszystko, czego potrzebujesz, żeby kontynuować bez zgadywania.
+<% end -%>
+
+**Zadanie:** <%= review.task_link %>
+**Branch:** <%= review.branch.presence || "brak — praca w głównym repo" %>
+**Katalog roboczy:** <%= review.workdir %>
+<% if review.task_description.present? -%>
+
+### Opis zadania (zebrany z zadania i jego komentarzy)
+
+<%= review.task_description %>
+<% end -%>
+<% if review.description.present? -%>
+
+### Opis zmian
+
+<%= review.description %>
+<% end -%>
+<% if review.summary.present? -%>
+
+### Poprzednie podsumowanie review
+
+<%= review.summary %>
+<% end -%>
+<% if review.findings.any? -%>
+
+### Znaleziska z poprzedniego przebiegu
+
+<% review.findings.order(:id).each do |finding| -%>
+- **<%= finding.priority %>** — <%= finding.title %><%= " (#{finding.file_location})" if finding.file_location.present? %>
+<% end -%>
+<% end -%>

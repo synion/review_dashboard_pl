@@ -1,0 +1,5 @@
+<div class="card">
+  <h2><%= title %></h2>
+  <div id="review_<%= review.id %>_progress"><%= render "reviews/progress", review: review %></div>
+  <%= button_to "Przerwij", abort_review_path(review), class: "btn btn-danger" %>
+</div>

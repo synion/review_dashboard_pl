@@ -1,0 +1,48 @@
+<%= turbo_stream_from @project, :reviews %>
+<p><%= link_to "← wszystkie projekty", projects_path %></p>
+<h1>Review — <%= @project.name %></h1>
+<% if @project.archived? %>
+  <%# Przycisk „+ Nowy review" po prostu znika bez wyjaśnienia — a jedyna inna droga
+      do przywrócenia projektu to /projects i przewinięcie do „Zarchiwizowane". %>
+  <div class="archived-notice">
+    <span>Projekt jest zarchiwizowany — nie można dodawać nowych review. Historia poniżej zostaje dostępna.</span>
+    <%= button_to "Przywróć projekt", unarchive_project_path(@project), class: "btn" %>
+  </div>
+<% end %>
+<p class="project-links">
+  <%= link_to "+ Nowy review", new_project_review_path(@project), class: "btn btn-primary" unless @project.archived? %>
+  <%= link_to "Edytuj projekt", edit_project_path(@project), class: "btn" %>
+  <%# Dostępny też w archiwum: nowych review nie ma, ale PR-y istniejących dalej się mergują. %>
+  <%= button_to "🔄 Sprawdź GitHub teraz", recheck_github_project_reviews_path(@project), class: "btn" %>
+  <% if @project.repo_url.present? %>
+    <%= link_to "repo na GitHubie", @project.repo_url, class: "btn" %>
+  <% end %>
+</p>
+<form method="get" class="field">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">Wszystkie statusy</option>
+    <% Review::STATUSES.each do |s| %>
+      <option value="<%= s %>" <%= "selected" if params[:status] == s %>><%= s %></option>
+    <% end %>
+  </select>
+</form>
+<table id="reviews">
+  <thead>
+    <tr>
+      <th><%= review_sort_link(@project, "Data", "created_at") %></th>
+      <%# Kiedy ostatnio coś się z tym review działo — review sprzed tygodnia, do którego
+          wróciłem dziś followupem, na samej dacie utworzenia wygląda jak porzucony. %>
+      <th><%= review_sort_link(@project, "Aktywność", "updated_at") %></th>
+      <th>PR / zadanie</th>
+      <th><%= review_sort_link(@project, "Status", "status") %></th>
+      <th><%= review_sort_link(@project, "Decyzja", "decision") %></th>
+      <%# Nie sortowalne: istnienie katalogu to odczyt z dysku, a nie kolumna w bazie. %>
+      <th>Worktree</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <%= render partial: "review_row", collection: @reviews, as: :review,
+               locals: { running_ids: @running_review_ids } %>
+  </tbody>
+</table>

@@ -1,0 +1,8 @@
+pr_review:
+  project: webapp
+  pr_url: https://github.com/acme/webapp/pull/1234
+  status: created
+task_only:
+  project: webapp
+  task_url: https://tasks.example.com/555
+  status: created

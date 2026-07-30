@@ -1,0 +1,79 @@
+:root { --accent: #2563eb; --danger: #dc2626; --ok: #16a34a; --muted: #6b7280; }
+body { font-family: -apple-system, sans-serif; margin: 0; background: #f8fafc; color: #111827; }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: white; border-bottom: 1px solid #e5e7eb; }
+.brand { font-weight: 700; color: #111827; text-decoration: none; font-size: 18px; }
+.container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+.btn { display: inline-block; padding: 10px 18px; border-radius: 8px; border: 1px solid #d1d5db; background: white; color: #111827; text-decoration: none; font-size: 15px; cursor: pointer; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: white; font-weight: 600; }
+.btn-danger { background: var(--danger); border-color: var(--danger); color: white; }
+.btn-ok { background: var(--ok); border-color: var(--ok); color: white; }
+.btn-big { font-size: 17px; padding: 14px 28px; }
+/* button_to renderuje <form>, czyli element blokowy — bez tego przycisk zjeżdża pod
+   linki zamiast stanąć z nimi w jednym pasku akcji. Zakresowane do .project-links,
+   żeby nie ruszać układu formularzy w tabelach. */
+.project-links form.button_to { display: inline-block; }
+.flash { padding: 10px 24px; }
+.flash-error, .flash-alert { background: #fef2f2; color: var(--danger); }
+.flash-notice { background: #f0fdf4; color: var(--ok); }
+table#reviews { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+table#reviews th, table#reviews td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+/* „wczoraj 14:03" łamało się na dwie linie i rozpychało wiersz w wąskim oknie. */
+table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: nowrap; }
+.wt-ok { color: var(--ok); }
+/* Zniknięty worktree to nie ozdoba, tylko zapowiedź błędu przy followupie. */
+.wt-gone { color: var(--danger); font-weight: 600; }
+.wt-none { color: #9ca3af; }
+.worktree-line { font-size: 13px; }
+.status-badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #e5e7eb; }
+.status-reviewing, .status-describing { background: #dbeafe; color: var(--accent); }
+.status-reviewed { background: #fef9c3; color: #a16207; }
+.status-decided { background: #dcfce7; color: var(--ok); }
+.status-failed { background: #fee2e2; color: var(--danger); }
+/* Kolory jak na GitHubie: merged fioletowy, closed czerwony — żeby stan końcowy
+   nie mylił się z zielonym „decided", które jeszcze czeka na losy PR-a. */
+.status-merged { background: #f3e8ff; color: #7e22ce; }
+.status-closed { background: #fee2e2; color: var(--danger); }
+.done-box { border-left: 4px solid var(--ok); background: #f0fdf4; }
+.done-box p { margin: 4px 0; }
+.archived-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+                   border-left: 4px solid var(--muted); background: #f9fafb; padding: 10px 16px; margin-bottom: 16px; }
+.queued-hint { margin-left: 8px; font-size: 12px; color: #a16207; white-space: nowrap; }
+.done-hint { margin-left: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+.card h2, details.card > summary { margin-top: 0; font-size: 17px; }
+.finding { border-left: 4px solid var(--muted); padding: 8px 12px; margin: 8px 0; background: #f9fafb; }
+.finding-critical { border-color: var(--danger); }
+.finding-important { border-color: #d97706; }
+.progress-line { color: var(--muted); font-size: 14px; white-space: pre-wrap; }
+details { margin: 8px 0; }
+summary { cursor: pointer; color: var(--muted); }
+/* Zwinięta karta ma czytać się jak nagłówek sekcji, nie jak poboczny odnośnik. */
+details.card > summary { color: inherit; font-weight: 600; }
+details.card[open] > summary { margin-bottom: 12px; }
+.areas label { display: block; padding: 8px 0; font-size: 16px; }
+input[type=text], input[type=url], textarea, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; box-sizing: border-box; }
+.field { margin-bottom: 14px; }
+.field > label { display: block; font-weight: 600; margin-bottom: 4px; }
+/* Instrukcja komentarza do zadania — rozwija się dopiero po zaznaczeniu checkboxa,
+   żeby formularz decyzji nie puchł dla opcji, która domyślnie jest wyłączona. */
+.task-comment-details { display: none; margin-top: 8px; }
+.task-comment-field:has(.task-comment-toggle:checked) .task-comment-details { display: block; }
+code.inline { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.md { line-height: 1.55; }
+.md h1, .md h2 { font-size: 17px; margin: 12px 0 6px; }
+.md h3, .md h4 { font-size: 15px; margin: 10px 0 4px; }
+.md ul, .md ol { padding-left: 22px; margin: 6px 0; }
+.md li { margin: 3px 0; }
+.md p { margin: 6px 0; }
+.md code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+.md pre { background: #f3f4f6; padding: 10px; border-radius: 8px; overflow-x: auto; }
+.md pre code { background: none; padding: 0; }
+.md blockquote { border-left: 3px solid #d1d5db; margin: 6px 0; padding-left: 10px; color: var(--muted); }
+.md table { border-collapse: collapse; margin: 8px 0; }
+.md th, .md td { border: 1px solid #e5e7eb; padding: 4px 8px; font-size: 13px; }
+/* Pasek kontekstu — jedyna liczba w panelu, która rośnie w trakcie sesji. */
+.ctx-bar { height: 10px; border-radius: 5px; background: #e5e7eb; overflow: hidden; margin-bottom: 8px; }
+.ctx-fill { height: 100%; }
+.ctx-ok { background: var(--ok); }
+.ctx-warn { background: #d97706; }
+.ctx-danger { background: var(--danger); }

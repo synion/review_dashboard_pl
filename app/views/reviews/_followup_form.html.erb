@@ -1,0 +1,10 @@
+<div class="card">
+  <h2><%= title %></h2>
+  <%= form_with url: review_followup_path(review), method: :post do %>
+    <div class="field">
+      <label><%= label %></label>
+      <textarea name="message" rows="4" placeholder="<%= local_assigns[:placeholder] %>" required><%= local_assigns[:body] %></textarea>
+    </div>
+    <button class="btn btn-primary"><%= submit %></button>
+  <% end %>
+</div>

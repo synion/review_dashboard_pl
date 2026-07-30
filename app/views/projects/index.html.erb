@@ -1,0 +1,45 @@
+<h1>Projekty</h1>
+
+<table id="projects">
+  <thead>
+    <tr>
+      <th>Projekt</th>
+      <th>Czeka na Ciebie</th>
+      <th>W toku</th>
+      <th>Wszystkich</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @projects.each do |project| %>
+      <% counts = @counts[project.id] %>
+      <tr id="project_row_<%= project.id %>">
+        <td><%= link_to project.name, project_reviews_path(project) %></td>
+        <td><%= counts[:attention] %></td>
+        <td><%= counts[:in_progress] %></td>
+        <td><%= counts[:total] %></td>
+        <td>
+          <%= link_to "Edytuj", edit_project_path(project), class: "btn" %>
+          <%= button_to "Archiwizuj", archive_project_path(project), class: "btn",
+                form: { data: { turbo_confirm: "Zarchiwizować projekt #{project.name}? Zniknie z listy aktywnych, ale będzie można go przywrócić." } } %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+<p><%= link_to "+ Nowy projekt", new_project_path, class: "btn btn-primary" %></p>
+
+<% if @archived_projects.any? %>
+  <h2>Zarchiwizowane</h2>
+  <table id="archived_projects">
+    <tbody>
+      <% @archived_projects.each do |project| %>
+        <tr id="project_row_<%= project.id %>">
+          <td><%= link_to project.name, project_reviews_path(project) %></td>
+          <td><%= @counts[project.id][:total] %> review</td>
+          <td><%= button_to "Przywróć", unarchive_project_path(project), class: "btn" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
