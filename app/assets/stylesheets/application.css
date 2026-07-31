@@ -291,6 +291,21 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .ctx-warn { background: var(--warn); }
 .ctx-danger { background: var(--danger); }
 
+/* Combobox: input + rozwijana lista podpowiedzi z lokalnego cache. */
+.combobox { position: relative; }
+.combobox input[type="text"] { width: 100%; }
+.combobox-list {
+  position: absolute; z-index: 30; left: 0; right: 0; margin-top: 2px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  max-height: 240px; overflow-y: auto; box-shadow: var(--shadow);
+  display: flex; flex-direction: column;
+}
+.combobox-option {
+  text-align: left; padding: 6px 10px; border: 0; background: none;
+  font: inherit; color: var(--fg); cursor: pointer;
+}
+.combobox-option:hover { background: var(--line-soft); }
+
 /* ===================== wąskie ekrany ===================== */
 /* Tabela review ma 7 kolumn — na telefonie chowamy to, co da się odczytać z karty
    review (data utworzenia, worktree), zamiast pozwolić jej rozpychać stronę. */

@@ -31,7 +31,11 @@ class GithubClient
   # GITHUB_REVIEWER_LOGIN zostaje jako obejście, gdy `gh api user` jest niedostępny.
   def viewer_login(repo_dir:)
     @viewer_login ||= ENV["GITHUB_REVIEWER_LOGIN"].presence ||
-                      run!([ "gh", "api", "user", "--jq", ".login" ], label: "gh api user", chdir: repo_dir).stdout.strip
+                      Rails.cache.fetch("github_viewer_login", expires_in: 1.day) do
+                        # Cache procesu, nie tylko instancji: login zalogowanego gh jest
+                        # stały dla całej instalacji, a każdy klient tworzył nowy spawn.
+                        run!([ "gh", "api", "user", "--jq", ".login" ], label: "gh api user", chdir: repo_dir).stdout.strip
+                      end
   end
 
   # PR-y, w których jestem umoczony w danej roli: `review-requested` (GitHub prosi
@@ -88,6 +92,34 @@ class GithubClient
     payload = { event: VERDICT_EVENTS.fetch(verdict), body: body, comments: comments }
     run!([ "gh", "api", reviews_endpoint(pr_url), "--method", "POST", "--input", "-" ],
          label: "gh api reviews", chdir: repo_dir, stdin_data: payload.to_json)
+  end
+
+  # Loginy osób z prawem zapisu do repo — kandydaci na drugiego reviewera.
+  # jq od razu wyłuskuje loginy (linia na osobę), więc nie ma czego parsować.
+  def collaborators(repo:, repo_dir:)
+    run!([ "gh", "api", "repos/#{repo}/collaborators", "--paginate", "--jq", ".[].login" ],
+         label: "gh api collaborators", chdir: repo_dir).stdout.split("\n")
+  end
+
+  # Nazwy labelek zdefiniowanych w repo — do wyboru „label po decyzji". Limit 200
+  # zamiast domyślnych 30: repo z większą liczbą labeli ucinałoby listę po cichu.
+  def labels(repo_dir:)
+    run!([ "gh", "label", "list", "--json", "name", "--jq", ".[].name", "--limit", "200" ],
+         label: "gh label list", chdir: repo_dir).stdout.split("\n")
+  end
+
+  # Same reviews, bez comments/body — dla listy „kto reviewował" pr_activity
+  # ściągałoby gadatliwe pola, których nikt tu nie czyta.
+  def pr_reviews(pr_url, repo_dir:)
+    pr_view(pr_url, fields: "reviews", repo_dir: repo_dir)["reviews"].to_a
+  end
+
+  def add_reviewer(pr_url, login:, repo_dir:)
+    run!([ "gh", "pr", "edit", pr_url, "--add-reviewer", login ], label: "gh pr edit --add-reviewer", chdir: repo_dir)
+  end
+
+  def add_label(pr_url, name:, repo_dir:)
+    run!([ "gh", "pr", "edit", pr_url, "--add-label", name ], label: "gh pr edit --add-label", chdir: repo_dir)
   end
 
   private

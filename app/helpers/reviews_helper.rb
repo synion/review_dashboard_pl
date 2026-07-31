@@ -175,4 +175,20 @@ module ReviewsHelper
     end
     parts.join("\n")
   end
+
+  # Podpowiedź akcji po decyzji: PR bez żadnego review → zaproponuj drugiego
+  # reviewera; ktoś już patrzył → zaproponuj label. Reguła tu, nie w ERB —
+  # widok tylko renderuje jeden blok comboboxa.
+  def followup_suggestion(review)
+    reviewers = review.pr_reviewers_list
+    if reviewers.any?
+      { note: "Reviewowali: " + reviewers.map { |r| "#{r["login"]} (#{r["state"]})" }.join(", "),
+        label: "🏷 Dodaj label po decyzji (opcjonalnie)", kind: "gh_label",
+        field_name: "followup_label", initial: review.project.approve_label_default }
+    else
+      { note: "Nikt jeszcze nie reviewował tego PR-a.",
+        label: "➕ Dodaj reviewera po decyzji (opcjonalnie)", kind: "gh_collaborator",
+        field_name: "followup_reviewer", initial: review.project.second_reviewer_default }
+    end
+  end
 end

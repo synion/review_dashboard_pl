@@ -6,6 +6,9 @@ class Review < ApplicationRecord
   # Komentarz do zadania po decyzji — dosłownie ten sam kształt cyklu co opis
   # zadania (stąd alias, nie kopia): porażka nie dotyka decyzji na GitHubie.
   TASK_COMMENT_STATUSES = TASK_DESCRIPTION_STATUSES
+  # Akcje na PR-ze po decyzji (reviewer/label): ten sam kształt cyklu pobocznego,
+  # ale bez running/ready — pojedynczy strzał gh zamiast długiej sesji.
+  FOLLOWUP_STATUSES = %w[queued sent failed].freeze
   # Stany końcowe: PR zniknął z GitHuba (wjechał albo autor go porzucił), więc nie ma
   # już czego review'ować ani o co pytać. Wypadają ze due_for_github_check.
   FINISHED_STATUSES = %w[merged closed].freeze
@@ -90,6 +93,8 @@ class Review < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :task_description_status, inclusion: { in: TASK_DESCRIPTION_STATUSES }
   validates :task_comment_status, inclusion: { in: TASK_COMMENT_STATUSES }
+  validates :followup_reviewer_status, :followup_label_status,
+            inclusion: { in: FOLLOWUP_STATUSES }, allow_nil: true
   validates :decision, inclusion: { in: DECISIONS }, allow_nil: true
   # Branch trafia do komend shellowych (bin/worktree-docker) — przepuszczamy
   # tylko znaki legalne w nazwach gitowych branchy.
@@ -165,6 +170,32 @@ class Review < ApplicationRecord
   # Bez PR-a nie ma czego approve'ować na GitHubie — wynik zostaje w dashboardzie.
   def github_actions_available?
     pr_url.present?
+  end
+
+  # Formularz decyzji jest widoczny dokładnie wtedy — ten sam warunek steruje
+  # panelem i odświeżaniem listy reviewerów w show, żeby się nie rozjechały.
+  def decision_pending?
+    status == "reviewed" && github_actions_available?
+  end
+
+  # Kolumna json bywa nil na starych rekordach — widok zawsze dostaje tablicę.
+  def pr_reviewers_list
+    Array(pr_reviewers)
+  end
+
+  def pr_reviewers_stale?
+    pr_reviewers_checked_at.nil? || pr_reviewers_checked_at < PrReviewers::TTL.ago
+  end
+
+  # Akcje po decyzji w formie dla widoku: [etykieta, status, błąd].
+  def followup_items
+    [ [ "reviewer #{followup_reviewer_login}", followup_reviewer_status, followup_reviewer_error ],
+      [ "label #{followup_label_name}", followup_label_status, followup_label_error ] ]
+      .select { |_, status, _| status.present? }
+  end
+
+  def followup_retryable?
+    [ followup_reviewer_status, followup_label_status ].include?("failed")
   end
 
   # Link identyfikujący zadanie — PR, a gdy go nie ma, link do zadania.

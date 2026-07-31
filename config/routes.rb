@@ -16,6 +16,10 @@ Rails.application.routes.draw do
     member do
       post :archive
       post :unarchive
+      # Podpowiedzi comboboxów i ręczne odświeżenie ich cache — na projekcie,
+      # bo listy (collaboratorzy, labelki, osoby trackera) są per repo/tracker.
+      get :directory, to: "directories#show"
+      post :refresh_directory, to: "directories#refresh"
     end
     resources :reviews, only: %i[index new create] do
       collection do
@@ -41,5 +45,6 @@ Rails.application.routes.draw do
     resource :decision, only: :create
     resource :followup, only: :create
     resource :task_comment, only: :create
+    resource :followup_actions, only: :create
   end
 end

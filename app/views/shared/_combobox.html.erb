@@ -1,0 +1,15 @@
+<%# Combobox podpowiedzi z lokalnego cache (directory_entries). Formularz wysyła
+    hidden (id/login/nazwę labelki) — tekst w inpucie to tylko wyświetlacz.
+    Wymagane: project, kind, field_name; opcjonalne: initial, placeholder.
+    `initial` trafia i do inputu, i do hidden — dla kindów GH id == nazwa,
+    a default z projektu jest zawsze tekstem wpisanym ręcznie. %>
+<div class="combobox" data-controller="combobox"
+     data-combobox-url-value="<%= directory_project_path(project, kind: kind) %>">
+  <input type="text" autocomplete="off"
+         placeholder="<%= local_assigns[:placeholder] || "Wpisz, żeby wyszukać…" %>"
+         value="<%= local_assigns[:initial] %>"
+         data-combobox-target="input" data-action="input->combobox#search focus->combobox#open">
+  <div class="combobox-list" data-combobox-target="list" hidden></div>
+  <input type="hidden" name="<%= field_name %>" value="<%= local_assigns[:initial] %>"
+         data-combobox-target="hidden">
+</div>

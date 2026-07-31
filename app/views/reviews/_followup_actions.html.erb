@@ -1,0 +1,11 @@
+<%# Cykl poboczny decyzji jak _task_comment: status akcji na PR-ze (reviewer/label)
+    + Ponów po awarii. Dodatek mógł paść — decyzja już jest na GitHubie. %>
+<% review.followup_items.each do |label, status, error| %>
+  <p class="progress-line">
+    <%= { "queued" => "⏳", "sent" => "✅", "failed" => "⚠️" }[status] %>
+    <%= label %> — <%= status %><%= " (#{error})" if error.present? %>
+  </p>
+<% end %>
+<% if review.followup_retryable? %>
+  <%= button_to "↻ Ponów akcje na PR-ze", review_followup_actions_path(review), class: "btn" %>
+<% end %>

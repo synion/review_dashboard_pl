@@ -45,6 +45,14 @@ class ReviewsController < ApplicationController
   end
 
   def show
+    # Lista dotychczasowych reviewerów przydaje się tylko tam, gdzie zapada
+    # decyzja. Odświeżenie w tle, nie inline: `gh pr view` to ~2 s spawnu,
+    # a zapis cache broadcastem przerysuje panel, gdy dane dojdą. Optymistyczny
+    # bump timestampu = F5 w oknie odświeżania nie kolejkuje duplikatów.
+    if @review.decision_pending? && @review.pr_reviewers_stale?
+      @review.update_column(:pr_reviewers_checked_at, Time.current)
+      RefreshPrReviewersJob.perform_later(@review)
+    end
   end
 
   # Weryfikacja poprawek autora — osobna, krótka sesja, która nie rusza statusu
