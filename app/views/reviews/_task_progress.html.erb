@@ -1,0 +1,15 @@
+<%# Postęp cyklu pobocznego (opis zadania, komentarz do zadania, weryfikacja poprawek).
+    Osobny kanał od cyklu review: obie sesje potrafią chodzić naraz, a jeden wspólny
+    target znaczyłby, że nadpisują sobie treść w losowej kolejności. %>
+<% run = review.side_claude_run %>
+<% if run&.status == "running" %>
+  <p class="progress-line"><%= run.last_message.presence || "Startuję…" %></p>
+  <% if run.started_at %>
+    <p class="progress-line muted">Działa od <%= review_waiting_for(Review.new(updated_at: run.started_at)) %></p>
+  <% end %>
+<% else %>
+  <%# Job siedzi w kolejce, dopóki worker nie ma wolnego wątku — bez tego karta wygląda
+      identycznie jak zaraz po kliknięciu i sprawia wrażenie, że nic się nie stało. %>
+  <p class="progress-line">⏳ Czeka w kolejce — Claude kończy inne zadanie…</p>
+  <p class="progress-line muted">W kolejce od <%= review_waiting_for(review) %></p>
+<% end %>

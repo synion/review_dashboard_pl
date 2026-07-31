@@ -4,7 +4,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact verify_fixes]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact verify_fixes verify_findings]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -20,7 +20,13 @@ class ReviewsController < ApplicationController
     @reviews = @reviews.order(@sort => @direction)
     # Jednym zapytaniem, nie raz na wiersz: „reviewing" bez pracującej sesji znaczy,
     # że job czeka na wolny wątek workera — i to musi być widać już na liście.
-    @running_review_ids = ClaudeRun.where(status: "running").distinct.pluck(:review_id)
+    # Pending łapiemy tylko dla weryfikacji uwag: to jedyny cykl, którego nie widać
+    # po statusie review, więc zakolejkowany też musi świecić na wierszu.
+    active_runs = ClaudeRun.where(status: "running")
+                           .or(ClaudeRun.where(kind: "verify_findings", status: "pending"))
+                           .pluck(:review_id, :kind, :status)
+    @running_review_ids = active_runs.filter_map { |review_id, _kind, run_status| review_id if run_status == "running" }.uniq
+    @verifying_review_ids = active_runs.filter_map { |review_id, kind, _run_status| review_id if kind == "verify_findings" }.uniq
     # Liczniki nad tabelą liczą CAŁY projekt, nie przefiltrowaną listę: mają odpowiadać
     # „ile tu jest roboty", a nie „ile widzisz po filtrze". Jedno GROUP BY.
     @status_counts = @project.reviews.group(:status).count
@@ -53,6 +59,24 @@ class ReviewsController < ApplicationController
     redirect_to review_path(@review), notice: "Sprawdzam, co autor zrobił z uwagami…"
   end
 
+  # Weryfikacja zasadności znalezisk świeżą sesją (bez kontekstu review, które
+  # je znalazło) — dokłada znaleziskom werdykt, statusu review nie rusza.
+  def verify_findings
+    unless @review.findings_verifiable?
+      return redirect_to review_path(@review),
+                         alert: "Nie ma czego weryfikować: potrzebne znaleziska i branch, a weryfikacja nie może już trwać"
+    end
+
+    # Nadpisanie modelu/effortu/konta tylko dla tej sesji — druga opinia często ma
+    # iść mocniejszym modelem albo z drugiego konta. Puste/nieznane = ustawienia review.
+    model = params[:model].presence_in(Review::MODELS)
+    effort = params[:effort].presence_in(Review::EFFORTS)
+    claude_config = params[:claude_config].presence
+    claude_config = nil unless claude_config && Review.claude_config?(claude_config)
+    VerifyFindingsJob.perform_later(@review, model: model, effort: effort, claude_config: claude_config)
+    redirect_to review_path(@review), notice: "Weryfikuję zasadność uwag świeżą sesją…"
+  end
+
   def new
     # Bez tego guarda GET renderował pełny formularz, który i tak odbije się
     # o project_not_archived dopiero przy submit — przekierowanie od razu jest
@@ -68,6 +92,9 @@ class ReviewsController < ApplicationController
                                    model: @project.default_model,
                                    effort: @project.default_effort,
                                    pr_url: params[:pr_url], task_url: params[:task_url])
+    # Podpowiedzi pola branch: istniejące worktree, żeby selfreview zaczynało się
+    # od wyboru z listy, a nie od przepisywania nazwy brancha z terminala.
+    @worktree_branches = WorktreeManager.new(@project).existing_branches
   end
 
   def create
@@ -75,13 +102,16 @@ class ReviewsController < ApplicationController
     @review.claude_config = @review.effective_claude_config
     # Status przed zapisem, nie update! po nim: rekord jest świeży, a każdy update!
     # na Review to pełny broadcast panelu, którego nikt jeszcze nie ogląda.
-    @review.task_description_status = "queued" if params[:fetch_task_description] == "1"
+    # !self_review?: selfreview nie ma skąd wziąć opisu zadania (ani PR-a, ani
+    # zadania), więc domyślnie zaznaczony checkbox nie może zakolejkować sesji.
+    @review.task_description_status = "queued" if params[:fetch_task_description] == "1" && !@review.self_review?
     if @review.save
       DescribeReviewJob.perform_later(@review)
       DescribeTaskJob.perform_later(@review) if @review.task_description_status == "queued"
       redirect_to @review
     else
       flash.now[:error] = create_error_message
+      @worktree_branches = WorktreeManager.new(@project).existing_branches
       render :new, status: :unprocessable_entity
     end
   end

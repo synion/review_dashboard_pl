@@ -10,10 +10,10 @@ class ReviewTest < ActiveSupport::TestCase
     assert_equal "ZAMROŻONA", review.effective_task_comment_instructions
   end
 
-  test "wymaga pr_url albo task_url" do
+  test "wymaga pr_url, task_url albo brancha" do
     review = Review.new(project: projects(:webapp))
     assert_not review.valid?
-    assert_equal [ "Podaj link do PR albo do zadania" ], review.errors[:base]
+    assert_equal [ "Podaj link do PR, link do zadania albo branch (selfreview)" ], review.errors[:base]
   end
 
   # Ta sama wartość jest już utwardzona po stronie Project (default_claude_config) —
@@ -387,5 +387,65 @@ class ReviewTest < ActiveSupport::TestCase
     review.findings.create!(priority: "minor", title: "c", body: "z")
 
     assert_equal({ "implemented" => 2 }, review.fix_summary)
+  end
+
+  test "should accept a branch-only review and flag it as self review" do
+    review = Review.new(project: projects(:webapp), branch: "sw-moja-zmiana")
+
+    assert review.valid?, review.errors.full_messages.to_sentence
+    assert review.self_review?
+    assert_equal "branch sw-moja-zmiana", review.task_link
+  end
+
+  test "should not treat reviews with a PR or a task as self reviews" do
+    assert_not reviews(:pr_review).self_review?
+    assert_not reviews(:task_only).self_review?
+  end
+
+  test "should exclude self reviews from the outward scope" do
+    self_review = Review.create!(project: projects(:webapp), branch: "sw-selfreview")
+
+    assert_not_includes Review.outward, self_review
+    assert_includes Review.outward, reviews(:pr_review)
+    assert_includes Review.outward, reviews(:task_only)
+  end
+
+  test "should allow verifying the findings only with a branch, findings and a settled review" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+    assert_not review.findings_verifiable?, "bez znalezisk nie ma czego weryfikować"
+
+    review.findings.create!(priority: "critical", title: "nil", body: "x")
+    assert review.reload.findings_verifiable?
+
+    review.update!(status: "decided")
+    assert review.findings_verifiable?, "po decyzji też — autor może podważać uwagi"
+
+    review.update!(status: "reviewing")
+    assert_not review.findings_verifiable?, "w trakcie review nie ma jeszcze pełnej listy"
+
+    review.update!(status: "reviewed", branch: nil)
+    assert_not review.findings_verifiable?, "bez brancha sesja nie ma czego czytać"
+  end
+
+  test "should block a second verification while one is pending" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+    review.findings.create!(priority: "critical", title: "nil", body: "x")
+    run = review.claude_runs.create!(kind: "verify_findings", claude_config: "/Users/dev/.claude")
+
+    assert_not review.findings_verifiable?
+
+    run.update!(status: "succeeded")
+    assert review.reload.findings_verifiable?, "po zakończonej weryfikacji można ponowić"
+  end
+
+  test "should tally the verdicts for the findings header" do
+    review = reviews(:pr_review)
+    review.findings.create!(priority: "critical", title: "a", body: "x", verdict: "refuted")
+    review.findings.create!(priority: "minor", title: "b", body: "y", verdict: "refuted")
+    review.findings.create!(priority: "minor", title: "c", body: "z")
+
+    assert_equal({ "refuted" => 2 }, review.verdict_summary)
   end
 end

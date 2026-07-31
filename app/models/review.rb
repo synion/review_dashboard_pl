@@ -139,6 +139,12 @@ class Review < ApplicationRecord
   scope :due_for_github_check, -> {
     checkable.where("github_checked_at IS NULL OR github_checked_at < ?", GITHUB_CHECK_INTERVAL.ago)
   }
+  # Review powiązane z czymś na zewnątrz (PR albo zadanie) — w odróżnieniu od
+  # selfreview, które jest prywatną rundą przed wystawieniem PR-a i nie wchodzi
+  # do kolejek ani liczników „czeka na Ciebie" na stronie wejściowej.
+  scope :outward, -> {
+    where("(pr_url IS NOT NULL AND pr_url <> '') OR (task_url IS NOT NULL AND task_url <> '')")
+  }
 
   # prepend: true — callbacki dependent: :destroy z has_many wyżej kasują
   # claude_runs wcześniej; bez prependa nie byłoby już czego ubijać.
@@ -162,8 +168,15 @@ class Review < ApplicationRecord
   end
 
   # Link identyfikujący zadanie — PR, a gdy go nie ma, link do zadania.
+  # Selfreview nie ma żadnego z nich, więc identyfikuje je branch.
   def task_link
-    pr_url.presence || task_url
+    pr_url.presence || task_url.presence || (branch.present? ? "branch #{branch}" : nil)
+  end
+
+  # Prywatna runda review własnego brancha, zanim powstanie PR — celowo bez
+  # kolumny: brak obu linków JEST definicją selfreview (walidacja wymusza branch).
+  def self_review?
+    pr_url.blank? && task_url.blank?
   end
 
   # Weryfikacja poprawek ma sens tylko po wysłanej decyzji i tylko gdy wiemy, na jaki
@@ -177,6 +190,26 @@ class Review < ApplicationRecord
   # Rozkład werdyktów do nagłówka sekcji; pusty hash, gdy nic jeszcze nie sprawdzono.
   def fix_summary
     findings.filter_map(&:fix_status).tally
+  end
+
+  # Weryfikacja zasadności znalezisk świeżą sesją. Branch jest konieczny — sesja
+  # musi przeczytać kod, a review z samego zadania nie ma czego czytać. Statusy jak
+  # przy followupie: przed decyzją weryfikacja jest najcenniejsza, ale po decyzji
+  # też bywa potrzebna (autor podważa uwagi). Guard na run w locie: druga sesja
+  # pisałaby po tych samych werdyktach.
+  def findings_verifiable?
+    status.in?(FOLLOWUPABLE_STATUSES) && branch.present? && findings.any? &&
+      !findings_verification_in_progress?
+  end
+
+  # Weryfikacja chodzi cyklem pobocznym i nie zmienia statusu review — bez tego
+  # pytania ani lista, ani karta znalezisk nie miałyby jak pokazać, że coś trwa.
+  def findings_verification_in_progress?
+    claude_runs.exists?(kind: "verify_findings", status: %w[pending running])
+  end
+
+  def verdict_summary
+    findings.filter_map(&:verdict).tally
   end
 
   def finished?
@@ -235,7 +268,8 @@ class Review < ApplicationRecord
 
     broadcast_safely("broadcast_row!") do
       broadcast_replace_to project, :reviews, target: "review_row_#{id}", partial: "reviews/review_row",
-                           locals: { review: self, running_ids: claude_runs.where(status: "running").exists? ? [ id ] : [] }
+                           locals: { review: self, running_ids: claude_runs.where(status: "running").exists? ? [ id ] : [],
+                                     verifying_ids: findings_verification_in_progress? ? [ id ] : [] }
     end
   end
 
@@ -318,6 +352,19 @@ class Review < ApplicationRecord
     claude_runs.where(status: "running").order(:id).last
   end
 
+  # Postępy dwóch cykli, każdy do swojej karty w panelu. running_claude_run zostaje
+  # szerokie (abort i guard przy przełączaniu konta mają widzieć KAŻDĄ pracującą sesję),
+  # a te dwie metody odpowiadają na węższe pytanie „co pokazać w tej karcie".
+  def running_review_run
+    claude_runs.where(status: "running", kind: ClaudeRun::LIFECYCLE_KINDS + [ "compact" ]).order(:id).last
+  end
+
+  # Cykl poboczny (opis zadania, komentarz do zadania, weryfikacja poprawek) — bez filtra
+  # statusu, bo karta ma odróżnić „czeka w kolejce" od „pracuje".
+  def side_claude_run
+    claude_runs.where.not(kind: ClaudeRun::LIFECYCLE_KINDS + [ "compact" ]).order(:id).last
+  end
+
   # Wszystkie sesje, do których da się wrócić — najnowsza pierwsza. Świadomie nie
   # jedna: po nieudanym ponowieniu ostatnia sesja bywa tą, która padła po kilku
   # sekundach, a cała praca została w poprzedniej.
@@ -383,10 +430,11 @@ class Review < ApplicationRecord
     claude_runs.where.not(context_window: nil).order(:id).last&.context_window
   end
 
+  # Sam branch wystarcza: selfreview własnych zmian przed wystawieniem PR-a.
   def pr_or_task_present
-    return if pr_url.present? || task_url.present?
+    return if pr_url.present? || task_url.present? || branch.present?
 
-    errors.add(:base, "Podaj link do PR albo do zadania")
+    errors.add(:base, "Podaj link do PR, link do zadania albo branch (selfreview)")
   end
 
   # Wklejenie PR-a z innego projektu kończyłoby się `gh pr checkout` i worktree

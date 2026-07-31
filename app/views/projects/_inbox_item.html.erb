@@ -6,18 +6,28 @@
     <span class="status-badge status-<%= item.reason %>"><%= item.label %></span>
     <%= link_to item.project.name, project_reviews_path(item.project), class: "qproj" %>
     <span class="qwait">czeka <%= inbox_waiting_for(item) %></span>
+    <%# Cykl poboczny nie zmienia statusu review — bez dopisku kafel wygląda,
+        jakby puszczona weryfikacja uwag nic nie robiła. %>
+    <% if review && @verifying_review_ids.include?(review.id) %>
+      <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
+    <% end %>
   </div>
   <%= link_to item.title.presence || "PR ##{item.pr_number}", item.url, class: "qttl" %>
   <div class="qact">
     <% if review %>
-      <%= link_to "Otwórz review w dashboardzie →", review_path(review) %>
-      <span class="muted">· <%= review_status_label(review) %></span>
+      <%# Review na ten PR już istnieje — kafel przejmuje jego stan i następny krok,
+          żeby ta sama robota nie stała drugi raz w sekcji „Rozpoczęte w dashboardzie". %>
+      <%= link_to review_next_step(review) || "Otwórz review w dashboardzie", review_path(review) %>
     <% else %>
       <%= link_to "Zleć review →",
                   new_project_review_path(item.project, pr_url: item.url, task_url: item.task_url) %>
     <% end %>
   </div>
   <div class="qmeta">
-    PR #<%= item.pr_number %> · autor <%= item.author %><%= " · ostatnio: #{item.actor}" if item.actor.present? && item.actor != item.author %>
+    <%= [ review ? review_status_label(review) : nil,
+          review ? review_findings_summary(review) : nil,
+          "PR ##{item.pr_number}", "autor #{item.author}",
+          (item.actor.presence if item.actor.present? && item.actor != item.author)&.then { |a| "ostatnio: #{a}" },
+          review&.branch&.presence ].compact.join(" · ") %>
   </div>
 </article>

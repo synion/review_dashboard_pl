@@ -5,7 +5,8 @@
     <%= link_to (review.pr_title.presence || review.task_link), review_path(review) %>
     <%# Numer PR-a i branch pod tytułem: bez nich wiersz nie mówi, KTÓREJ zmiany dotyczy,
         a tytuły PR-ów w jednym projekcie bywają bliźniacze. %>
-    <div class="muted"><%= [ review.pr_number ? "PR ##{review.pr_number}" : nil, review.branch.presence,
+    <div class="muted"><%= [ review.pr_number ? "PR ##{review.pr_number}" : nil,
+                             review.self_review? ? "selfreview" : nil, review.branch.presence,
                              review.model.presence ].compact.join(" · ") %></div>
   </td>
   <td>
@@ -15,6 +16,11 @@
     <% elsif review.finished? %>
       <%# Sam badge mówi „Zmergowany", nie „możesz o tym zapomnieć" — dopisek mówi. %>
       <span class="done-hint">✔ nie wymaga akcji</span>
+    <% end %>
+    <%# Cykl poboczny nie zmienia statusu review — bez dopisku „Review zakończony"
+        wygląda, jakby kliknięcie weryfikacji nic nie zrobiło. %>
+    <% if verifying_ids.include?(review.id) %>
+      <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
     <% end %>
   </td>
   <td><%= review.decision || "—" %></td>

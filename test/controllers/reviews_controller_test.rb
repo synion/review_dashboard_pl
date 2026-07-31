@@ -301,7 +301,10 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
 
     review.update!(task_description_status: "running")
     get review_path(review)
-    assert_match "Pobieram opis zadania", response.body
+    assert_match "Czytam zadanie", response.body
+    # Live: karta ma własny target broadcastu, inaczej postęp cyklu pobocznego nie ma
+    # gdzie wejść i o końcu pracy dowiadujesz się dopiero z odświeżenia strony.
+    assert_select "##{"review_#{review.id}_side_progress"} .progress-line"
 
     review.update!(task_description_status: "failed")
     review.claude_runs.create!(kind: "describe_task", claude_config: review.effective_claude_config,
@@ -1036,5 +1039,129 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "tr#review_row_#{reviews(:pr_review).id} td.title-cell .muted",
                   text: /PR #1234 · sl-fix-vat · opus/
+  end
+
+  test "should create a branch-only self review without queueing the task description" do
+    assert_no_enqueued_jobs(only: DescribeTaskJob) do
+      assert_enqueued_with(job: DescribeReviewJob) do
+        post project_reviews_path(@project),
+             params: { review: { branch: "sw-selfreview" }, fetch_task_description: "1" }
+      end
+    end
+
+    review = Review.order(:id).last
+    assert_redirected_to review_path(review)
+    assert review.self_review?
+    assert_equal "skipped", review.task_description_status
+  end
+
+  test "should suggest existing worktree branches in the new review form" do
+    listing = "worktree #{@project.repo_path}\nbranch refs/heads/master\n\n" \
+              "worktree /tmp/webapp-sw-selfreview\nbranch refs/heads/sw-selfreview\n"
+    fake = Minitest::Mock.new
+    fake.expect(:run, CommandRunner::Result.new(exit_code: 0, stdout: listing, stderr: "", timed_out: false),
+                [ [ "git", "worktree", "list", "--porcelain" ] ], chdir: @project.repo_path)
+
+    CommandRunner.stub :run, ->(cmd, **kw) { fake.run(cmd, **kw) } do
+      get new_project_review_path(@project)
+    end
+
+    assert_select "input[name='review[branch]'][list=worktree_branches]"
+    assert_select "datalist#worktree_branches option[value=sw-selfreview]"
+    assert_select "datalist#worktree_branches option[value=master]", count: 0
+  end
+
+  # Weryfikacja zasadności: świeża sesja bez kontekstu review, które uwagi znalazło.
+  test "should queue verification of the findings validity" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+
+    assert_enqueued_with job: VerifyFindingsJob, args: [ review, { model: nil, effort: nil, claude_config: nil } ] do
+      post verify_findings_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_equal "reviewed", review.reload.status
+  end
+
+  # Modal wyboru: druga opinia często ma iść mocniejszym modelem niż samo review.
+  test "should pass the chosen model and effort to the verification session" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+
+    assert_enqueued_with job: VerifyFindingsJob,
+                         args: [ review, { model: "opus", effort: "max", claude_config: "/Users/dev/.claude-b" } ] do
+      post verify_findings_review_path(review, model: "opus", effort: "max", claude_config: "/Users/dev/.claude-b")
+    end
+  end
+
+  test "should drop an unknown model or effort instead of passing it to the session" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+
+    assert_enqueued_with job: VerifyFindingsJob, args: [ review, { model: nil, effort: nil, claude_config: nil } ] do
+      post verify_findings_review_path(review, model: "gpt", effort: "turbo", claude_config: "/tmp/obce")
+    end
+  end
+
+  test "should show the verification modal with model and effort selects" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+
+    get review_path(review)
+
+    assert_select "dialog#verify_findings_dialog" do
+      assert_select "form[action=?]", verify_findings_review_path(review)
+      assert_select "select#verify_model option[value=opus]"
+      assert_select "select#verify_effort option[value=max]"
+      assert_select "select#verify_claude_config option[value=?]", "/Users/dev/.claude-b"
+    end
+  end
+
+  test "should refuse verifying findings when there is nothing to verify" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+
+    assert_no_enqueued_jobs only: VerifyFindingsJob do
+      post verify_findings_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_match(/Nie ma czego weryfikować/, flash[:alert])
+  end
+
+  test "should show the verdict badges and gray out refuted findings" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK",
+                   findings_verified_at: Time.current)
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x",
+                            verdict: "refuted", verdict_note: "guard w invoice.rb:80")
+    review.findings.create!(priority: "minor", title: "literówka", body: "y",
+                            verdict: "confirmed", verdict_note: "jest")
+
+    get review_path(review)
+
+    assert_select "form[action=?]", verify_findings_review_path(review)
+    assert_select ".finding-refuted .verdict-refuted", text: /obalone/
+    assert_select ".verdict-confirmed", text: /potwierdzone/
+    assert_select ".card p.muted", text: /1 ✓ potwierdzone · 1 ✗ obalone/
+  end
+
+  # Cykl poboczny nie zmienia statusu review — lista i karta znalezisk muszą
+  # pokazać trwającą weryfikację same z siebie.
+  test "should show the verification in progress on the list and instead of the button" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+    review.claude_runs.create!(kind: "verify_findings", claude_config: "/Users/dev/.claude")
+
+    get project_reviews_path(review.project)
+    assert_select "#review_row_#{review.id} .queued-hint", text: /weryfikacja uwag w toku/
+
+    get review_path(review)
+    assert_select "dialog#verify_findings_dialog", count: 0
+    assert_select "#review_#{review.id}_side_progress"
   end
 end

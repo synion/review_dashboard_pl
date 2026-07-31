@@ -11,6 +11,11 @@
     <% if review.status == "reviewing" && running_ids.exclude?(review.id) %>
       <span class="queued-hint">⏳ Czeka w kolejce workera</span>
     <% end %>
+    <%# Cykl poboczny nie zmienia statusu review — bez dopisku kafel wygląda,
+        jakby puszczona weryfikacja uwag nic nie robiła. %>
+    <% if @verifying_review_ids&.include?(review.id) %>
+      <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
+    <% end %>
   </div>
   <%= link_to (review.pr_title.presence || review.task_link || "review ##{review.id}"),
               review_path(review), class: "qttl" %>

@@ -1,5 +1,5 @@
 class ClaudeRun < ApplicationRecord
-  KINDS = %w[describe describe_task review followup compact comment_task verify_fixes].freeze
+  KINDS = %w[describe describe_task review followup compact comment_task verify_fixes verify_findings].freeze
   # Kroki cyklu review (describe → review → followup) — w odróżnieniu od runów
   # pobocznych (compact, describe_task), które mają własne przyciski ponowienia
   # i nie mogą decydować o wznawianiu cyklu po awarii.
@@ -17,8 +17,10 @@ class ClaudeRun < ApplicationRecord
   # jak describe_task (kilka tur narzędzi, zero kodu), więc ten sam limit.
   # verify_fixes: jeden git diff plus przejście po liście znalezisk — bez pisania kodu
   # i bez czytania całego repo, więc profil jak describe_task.
+  # verify_findings: świeża sesja musi PRZECZYTAĆ kod wokół każdego znaleziska
+  # (nie tylko diff), więc dostaje tyle co followup.
   TIMEOUTS = { "describe" => 900, "describe_task" => 900, "review" => 3600, "followup" => 1800, "compact" => 600,
-               "comment_task" => 900, "verify_fixes" => 900 }.freeze
+               "comment_task" => 900, "verify_fixes" => 900, "verify_findings" => 1800 }.freeze
   # Zwis sesji objawia się ciszą w strumieniu — claude przestaje emitować zdarzenia,
   # choć proces żyje. Czekanie do limitu całkowitego nic wtedy nie daje, więc ubijamy
   # wcześniej i (dla review) ponawiamy. Pracująca sesja bije zdarzeniami co kilka sekund,
@@ -30,12 +32,19 @@ class ClaudeRun < ApplicationRecord
   validates :kind, inclusion: { in: KINDS }
   validates :status, inclusion: { in: STATUSES }
   validates :claude_config, presence: true
+  # Nadpisanie ustawień review dla pojedynczego runa; puste = dziedziczy z review.
+  validates :model, inclusion: { in: Review::MODELS }, allow_blank: true
+  validates :effort, inclusion: { in: Review::EFFORTS }, allow_blank: true
 
   attribute :status, :string, default: "pending"
 
+  # Postęp leci do targetu WŁAŚCIWEGO cyklu: opis zadania (i inne kroki poboczne) chodzi
+  # równolegle z review, więc wspólny target znaczyłby, że obie sesje nadpisują sobie
+  # treść w losowej kolejności — i „Pobieram opis zadania" znikało pod logiem review.
   after_update_commit -> {
-    broadcast_replace_to review, target: "review_#{review_id}_progress",
-                         partial: "reviews/progress", locals: { review: review.reload }
+    broadcast_replace_to review, target: "review_#{review_id}_#{progress_scope}_progress",
+                         partial: "reviews/#{progress_scope == "side" ? "task_progress" : "progress"}",
+                         locals: { review: review.reload }
   }, if: -> { saved_change_to_last_message? || saved_change_to_status? || saved_change_to_started_at? }
 
   # Licznik kontekstu ma rosnąć w trakcie sesji, a nie dopiero po odświeżeniu —
@@ -44,6 +53,10 @@ class ClaudeRun < ApplicationRecord
     broadcast_replace_to review, target: "review_#{review_id}_context",
                          partial: "reviews/context", locals: { review: review.reload }
   }, if: -> { saved_change_to_context_tokens? || saved_change_to_context_window? || saved_change_to_status? }
+
+  # „lifecycle" = describe/review/followup (+compact, który pożycza panel review),
+  # „side" = kroki poboczne z własnym cyklem życia i własną kartą w panelu.
+  def progress_scope = LIFECYCLE_KINDS.include?(kind) || kind == "compact" ? "review" : "side"
 
   def log_path
     review.artifacts_dir.join("#{kind}.log")

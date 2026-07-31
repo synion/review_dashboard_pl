@@ -114,6 +114,9 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .fix-implemented { background: var(--done-bg); color: var(--ok); }
 .fix-ignored { background: var(--err-bg); color: var(--danger); }
 .fix-unclear { background: var(--badge-bg); color: var(--muted); }
+.verdict-confirmed { background: var(--done-bg); color: var(--ok); }
+.verdict-refuted { background: var(--err-bg); color: var(--danger); }
+.verdict-disputed { background: var(--badge-bg); color: var(--muted); }
 
 /* ===================== strona wejściowa: kolejki + projekty ===================== */
 .pagehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 4px; }
@@ -171,10 +174,23 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .main-radio { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: normal; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .main-radio input { accent-color: var(--accent); margin: 0; cursor: pointer; }
 .projcard:has(.main-radio input:checked) { border-color: var(--accent); }
-.counts { display: flex; gap: 12px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.counts { display: flex; gap: 12px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 .counts b { font-size: 17px; color: var(--fg); font-variant-numeric: tabular-nums; }
 .count-hot b { color: var(--warn); }
-.projmeta { font-size: 12px; color: var(--muted); margin-top: 10px; word-break: break-all; }
+/* Zero znaczy „nic tu nie ma" — pełnym kontrastem ciągnęło wzrok tak samo jak
+   liczba wymagająca akcji. */
+.count-zero, .count-zero b { color: var(--line); }
+.projcard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.link-quiet { font-size: 13px; color: var(--muted); }
+.projmeta { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+/* min-width: 0 dopuszcza skrócenie flex-itemu poniżej jego treści — bez tego
+   ellipsis nigdy nie zadziała i ścieżka rozpycha kafelek. */
+.projmeta .projpath { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.projmeta .projconfig { white-space: nowrap; }
+.projmeta .projconfig::before { content: "· "; }
+/* Kafel „+ Nowy projekt" wygląda jak miejsce na kartę, której jeszcze nie ma. */
+.projcard-add { display: flex; align-items: center; justify-content: center; min-height: 120px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 14px; text-decoration: none; }
+.projcard-add:hover { border-color: var(--accent); color: var(--accent); }
 /* Edycja i archiwizacja to czynności robione raz na projekt — nie mogą wyglądać
    równorzędnie z „+ Nowy review". */
 .projadmin { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 12px; }
@@ -190,11 +206,35 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
                    border-left: 4px solid var(--muted); background: var(--surface); padding: 10px 16px; margin-bottom: 16px; }
 .queued-hint { margin-left: 8px; font-size: 12px; color: var(--warn); white-space: nowrap; }
 .done-hint { margin-left: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* Strona jednego review: tytuł, stan i meta w jednym bloku, linki wychodzące osobno
+   i ściszone — to nawigacja, nie treść. */
+.pagehead .status-badge { font-size: 13px; }
+.review-links { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 16px; font-size: 13px; }
+.review-links a { color: var(--muted); }
+.review-links a:hover { color: var(--accent); }
+/* Postęp sesji: monospace, bo to surowe linie z modelu, i bez rozpychania karty przy
+   długim komunikacie. */
+.progress-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; }
+.progress-line.muted { font-family: inherit; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
 .card h2, details.card > summary { margin-top: 0; font-size: 17px; }
+.card h2 { margin-bottom: 8px; }
+/* Formularze i przyciski w kartach nie mogą się kleić do treści ani do siebie. */
+.card form.button_to { display: inline-block; margin-right: 8px; }
+.error-box { border-left: 4px solid var(--danger); background: var(--err-bg); }
 .finding { border-left: 4px solid var(--muted); padding: 8px 12px; margin: 8px 0; background: var(--line-soft); }
 .finding-critical { border-color: var(--danger); }
 .finding-important { border-color: var(--warn); }
+/* Obalone znalezisko zostaje widoczne (decyzja należy do człowieka), ale schodzi na dalszy plan. */
+.finding-refuted { opacity: 0.55; }
+
+.modal { border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; max-width: 460px; background: var(--card-bg, #fff); }
+.modal::backdrop { background: rgba(0, 0, 0, 0.35); }
+.modal h2 { margin-top: 0; }
+/* Dwa pola, nie trzy jak w formularzu review — i selecty na pełną szerokość kolumny. */
+.modal .form-grid { grid-template-columns: 1fr 1fr; }
+.modal select { width: 100%; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .progress-line { color: var(--muted); font-size: 14px; white-space: pre-wrap; }
 details { margin: 8px 0; }
 summary { cursor: pointer; color: var(--muted); }
@@ -208,6 +248,25 @@ input[type=text], input[type=url], textarea, select { width: 100%; padding: 10px
 ::placeholder { color: var(--muted); opacity: 1; }
 .field { margin-bottom: 14px; }
 .field > label { display: block; font-weight: 600; margin-bottom: 4px; }
+/* Podpowiedź pod polem: ma być czytelna dopiero, gdy user się zawaha — nie może
+   konkurować z labelami. */
+.hint { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+/* Formularz nowego review: nagłówki sekcji w tym samym języku co sekcje list
+   (kolejki, projekty), notka obok mówi, ile z tego naprawdę trzeba wypełnić. */
+/* Kolumna formularza wyśrodkowana na stronie — razem z nagłówkiem i linkiem
+   powrotu, żeby nie wisiały przyklejone do lewej krawędzi nad środkową kartą. */
+.form-page { max-width: 640px; margin: 0 auto; }
+.form-card .field { margin-bottom: 22px; }
+.form-card input[type=submit] { margin-top: 6px; }
+.form-section { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 26px 0 12px; }
+.form-section:first-of-type { margin-top: 0; }
+.form-section-note { text-transform: none; letter-spacing: 0; font-weight: normal; font-size: 12px; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.form-grid .field { margin-bottom: 8px; }
+.checkbox-label { display: flex; align-items: baseline; gap: 6px; }
+@media (max-width: 720px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
 /* Instrukcja komentarza do zadania — rozwija się dopiero po zaznaczeniu checkboxa,
    żeby formularz decyzji nie puchł dla opcji, która domyślnie jest wyłączona. */
 .task-comment-details { display: none; margin-top: 8px; }
@@ -231,3 +290,17 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .ctx-ok { background: var(--ok); }
 .ctx-warn { background: var(--warn); }
 .ctx-danger { background: var(--danger); }
+
+/* ===================== wąskie ekrany ===================== */
+/* Tabela review ma 7 kolumn — na telefonie chowamy to, co da się odczytać z karty
+   review (data utworzenia, worktree), zamiast pozwolić jej rozpychać stronę. */
+@media (max-width: 720px) {
+  .container { padding: 0 12px; }
+  .pagehead { gap: 6px 10px; }
+  .toolbar .filter { margin-left: 0; width: 100%; }
+  .toolbar .filter select { width: 100%; }
+  table#reviews td.date-cell, table#reviews th:first-child,
+  table#reviews td.worktree-cell, table#reviews th:nth-child(6) { display: none; }
+  .projgrid { grid-template-columns: 1fr; }
+  .qtop { row-gap: 4px; }
+}
