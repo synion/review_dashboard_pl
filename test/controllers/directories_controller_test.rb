@@ -5,12 +5,12 @@ class DirectoriesControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     @project = projects(:webapp)
-    DirectoryEntry.replace!(@project, "tracker_user", [ { external_id: "1", name: "Anna Kowalska" },
+    DirectoryEntry.replace!(@project, "intum_user", [ { external_id: "1", name: "Anna Kowalska" },
                                                       { external_id: "2", name: "Jan Nowak" } ])
   end
 
   test "zwraca podpowiedzi filtrowane po q" do
-    get directory_project_path(@project, kind: "tracker_user", q: "kowal")
+    get directory_project_path(@project, kind: "intum_user", q: "kowal")
 
     assert_response :success
     assert_equal [ { "id" => "1", "name" => "Anna Kowalska" } ], response.parsed_body
@@ -39,9 +39,9 @@ class DirectoriesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "kind bez producenta (tracker_user w PR1) nie kolejkuje joba mimo stęchłego cache" do
+  test "kind bez producenta (intum_user w PR1) nie kolejkuje joba mimo stęchłego cache" do
     assert_no_enqueued_jobs do
-      get directory_project_path(@project, kind: "tracker_user", q: "")
+      get directory_project_path(@project, kind: "intum_user", q: "")
     end
     assert_response :success
   end

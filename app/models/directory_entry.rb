@@ -1,7 +1,7 @@
 # Lokalny cache list do comboboxów (collaboratorzy i labelki z GH, osoby z trackera).
 # Selecty filtrują po tej tabeli zamiast pytać zewnętrzne API przy każdym wpisanym znaku.
 class DirectoryEntry < ApplicationRecord
-  KINDS = %w[gh_collaborator gh_label tracker_user].freeze
+  KINDS = %w[gh_collaborator gh_label intum_user].freeze
   STALE_AFTER = 12.hours
 
   belongs_to :project

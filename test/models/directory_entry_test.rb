@@ -15,11 +15,11 @@ class DirectoryEntryTest < ActiveSupport::TestCase
   end
 
   test "replace! aktualizuje nazwę po external_id i kasuje zniknięte" do
-    DirectoryEntry.replace!(@project, "tracker_user", [ { external_id: "7", name: "Stare Nazwisko" },
+    DirectoryEntry.replace!(@project, "intum_user", [ { external_id: "7", name: "Stare Nazwisko" },
                                                       { external_id: "8", name: "Znika" } ])
-    DirectoryEntry.replace!(@project, "tracker_user", [ { external_id: "7", name: "Nowe Nazwisko" } ])
+    DirectoryEntry.replace!(@project, "intum_user", [ { external_id: "7", name: "Nowe Nazwisko" } ])
 
-    entries = @project.directory_entries.where(kind: "tracker_user")
+    entries = @project.directory_entries.where(kind: "intum_user")
     assert_equal [ %w[7 Nowe\ Nazwisko] ], entries.pluck(:external_id, :name)
   end
 
@@ -35,12 +35,12 @@ class DirectoryEntryTest < ActiveSupport::TestCase
   end
 
   test "search filtruje po fragmencie nazwy bez rozróżniania wielkości liter" do
-    DirectoryEntry.replace!(@project, "tracker_user", [ { external_id: "1", name: "Anna Kowalska" },
+    DirectoryEntry.replace!(@project, "intum_user", [ { external_id: "1", name: "Anna Kowalska" },
                                                       { external_id: "2", name: "Jan Nowak" } ])
 
-    assert_equal [ "Anna Kowalska" ], DirectoryEntry.search(@project, "tracker_user", "kowal").pluck(:name)
-    assert_equal [ "Anna Kowalska" ], DirectoryEntry.search(@project, "tracker_user", "ANNA").pluck(:name)
-    assert_equal [ "Anna Kowalska", "Jan Nowak" ], DirectoryEntry.search(@project, "tracker_user", "").pluck(:name)
+    assert_equal [ "Anna Kowalska" ], DirectoryEntry.search(@project, "intum_user", "kowal").pluck(:name)
+    assert_equal [ "Anna Kowalska" ], DirectoryEntry.search(@project, "intum_user", "ANNA").pluck(:name)
+    assert_equal [ "Anna Kowalska", "Jan Nowak" ], DirectoryEntry.search(@project, "intum_user", "").pluck(:name)
   end
 
   test "kind? rozpoznaje znane kindy" do
