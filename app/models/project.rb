@@ -18,7 +18,9 @@ class Project < ApplicationRecord
   # zawsze puste (sekretu nie odbijamy do HTML), więc puste przy zapisie znaczy
   # „bez zmian" — niezależnie od tego, którą drogą przyszedł update.
   def intum_api_token=(value)
-    super if value.present?
+    # strip: token wkleja się z panelu trackera i lubi złapać spację/enter —
+    # niewidoczny znak = 401 "wrong api_token" nie do zdebugowania z UI.
+    super(value.strip) if value.present?
   end
 
   scope :active, -> { where(archived_at: nil) }

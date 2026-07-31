@@ -204,6 +204,12 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal "sekretny-token", project.reload.intum_api_token
   end
 
+  test "intum_api_token= przycina białe znaki z wklejki" do
+    project = projects(:webapp)
+    project.update!(intum_api_token: " token-ze-spacja\n")
+    assert_equal "token-ze-spacja", project.reload.intum_api_token
+  end
+
   test "intum_base_url wycina hosta z task_url_prefix" do
     project = projects(:webapp)
     project.task_url_prefix = "https://tracker.example.com/organize/tasks/"
