@@ -8,6 +8,7 @@ class Project < ApplicationRecord
 
   has_many :reviews, dependent: :destroy
   has_many :inbox_items, dependent: :destroy
+  has_many :directory_entries, dependent: :destroy
 
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_061534) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_110002) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -36,6 +36,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_061534) do
     t.datetime "updated_at", null: false
     t.text "user_message"
     t.index ["review_id"], name: "index_claude_runs_on_review_id"
+  end
+
+  create_table "directory_entries", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "external_id", null: false
+    t.string "kind", null: false
+    t.string "name", null: false
+    t.integer "project_id", null: false
+    t.datetime "refreshed_at"
+    t.datetime "updated_at", null: false
+    t.index ["project_id", "kind", "external_id"], name: "index_directory_entries_on_project_id_and_kind_and_external_id", unique: true
+    t.index ["project_id", "kind", "name"], name: "index_directory_entries_on_project_id_and_kind_and_name"
+    t.index ["project_id"], name: "index_directory_entries_on_project_id"
   end
 
   create_table "findings", force: :cascade do |t|
@@ -81,6 +94,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_061534) do
   end
 
   create_table "projects", force: :cascade do |t|
+    t.string "approve_label_default"
     t.datetime "archived_at"
     t.datetime "created_at", null: false
     t.string "default_claude_config"
@@ -93,6 +107,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_061534) do
     t.string "repo_path"
     t.string "repo_url"
     t.text "review_prompt_extra"
+    t.string "second_reviewer_default"
     t.text "task_comment_instructions"
     t.string "task_url_prefix"
     t.datetime "updated_at", null: false
@@ -113,11 +128,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_061534) do
     t.text "error_message"
     t.datetime "findings_verified_at"
     t.datetime "fixes_checked_at"
+    t.string "followup_label_name"
+    t.string "followup_label_status"
+    t.string "followup_reviewer_login"
+    t.string "followup_reviewer_status"
     t.datetime "github_checked_at"
     t.string "model"
     t.string "playwright_command"
     t.string "playwright_test_path"
     t.integer "pr_number"
+    t.text "pr_reviewers"
+    t.datetime "pr_reviewers_checked_at"
     t.string "pr_title"
     t.string "pr_url"
     t.integer "project_id", null: false
@@ -137,6 +158,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_061534) do
   end
 
   add_foreign_key "claude_runs", "reviews"
+  add_foreign_key "directory_entries", "projects"
   add_foreign_key "findings", "reviews"
   add_foreign_key "inbox_items", "projects"
   add_foreign_key "playwright_runs", "reviews"
