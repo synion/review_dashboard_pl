@@ -469,13 +469,22 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Najpierw zapisz/, flash[:alert])
   end
 
+  class FakeIntum
+    def initialize(users: [], error: nil)
+      @users, @error = users, error
+    end
+
+    def users(limit_pages: nil)
+      raise IntumClient::Error, @error if @error
+      @users
+    end
+  end
+
   test "test_intum pokazuje liczbę osób przy działającym tokenie" do
     project = projects(:webapp)
     project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
-    fake = Object.new
-    fake.define_singleton_method(:users) { [ { "id" => "1", "name" => "Anna" } ] }
 
-    IntumClient.stub :new, fake do
+    IntumClient.stub :new, FakeIntum.new(users: [ { "id" => "1", "name" => "Anna" } ]) do
       post test_intum_project_path(project)
     end
 
@@ -485,10 +494,8 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   test "test_intum tłumaczy błąd klienta na alert" do
     project = projects(:webapp)
     project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
-    fake = Object.new
-    fake.define_singleton_method(:users) { raise IntumClient::Error, "tracker odpowiedział 403" }
 
-    IntumClient.stub :new, fake do
+    IntumClient.stub :new, FakeIntum.new(error: "tracker odpowiedział 403") do
       post test_intum_project_path(project)
     end
 

@@ -198,6 +198,17 @@ class Review < ApplicationRecord
     [ followup_reviewer_status, followup_label_status ].include?("failed")
   end
 
+  # Numer zadania widoczny w adresie (scoped_id) — po prefiksie projektu, żeby
+  # nie zgadywać kształtu URL-a; fallback dla linku spoza prefiksu: ostatnia
+  # liczba w adresie.
+  def task_scoped_id
+    return nil if task_url.blank?
+
+    prefix = project.task_url_prefix
+    from_prefix = prefix.present? ? task_url.delete_prefix(prefix)[/\A\d+/] : nil
+    from_prefix || task_url[/(\d+)\D*\z/, 1]
+  end
+
   # Link identyfikujący zadanie — PR, a gdy go nie ma, link do zadania.
   # Selfreview nie ma żadnego z nich, więc identyfikuje je branch.
   def task_link

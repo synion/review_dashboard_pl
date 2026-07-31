@@ -32,6 +32,18 @@ class IntumClientTest < ActiveSupport::TestCase
     IntumClient.new(base_url: "https://tracker.example.com", token: "tajny", transport: transport)
   end
 
+  test "users z limit_pages: 1 pyta o jedną stronę" do
+    fake = FakeTransport.new
+    fake.queue(:get, "/account/users.json", code: 200, body: [
+      { user_id: 1, get_name: "Anna Kowalska", role: "admin", active: true }
+    ])
+
+    users = client(fake).users(limit_pages: 1)
+
+    assert_equal 1, fake.calls.size
+    assert_equal [ { "id" => "1", "name" => "Anna Kowalska" } ], users
+  end
+
   test "users iteruje strony do pustej i filtruje gości oraz nieaktywnych" do
     fake = FakeTransport.new
     fake.queue(:get, "/account/users.json", code: 200, body: [

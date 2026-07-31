@@ -14,6 +14,13 @@ class Project < ApplicationRecord
   # tylko placeholder „ustawiony", nigdy wartość.
   encrypts :intum_api_token
 
+  # Niezmiennik zapisu sekretu, nie reguła formularza: pole tokena renderuje się
+  # zawsze puste (sekretu nie odbijamy do HTML), więc puste przy zapisie znaczy
+  # „bez zmian" — niezależnie od tego, którą drogą przyszedł update.
+  def intum_api_token=(value)
+    super if value.present?
+  end
+
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   # Jedyny porządek list projektów (grid, archiwum, fallback main) — wspólny scope,
@@ -97,6 +104,12 @@ class Project < ApplicationRecord
   # obu: adresu trackera i tokena. Bez tego dashboard działa jak dotychczas.
   def intum_enabled?
     intum_base_url.present? && intum_api_token.present?
+  end
+
+  # Jedno miejsce składania klienta z konfiguracji projektu — joby i kontrolery
+  # nie znają kwargów IntumClienta (wzorzec: GithubClient.new bez argumentów).
+  def intum_client
+    IntumClient.new(base_url: intum_base_url, token: intum_api_token)
   end
 
   private

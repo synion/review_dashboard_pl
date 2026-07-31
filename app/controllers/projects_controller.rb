@@ -57,13 +57,15 @@ class ProjectsController < ApplicationController
     end
   end
 
-  # Szybka odpowiedź „czy token działa": pytamy tracker o zespół. Liczba osób
-  # zamiast gołego OK — od razu widać, czy uprawnienia obejmują listę userów.
+  # Szybka odpowiedź „czy token działa": jedna strona listy osób (nie cała
+  # paginacja — to potrafi być kilkanaście requestów, a wynik i tak tylko
+  # potwierdza uprawnienia). Liczba osób zamiast gołego OK — od razu widać,
+  # czy uprawnienia obejmują listę userów.
   def test_intum
     return redirect_to(edit_project_path(@project), alert: "Najpierw zapisz prefiks zadań i token") unless @project.intum_enabled?
 
-    people = IntumClient.new(base_url: @project.intum_base_url, token: @project.intum_api_token).users
-    redirect_to edit_project_path(@project), notice: "Połączono z trackerem — #{people.size} osób w zespole"
+    people = @project.intum_client.users(limit_pages: 1)
+    redirect_to edit_project_path(@project), notice: "Połączono z trackerem — #{people.size} osób na pierwszej stronie zespołu"
   rescue IntumClient::Error => e
     redirect_to edit_project_path(@project), alert: "Test połączenia nie przeszedł: #{e.message}"
   end
@@ -98,15 +100,11 @@ class ProjectsController < ApplicationController
   end
 
   def project_params
-    permitted = params.require(:project)
-                      .permit(:name, :repo_path, :repo_url, :default_claude_config, :default_model,
-                              :default_effort, :docs_path, :review_prompt_extra, :task_comment_instructions,
-                              :worktree_command, :worktree_delete_command, :task_url_prefix,
-                              :second_reviewer_default, :approve_label_default, :intum_api_token)
-    # Pole tokena renderuje się zawsze puste (nie odbijamy sekretu do HTML) —
-    # puste przy zapisie znaczy „bez zmian", nie „skasuj".
-    permitted.delete(:intum_api_token) if permitted[:intum_api_token].blank?
-    permitted
+    # Puste pole tokena nie kasuje sekretu — niezmiennik siedzi w setterze modelu.
+    params.require(:project).permit(:name, :repo_path, :repo_url, :default_claude_config, :default_model,
+                                    :default_effort, :docs_path, :review_prompt_extra, :task_comment_instructions,
+                                    :worktree_command, :worktree_delete_command, :task_url_prefix,
+                                    :second_reviewer_default, :approve_label_default, :intum_api_token)
   end
 
   # Kolejka „czeka na Ciebie" to PR-y CZYJEGOŚ autorstwa, na których wisi moje review.

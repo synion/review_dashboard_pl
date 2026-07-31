@@ -8,7 +8,7 @@ class IntumClient
   Error = Class.new(StandardError)
 
   USER_AGENT = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36".freeze
-  USERS_PER_PAGE_LIMIT = 30 # bezpiecznik pętli paginacji (30 × 500 osób)
+  MAX_USER_PAGES = 30 # bezpiecznik pętli paginacji (tracker zwraca po ~500 osób na stronę)
 
   def initialize(base_url:, token:, transport: nil)
     @base_url = base_url
@@ -18,15 +18,18 @@ class IntumClient
 
   # Zespół do comboboxa drugiego sprawdzenia. Konto trackera ma tysiące gości
   # (klientów) — zostają aktywni nie-goście. Ról nie whitelistujemy: bywają
-  # numerycznymi ID custom ról jako stringi (np. "1089").
-  def users
-    (1..USERS_PER_PAGE_LIMIT).each_with_object([]) do |page, acc|
-      users = parse(@transport.get("/account/users.json", { page: page, api_token: @token }))
-      break acc if users.empty?
-
-      acc.concat(users.select { |u| u["active"] && u["role"] != "guest" }
-                      .map { |u| { "id" => u["user_id"].to_s, "name" => u["get_name"] } })
+  # numerycznymi ID custom ról jako stringi (np. "1089"). API trackera nie
+  # przyjmuje filtrów roli/aktywności, stąd selekcja po naszej stronie.
+  # `limit_pages: 1` = tani test połączenia (jedna strona zamiast całości).
+  def users(limit_pages: MAX_USER_PAGES)
+    team = []
+    (1..limit_pages).each do |page|
+      batch = parse(@transport.get("/account/users.json", { page: page, api_token: @token }))
+      team.concat(batch.select { |u| u["active"] && u["role"] != "guest" }
+                       .map { |u| { "id" => u["user_id"].to_s, "name" => u["get_name"] } })
+      break if batch.empty?
     end
+    team
   end
 
   # Zadanie po numerze z URL-a (scoped_id). Zwraca m.in. "id" — PK, którego

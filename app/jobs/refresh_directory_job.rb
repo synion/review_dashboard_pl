@@ -19,9 +19,12 @@ class RefreshDirectoryJob < ApplicationJob
     end
   end
 
-  def perform(project, github: GithubClient.new, intum: nil)
-    refresh_github(project, github)
-    refresh_intum(project, intum)
+  # `kind` z leniwego odświeżenia endpointu directory zawęża pracę do providera,
+  # którego cache faktycznie zwietrzał — stęchłe labelki nie odpalają pełnej
+  # paginacji userów trackera. Przycisk „Odśwież" woła bez kind = wszystko.
+  def perform(project, kind: nil, github: GithubClient.new, intum: nil)
+    refresh_github(project, github) if kind.nil? || kind.start_with?("gh_")
+    refresh_intum(project, intum) if kind.nil? || kind == "intum_user"
   end
 
   private
@@ -39,7 +42,7 @@ class RefreshDirectoryJob < ApplicationJob
   def refresh_intum(project, intum)
     return unless project.intum_enabled?
 
-    intum ||= IntumClient.new(base_url: project.intum_base_url, token: project.intum_api_token)
+    intum ||= project.intum_client
     DirectoryEntry.replace!(project, "intum_user",
                             intum.users.map { |u| { external_id: u["id"], name: u["name"] } })
   rescue IntumClient::Error => e

@@ -13,10 +13,9 @@ class CommentTaskJob < ApplicationJob
     text = session_factory.call(run).call(PromptBuilder.comment_task(review)).to_s.strip
 
     if (match = ERROR_LINE.match(text))
-      # Sesja przebiegła poprawnie, ale komentarz nie wszedł (wygasła sesja trackera,
-      # brak dostępu) — powód na runie, bo stamtąd czyta go task_comment_error.
-      run.update!(error_message: match[1])
-      review.update!(task_comment_status: "failed")
+      # Sesja przebiegła poprawnie, ale komentarz nie powstał/nie wszedł — powód
+      # na runie, bo stamtąd czyta go task_comment_error.
+      fail_with!(review, run, match[1])
     else
       # Z tokenem trackera sesja tylko pisze treść — wysyłamy sami przez API
       # (z opcjonalnym skierowaniem do osoby drugiego sprawdzenia). Bez tokena
@@ -25,8 +24,7 @@ class CommentTaskJob < ApplicationJob
       review.update!(task_comment: text, task_comment_status: "ready")
     end
   rescue IntumClient::Error => e
-    run&.update!(error_message: e.message)
-    review.update!(task_comment_status: "failed")
+    fail_with!(review, run, e.message)
   rescue StandardError
     # Decyzja już poszła na GitHub — porażka komentarza nie może jej dotknąć.
     # Treści task_comment nie ruszamy: nieudane ponowienie nie zamazuje śladu
@@ -36,15 +34,19 @@ class CommentTaskJob < ApplicationJob
 
   private
 
+  def fail_with!(review, run, message)
+    run.update!(error_message: message)
+    review.update!(task_comment_status: "failed")
+  end
+
   # Numer zadania z URL-a (scoped_id) → GET po PK → POST komentarza. Komentarze
   # w trackerze chodzą po PK zadania, nie po numerze widocznym w adresie.
   def publish_via_api(review, text, intum)
-    project = review.project
-    intum ||= IntumClient.new(base_url: project.intum_base_url, token: project.intum_api_token)
-    scoped_id = review.task_url[/(\d+)(?:\D*)\z/, 1]
+    intum ||= review.project.intum_client
+    scoped_id = review.task_scoped_id
     raise IntumClient::Error, "nie umiem wyłuskać numeru zadania z #{review.task_url}" if scoped_id.blank?
 
     task_pk = intum.task(scoped_id).fetch("id")
-    intum.post_comment(task_pk, text, responsible_id: review.task_comment_responsible_id.presence)
+    intum.post_comment(task_pk, text, responsible_id: review.task_comment_responsible_id)
   end
 end

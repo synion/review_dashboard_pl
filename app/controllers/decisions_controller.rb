@@ -60,7 +60,7 @@ class DecisionsController < ApplicationController
   # z lokalnego cache. Brak wpisu (spreparowany id) = brak nazwy, id zostaje.
   def responsible_name
     id = params[:task_comment_responsible_id].presence
-    id && @review.project.directory_entries.find_by(kind: "intum_user", external_id: id)&.name
+    id && DirectoryEntry.name_for(@review.project, "intum_user", id)
   end
 
   def render_error(message)
