@@ -204,6 +204,14 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal "sekretny-token", project.reload.intum_api_token
   end
 
+  test "intum_api_token_hint maskuje sekret: pierwszy znak + dwa ostatnie" do
+    project = projects(:webapp)
+    assert_nil project.intum_api_token_hint
+
+    project.update!(intum_api_token: "intmSEKRETNYTOKEN99")
+    assert_equal "i••••••••99", project.intum_api_token_hint
+  end
+
   test "intum_api_token= przycina białe znaki z wklejki" do
     project = projects(:webapp)
     project.update!(intum_api_token: " token-ze-spacja\n")

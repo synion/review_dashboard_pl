@@ -23,6 +23,14 @@ class Project < ApplicationRecord
     super(value.strip) if value.present?
   end
 
+  # Podgląd ustawionego tokena bez ujawniania sekretu: pierwszy znak + dwa
+  # ostatnie; stała liczba kropek, żeby nie zdradzać nawet długości.
+  def intum_api_token_hint
+    return nil if intum_api_token.blank?
+
+    "#{intum_api_token[0]}••••••••#{intum_api_token[-2..]}"
+  end
+
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   # Jedyny porządek list projektów (grid, archiwum, fallback main) — wspólny scope,
