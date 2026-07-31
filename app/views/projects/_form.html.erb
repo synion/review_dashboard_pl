@@ -54,8 +54,7 @@
     <div class="field">
       <%= f.label :intum_api_token, "API token trackera" %>
       <%= f.password_field :intum_api_token, value: "", autocomplete: "off",
-            placeholder: project.intum_api_token_hint ?
-              "ustawiony: #{project.intum_api_token_hint} — wpisz nowy, żeby podmienić" : "wklej token" %>
+            placeholder: project.intum_api_token_hint || "wklej token" %>
       <span class="hint">
         Token wygenerujesz w trackerze pod <code class="inline">/account/api_tokens/new</code>.
         Zaznacz uprawnienia: <code class="inline">users, users/admin, user_settings, user_settings/all,
