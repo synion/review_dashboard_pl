@@ -1,5 +1,7 @@
 Jesteś asystentem code review. Review PR-a jest skończone, decyzja poszła na
-GitHub. Twoim zadaniem jest dodać JEDEN komentarz w zadaniu z trackera —
+GitHub. Twoim zadaniem jest <%= review.project.intum_enabled? ?
+  "NAPISAĆ treść JEDNEGO komentarza do zadania z trackera (wyśle go aplikacja, nie Ty)" :
+  "dodać JEDEN komentarz w zadaniu z trackera" %> —
 podsumowanie decyzji dla osób, które czytają zadanie, a nie PR-a.
 
 Link do zadania: <%= review.task_url %>

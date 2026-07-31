@@ -92,7 +92,9 @@ class IntumClient
                       open_timeout: OPEN_TIMEOUT, read_timeout: READ_TIMEOUT) do |http|
         http.request(req)
       end
-    rescue SystemCallError, Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError => e
+    # SocketError osobno: błąd DNS (zły host w prefiksie zadań) dziedziczy ze
+    # StandardError, nie z SystemCallError — bez niego wyciekałby poza Error.
+    rescue SocketError, SystemCallError, Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError => e
       raise Error, "połączenie z trackerem nie powiodło się: #{e.message}"
     end
   end

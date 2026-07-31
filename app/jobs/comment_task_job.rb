@@ -21,7 +21,7 @@ class CommentTaskJob < ApplicationJob
       # (z opcjonalnym skierowaniem do osoby drugiego sprawdzenia). Bez tokena
       # sesja wysłała komentarz sama (stara ścieżka przez skill).
       publish_via_api(review, text, intum) if review.project.intum_enabled?
-      review.update!(task_comment: text, task_comment_status: "ready")
+      mark_ready(review, run, text)
     end
   rescue IntumClient::Error => e
     fail_with!(review, run, e.message)
@@ -37,6 +37,18 @@ class CommentTaskJob < ApplicationJob
   def fail_with!(review, run, message)
     run.update!(error_message: message)
     review.update!(task_comment_status: "failed")
+  end
+
+  # Zapis „ready" dzieje się PO udanej wysyłce — gdy padnie sam zapis, komentarz
+  # już wisi w zadaniu, a „Ponów" wysłałby go drugi raz. Stąd jawne ostrzeżenie
+  # w powodzie błędu zamiast cichego "failed".
+  def mark_ready(review, run, text)
+    review.update!(task_comment: text, task_comment_status: "ready")
+  rescue StandardError
+    if review.project.intum_enabled?
+      run.update!(error_message: "Komentarz ZOSTAŁ dodany do zadania, ale zapis statusu się nie powiódł — NIE ponawiaj (grozi duplikatem)")
+    end
+    raise
   end
 
   # Numer zadania z URL-a (scoped_id) → GET po PK → POST komentarza. Komentarze

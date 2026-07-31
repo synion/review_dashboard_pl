@@ -4,9 +4,11 @@
 # podpowiedzi nie może niczego wywalać.
 class RefreshDirectoryJob < ApplicationJob
   queue_as :default
-  # Dwa joby tego samego projektu ścigałyby się na delete_all + upsert
-  # po tym samym unikalnym indeksie (wzorzec z RefreshInboxJob).
-  limits_concurrency key: ->(project, **) { project.id }
+  # Dwa joby tego samego projektu i kindu ścigałyby się na delete_all + upsert
+  # po tym samym unikalnym indeksie (wzorzec z RefreshInboxJob). Klucz z kindem:
+  # refresh GH i refresh trackera dotykają rozłącznych wierszy, więc mogą iść
+  # równolegle; `kind: nil` (przycisk „Odśwież") serializuje się sam ze sobą.
+  limits_concurrency key: ->(project, kind: nil, **) { [ project.id, kind ] }
 
   # Endpoint directory kolejkuje odświeżenie tylko dla kindów, które ten job
   # umie wypełnić — inaczej kind bez producenta kolejkowałby joby bez końca,
