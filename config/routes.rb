@@ -35,6 +35,7 @@ Rails.application.routes.draw do
       post :switch_config
       post :compact
       post :verify_fixes
+      post :verify_findings
     end
     resources :playwright_runs, only: :create
     resource :decision, only: :create

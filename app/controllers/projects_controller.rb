@@ -116,7 +116,10 @@ class ProjectsController < ApplicationController
   def load_queues
     # Scope na projekt główny (load_inbox wyżej filtruje tak samo) — archiwum
     # i tak odpada, bo Project.main widzi tylko aktywne.
-    waiting = Review.where(project: @main_project,
+    # outward: samoreview to prywatna runda przed PR-em — jego wynik czeka na liście
+    # projektu, a nie w kolejkach „co teraz kliknąć" na stronie wejściowej.
+    waiting = Review.outward
+                    .where(project: @main_project,
                            status: Review::ATTENTION_STATUSES + Review::IN_PROGRESS_STATUSES)
                     .includes(:project, :findings).to_a
     # Jeden PR = jedna karta. Review, którego PR wisi już w kolejce z GitHuba, nie wraca
@@ -129,18 +132,24 @@ class ProjectsController < ApplicationController
                                 .sort_by { |r| [ Review::ATTENTION_ORDER.index(r.status), r.updated_at ] }
     @in_progress_reviews = waiting.select { |r| r.status.in?(Review::IN_PROGRESS_STATUSES) }
                                   .sort_by(&:updated_at).reverse
-    # Ten sam sygnał co na liście review: „reviewing" bez pracującej sesji znaczy,
-    # że job stoi w kolejce workera. Pytamy tylko, gdy jest o co pytać.
-    @running_review_ids = @in_progress_reviews.any? ? ClaudeRun.where(status: "running").distinct.pluck(:review_id) : []
+    # Te same sygnały co na liście review, jednym zapytaniem: „reviewing" bez
+    # pracującej sesji znaczy, że job stoi w kolejce workera, a weryfikacja uwag
+    # (pending też) nie zmienia statusu review, więc kafel musi o niej wiedzieć sam.
+    active_runs = ClaudeRun.where(status: "running")
+                           .or(ClaudeRun.where(kind: "verify_findings", status: "pending"))
+                           .pluck(:review_id, :kind, :status)
+    @running_review_ids = active_runs.filter_map { |review_id, _kind, run_status| review_id if run_status == "running" }.uniq
+    @verifying_review_ids = active_runs.filter_map { |review_id, kind, _run_status| review_id if kind == "verify_findings" }.uniq
   end
 
-  # Jedno zapytanie na całą listę zamiast trzech na projekt. GROUP BY oddaje
-  # pary [project_id, status], kubełki składamy w Ruby.
+  # Dwa zapytania GROUP BY na całą listę zamiast trzech na projekt. „czeka"
+  # i „w toku" liczą tylko outward (samoreview nie woła o uwagę — patrz
+  # Review.outward); „łącznie" liczy wszystko, bo tyle naprawdę jest w projekcie.
   def review_counts
     counts = Hash.new { |hash, key| hash[key] = { attention: 0, in_progress: 0, total: 0 } }
-    Review.group(:project_id, :status).count.each do |(project_id, status), number|
+    Review.group(:project_id).count.each { |project_id, number| counts[project_id][:total] = number }
+    Review.outward.group(:project_id, :status).count.each do |(project_id, status), number|
       bucket = counts[project_id]
-      bucket[:total] += number
       bucket[:attention] += number if Review::ATTENTION_STATUSES.include?(status)
       bucket[:in_progress] += number if Review::IN_PROGRESS_STATUSES.include?(status)
     end

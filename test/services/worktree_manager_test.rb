@@ -61,4 +61,32 @@ class WorktreeManagerTest < ActiveSupport::TestCase
     WorktreeManager.new(projects(:webapp), runner: fake).checkout_pr("/wt", "https://github.com/acme/webapp/pull/1")
     assert_equal [ { cmd: [ "gh", "pr", "checkout", "https://github.com/acme/webapp/pull/1" ], chdir: "/wt", timeout: 600 } ], fake.calls
   end
+
+  test "should list worktree branches without the main checkout and detached heads" do
+    listing = <<~OUT
+      worktree /Users/dev/projects/webapp
+      branch refs/heads/master
+
+      worktree /Users/dev/projects/webapp-zzz-later
+      branch refs/heads/zzz-later
+
+      worktree /Users/dev/projects/webapp-detached
+      HEAD abc123
+      detached
+
+      worktree /Users/dev/projects/webapp-sl-fix-vat
+      branch refs/heads/sl-fix-vat
+    OUT
+    fake = FakeRunner.new([ ok(listing) ])
+
+    branches = WorktreeManager.new(projects(:webapp), runner: fake).existing_branches
+
+    assert_equal %w[sl-fix-vat zzz-later], branches
+  end
+
+  test "should degrade branch suggestions to an empty list when git fails" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 128, stdout: "", stderr: "not a git repo", timed_out: false) ])
+
+    assert_equal [], WorktreeManager.new(projects(:webapp), runner: fake).existing_branches
+  end
 end

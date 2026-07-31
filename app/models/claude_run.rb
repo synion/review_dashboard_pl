@@ -1,5 +1,5 @@
 class ClaudeRun < ApplicationRecord
-  KINDS = %w[describe describe_task review followup compact comment_task verify_fixes].freeze
+  KINDS = %w[describe describe_task review followup compact comment_task verify_fixes verify_findings].freeze
   # Kroki cyklu review (describe → review → followup) — w odróżnieniu od runów
   # pobocznych (compact, describe_task), które mają własne przyciski ponowienia
   # i nie mogą decydować o wznawianiu cyklu po awarii.
@@ -17,8 +17,10 @@ class ClaudeRun < ApplicationRecord
   # jak describe_task (kilka tur narzędzi, zero kodu), więc ten sam limit.
   # verify_fixes: jeden git diff plus przejście po liście znalezisk — bez pisania kodu
   # i bez czytania całego repo, więc profil jak describe_task.
+  # verify_findings: świeża sesja musi PRZECZYTAĆ kod wokół każdego znaleziska
+  # (nie tylko diff), więc dostaje tyle co followup.
   TIMEOUTS = { "describe" => 900, "describe_task" => 900, "review" => 3600, "followup" => 1800, "compact" => 600,
-               "comment_task" => 900, "verify_fixes" => 900 }.freeze
+               "comment_task" => 900, "verify_fixes" => 900, "verify_findings" => 1800 }.freeze
   # Zwis sesji objawia się ciszą w strumieniu — claude przestaje emitować zdarzenia,
   # choć proces żyje. Czekanie do limitu całkowitego nic wtedy nie daje, więc ubijamy
   # wcześniej i (dla review) ponawiamy. Pracująca sesja bije zdarzeniami co kilka sekund,
@@ -30,6 +32,9 @@ class ClaudeRun < ApplicationRecord
   validates :kind, inclusion: { in: KINDS }
   validates :status, inclusion: { in: STATUSES }
   validates :claude_config, presence: true
+  # Nadpisanie ustawień review dla pojedynczego runa; puste = dziedziczy z review.
+  validates :model, inclusion: { in: Review::MODELS }, allow_blank: true
+  validates :effort, inclusion: { in: Review::EFFORTS }, allow_blank: true
 
   attribute :status, :string, default: "pending"
 

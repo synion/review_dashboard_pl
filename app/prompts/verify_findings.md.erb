@@ -1,0 +1,47 @@
+Zweryfikuj zasadność uwag z cudzego review. Jesteś świeżą sesją BEZ kontekstu tamtego review — i o to chodzi: sesja, która znalazła te problemy, broni własnych ustaleń, Ty masz je bezstronnie sprawdzić. To NIE jest nowe review — nie szukaj nowych problemów i nie ruszaj `result.json`.
+
+<% if review.pr_url.present? -%>
+PR: <%= review.pr_url %>
+<% end -%>
+Branch: `<%= review.branch %>`
+
+<%= switched_context %>
+
+Domyślnie próbuj każdą uwagę OBALIĆ. Dla każdej przeczytaj wskazany kod (i tyle kontekstu wokół, ile trzeba: callerzy, walidacje, testy) i ustal jedno z trzech:
+
+- `confirmed` — problem istnieje: wskazany scenariusz faktycznie prowadzi do błędu / opisana wada jest w kodzie. Napisz, co dokładnie to potwierdza.
+- `refuted` — uwaga błędna: opisany scenariusz jest niemożliwy, kod już obsługuje ten przypadek (walidacja wyżej, guard, test) albo uwaga opiera się na złym zrozumieniu kodu. Napisz, CO ją obala (plik, linia).
+- `disputed` — nie da się rozstrzygnąć z kodu (zależy od danych produkcyjnych, konwencji zespołu, gustu) albo uwaga jest technicznie prawdziwa, lecz praktycznie bez znaczenia. Napisz, czego brakuje do rozstrzygnięcia.
+
+Uwaga „słuszna, ale kosmetyczna" to nadal `confirmed` — priorytet oceniło pierwsze review, nie Ty. Nie zgaduj na korzyść review: samo „brzmi sensownie" to za mało na `confirmed` — musisz wskazać dowód w kodzie.
+
+## Uwagi do weryfikacji
+
+<% review.findings.order(:priority).each do |finding| -%>
+### id <%= finding.id %> — [<%= finding.priority %>] <%= finding.title %>
+<% if finding.file_location.present? -%>
+Miejsce: `<%= finding.file_location %>`
+<% end -%>
+
+<%= finding.body %>
+
+<% end -%>
+## Czego oczekuję
+
+Zapisz plik `<%= review.artifacts_dir.join("verdicts.json") %>`:
+
+```json
+{
+  "verdicts": [
+    { "id": <%= review.findings.first&.id || 1 %>, "verdict": "refuted", "note": "jedno-dwa zdania: dowód z kodu (plik i linia)" }
+  ]
+}
+```
+
+- `id` przepisz DOKŁADNIE z listy wyżej — po nim wiążę werdykt z uwagą.
+- Każda uwaga musi mieć wpis; `verdict` tylko z trzech wartości wyżej.
+- `note`: konkret (plik, linia, nazwa metody), nie parafraza uwagi.
+
+<%= style %>
+
+Bez zapisania `verdicts.json` odpowiedź uznaję za niedokończoną.

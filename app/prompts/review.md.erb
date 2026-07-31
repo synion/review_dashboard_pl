@@ -1,4 +1,4 @@
-Zrób gruntowny code review<% if review.pr_url.present? %> PR: <%= review.pr_url %> (branch jest już wycheckoutowany w bieżącym katalogu)<% else %> zmian opisanych w zadaniu: <%= review.task_url %><% end %>.
+Zrób gruntowny code review<% if review.pr_url.present? %> PR: <%= review.pr_url %> (branch jest już wycheckoutowany w bieżącym katalogu)<% elsif review.task_url.present? %> zmian opisanych w zadaniu: <%= review.task_url %><% else %> zmian na branchu `<%= review.branch %>` względem gałęzi głównej (branch jest wycheckoutowany w bieżącym katalogu; zakres zmian to `git diff` od merge-base z `origin/master`, a gdy nie istnieje — `origin/main`). To samoreview autora przed wystawieniem PR-a — bądź surowy, wszystko jeszcze można tanio poprawić<% end %>.
 
 <%= switched_context %>
 <% if review.task_description.present? -%>

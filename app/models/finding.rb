@@ -14,13 +14,26 @@ class Finding < ApplicationRecord
   FIX_LABELS = { "implemented" => "✓ wdrożone", "ignored" => "✗ zignorowane",
                  "unclear" => "? niejasne" }.freeze
 
+  # Werdykt świeżej sesji o zasadności SAMEJ UWAGI — osobno od fix_status, który
+  # mówi o losie poprawki autora. `disputed` to nie brak odpowiedzi: „kwestia
+  # gustu / nie do rozstrzygnięcia z kodu" to informacja dla człowieka.
+  # nil znaczy „jeszcze nie weryfikowane".
+  VERDICTS = %w[confirmed disputed refuted].freeze
+  VERDICT_LABELS = { "confirmed" => "✓ potwierdzone", "disputed" => "~ sporne",
+                     "refuted" => "✗ obalone" }.freeze
+
   belongs_to :review
 
   validates :priority, inclusion: { in: PRIORITIES }
   validates :title, presence: true
   validates :fix_status, inclusion: { in: FIX_STATUSES }, allow_nil: true
+  validates :verdict, inclusion: { in: VERDICTS }, allow_nil: true
 
   def fix_label = FIX_LABELS[fix_status]
+
+  def verdict_label = VERDICT_LABELS[verdict]
+
+  def refuted? = verdict == "refuted"
 
   def location_path
     location_match&.[](:path)

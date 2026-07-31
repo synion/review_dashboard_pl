@@ -1,0 +1,33 @@
+<%# Modal, nie natychmiastowy POST: druga opinia często ma iść mocniejszym
+    modelem niż samo review, więc wybór następuje przy każdym kliknięciu. %>
+<dialog id="verify_findings_dialog" class="modal">
+  <h2>Weryfikacja zasadności uwag</h2>
+  <p class="muted">Świeża sesja bez kontekstu review spróbuje każdą uwagę obalić.</p>
+  <%= form_with url: verify_findings_review_path(review) do %>
+    <div class="field">
+      <label for="verify_claude_config">Konto Claude</label>
+      <%= select_tag :claude_config,
+            options_for_select([ [ "jak review (#{Review.claude_config_label(review.effective_claude_config)})", "" ] ] +
+                               Review::CLAUDE_CONFIGS),
+            id: "verify_claude_config" %>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label for="verify_model">Model</label>
+        <%= select_tag :model,
+              options_for_select([ [ "jak review (#{review.model.presence || "domyślny"})", "" ] ] + Review::MODELS.map { |m| [ m, m ] }),
+              id: "verify_model" %>
+      </div>
+      <div class="field">
+        <label for="verify_effort">Effort</label>
+        <%= select_tag :effort,
+              options_for_select([ [ "jak review (#{review.effort.presence || "domyślny"})", "" ] ] + Review::EFFORTS.map { |e| [ e, e ] }),
+              id: "verify_effort" %>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn" onclick="this.closest('dialog').close()">Anuluj</button>
+      <%= submit_tag "⚖️ Zweryfikuj", class: "btn btn-primary" %>
+    </div>
+  <% end %>
+</dialog>

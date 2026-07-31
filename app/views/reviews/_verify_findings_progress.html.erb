@@ -1,0 +1,11 @@
+<%# Postęp weryfikacji zasadności. Div-target wyżej nazywa się jak kanał cyklu
+    pobocznego (review_<id>_side_progress) — gdy apka broadcastuje kroki poboczne,
+    treść aktualizuje się na żywo; bez tego pokazuje stan z chwili renderu. %>
+<% run = review.claude_runs.where(kind: "verify_findings").order(:id).last %>
+<% if run&.status == "running" %>
+  <p class="progress-line"><%= run.last_message.presence || "Startuję…" %></p>
+<% else %>
+  <%# Job siedzi w kolejce, dopóki worker nie ma wolnego wątku — bez tego karta
+      wygląda identycznie jak zaraz po kliknięciu i sprawia wrażenie, że nic się nie stało. %>
+  <p class="progress-line">⏳ Czeka w kolejce — Claude kończy inne zadanie…</p>
+<% end %>
