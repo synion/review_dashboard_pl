@@ -122,6 +122,55 @@ skrypt istnieje i czy wzorzec `%{branch}` jest poprawny.
 
 ---
 
+## Akcje po decyzji i integracja z trackerem
+
+Po wysłaniu decyzji dashboard umie zrobić za Ciebie trzy rzeczy, które dotąd
+klikało się ręcznie:
+
+| Akcja | Kiedy się przydaje | Skąd podpowiedzi |
+|---|---|---|
+| **Dodaj reviewera do PR-a** | nikt jeszcze nie reviewował, a wymagane jest drugie oko | collaboratorzy repo (GitHub) |
+| **Dodaj label na PR** | oznaczasz stan po review (np. `after-review`) | labelki repo (GitHub) |
+| **Skieruj komentarz w zadaniu do osoby** | drugie sprawdzenie — osoba dostaje komentarz z decyzją przypisany do siebie (responsible KOMENTARZA, nigdy całego zadania) | zespół z trackera (Intum) |
+
+Wszystkie trzy wybiera się comboboxami na panelu decyzji (wpisujesz fragment —
+filtruje lokalny cache, zero czekania). Panel pokazuje też, **kto już reviewował
+PR-a** (ostatni werdykt per osoba). Akcje idą w tle po wysłanej decyzji — ich
+awaria nigdy nie cofa decyzji; status i przycisk „Ponów" są na karcie decyzji.
+
+### Jak skonfigurować (raz na projekt, ~5 minut)
+
+1. **Świeża instalacja repo?** Wygeneruj własne klucze szyfrowania (token trackera
+   jest szyfrowany w bazie): `rm config/credentials.yml.enc`, potem
+   `bin/rails credentials:edit` i wklej wynik `bin/rails db:encryption:init`.
+   Istniejąca instalacja z działającym `config/master.key` ma to już za sobą —
+   **zrób backup `master.key`**, bez niego tokeny w bazie są nie do odzyskania.
+2. **Prefiks adresu zadania** w ustawieniach projektu (np.
+   `https://twoj-tracker.example.com/organize/tasks/`) — z niego brany jest host API.
+3. **Token API trackera**: wygeneruj w trackerze pod `/account/api_tokens/new`,
+   zaznacz uprawnienia `users, users/admin, user_settings, user_settings/all,
+   user_settings/admin, tasks, projects, notifications, comments_edit`
+   (pułapka: listę osób odblokowuje `user_settings`, nie samo `users`).
+   Wklej w pole „API token trackera" — pole pokazuje maskowany podgląd
+   (`i••••••••S5`), puste przy zapisie znaczy „bez zmian".
+4. Kliknij **„🔌 Testuj połączenie"** — powinno pokazać liczbę osób w zespole.
+5. Kliknij **„↻ Odśwież listy podpowiedzi"** — zaciąga collaboratorów i labelki
+   z GH oraz zespół z trackera do lokalnego cache (`directory_entries`).
+   Potem odświeża się samo, gdy cache jest starszy niż 12 h.
+6. Opcjonalnie ustaw **domyślnego drugiego reviewera** i **domyślny label** —
+   będą się podpowiadać same (reviewer, gdy PR-a nikt nie reviewował; label,
+   gdy ktoś już tak).
+
+### Po co token, skoro był skill
+
+Z tokenem komentarz do zadania po decyzji **wysyła aplikacja jednym requestem
+HTTP** — sesja Claude tylko pisze treść. Szybciej, taniej (mniej tokenów LLM)
+i bez kruchego cookie sesyjnego. **Bez tokena wszystko działa jak dotychczas**:
+sesja Claude wysyła komentarz sama przez skill trackera; comboboxy GitHubowe
+(reviewer/label) działają niezależnie od tokena — wymagają tylko zalogowanego `gh`.
+
+---
+
 ## Strona wejściowa
 
 `/` odpowiada na jedno pytanie: **czyj kod muszę zrecenzować**.
