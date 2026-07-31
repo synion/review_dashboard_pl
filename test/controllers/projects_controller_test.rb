@@ -367,4 +367,22 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "details#archived_projects"
   end
+
+  test "should shorten the home directory in a project path and keep the full one in the tooltip" do
+    project = projects(:dashboard)
+    project.update_columns(repo_path: File.join(Dir.home, "repos", "cokolwiek"))
+
+    get root_path
+
+    assert_select "#project_row_#{project.id} .projpath", text: "~/repos/cokolwiek"
+    assert_select "#project_row_#{project.id} .projpath[title=?]", project.repo_path
+  end
+
+  test "should offer adding a project without competing with the per-project action" do
+    get root_path
+
+    # Kafel „dodaj" nie może być .projcard — liczniki kart liczą projekty.
+    assert_select ".projgrid .projcard-add[href=?]", new_project_path
+    assert_select ".projgrid .projcard-add.projcard", count: 0
+  end
 end

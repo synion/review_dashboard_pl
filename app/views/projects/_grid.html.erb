@@ -19,21 +19,28 @@
             główny
           </label>
         </h3>
+        <%# Zero to brak pracy — pełnym kontrastem konkurowało z liczbą, która akcji
+            wymaga, więc puste licznik ściszamy. %>
         <div class="counts">
-          <span class="count<%= " count-hot" if counts[:attention].positive? %>">
+          <span class="count<%= counts[:attention].positive? ? " count-hot" : " count-zero" %>">
             <b data-count="attention"><%= counts[:attention] %></b> czeka
           </span>
-          <span class="count"><b data-count="in_progress"><%= counts[:in_progress] %></b> w toku</span>
-          <span class="count"><b data-count="total"><%= counts[:total] %></b> łącznie</span>
+          <span class="count<%= " count-zero" if counts[:in_progress].zero? %>"><b data-count="in_progress"><%= counts[:in_progress] %></b> w toku</span>
+          <span class="count<%= " count-zero" if counts[:total].zero? %>"><b data-count="total"><%= counts[:total] %></b> łącznie</span>
         </div>
-        <div class="project-links">
-          <%= link_to "+ Nowy review", new_project_review_path(project), class: "btn btn-primary" %>
-          <%= link_to "Wszystkie review", project_reviews_path(project), class: "btn" %>
+        <%# Jedna akcja główna na kartę; „Wszystkie review" to ta sama nawigacja co
+            klik w nazwę projektu, więc zostaje cichym linkiem. %>
+        <div class="project-links projcard-actions">
+          <%= link_to "+ Nowy review", new_project_review_path(project), class: "btn btn-primary btn-small" %>
+          <%= link_to "Wszystkie review", project_reviews_path(project), class: "link-quiet" %>
         </div>
         <div class="projmeta">
-          <code class="inline"><%= project.repo_path %></code>
-          <%= "· #{project.default_model}" if project.default_model.present? %>
-          <%= "/ #{project.default_effort}" if project.default_effort.present? %>
+          <%# Ścieżka w jednej linii z ellipsis: z `word-break: break-all` łamała się na
+              trzy wiersze i była największym elementem karty, choć czyta się ją raz. %>
+          <code class="inline projpath" title="<%= project.repo_path %>"><%= project_path_label(project) %></code>
+          <% if (config = [ project.default_model.presence, project.default_effort.presence ].compact.join(" / ")).present? %>
+            <span class="projconfig"><%= config %></span>
+          <% end %>
         </div>
         <div class="projadmin">
           <%= link_to "Edytuj", edit_project_path(project) %>
@@ -42,6 +49,8 @@
         </div>
       </article>
     <% end %>
+    <%# Kafel „dodaj" siedzi w gridzie, a nie jako przycisk pod nim: dodanie projektu
+        robi się raz i nie może wyglądać jak akcja równorzędna z „+ Nowy review". %>
+    <%= link_to "+ Nowy projekt", new_project_path, class: "projcard-add" %>
   </div>
-  <p><%= link_to "+ Nowy projekt", new_project_path, class: "btn" %></p>
 </section>

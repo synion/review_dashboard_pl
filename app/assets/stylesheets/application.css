@@ -171,10 +171,23 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .main-radio { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: normal; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .main-radio input { accent-color: var(--accent); margin: 0; cursor: pointer; }
 .projcard:has(.main-radio input:checked) { border-color: var(--accent); }
-.counts { display: flex; gap: 12px; font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.counts { display: flex; gap: 12px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 .counts b { font-size: 17px; color: var(--fg); font-variant-numeric: tabular-nums; }
 .count-hot b { color: var(--warn); }
-.projmeta { font-size: 12px; color: var(--muted); margin-top: 10px; word-break: break-all; }
+/* Zero znaczy „nic tu nie ma" — pełnym kontrastem ciągnęło wzrok tak samo jak
+   liczba wymagająca akcji. */
+.count-zero, .count-zero b { color: var(--line); }
+.projcard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.link-quiet { font-size: 13px; color: var(--muted); }
+.projmeta { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+/* min-width: 0 dopuszcza skrócenie flex-itemu poniżej jego treści — bez tego
+   ellipsis nigdy nie zadziała i ścieżka rozpycha kafelek. */
+.projmeta .projpath { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.projmeta .projconfig { white-space: nowrap; }
+.projmeta .projconfig::before { content: "· "; }
+/* Kafel „+ Nowy projekt" wygląda jak miejsce na kartę, której jeszcze nie ma. */
+.projcard-add { display: flex; align-items: center; justify-content: center; min-height: 120px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 14px; text-decoration: none; }
+.projcard-add:hover { border-color: var(--accent); color: var(--accent); }
 /* Edycja i archiwizacja to czynności robione raz na projekt — nie mogą wyglądać
    równorzędnie z „+ Nowy review". */
 .projadmin { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 12px; }
