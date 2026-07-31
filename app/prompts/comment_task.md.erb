@@ -22,6 +22,18 @@ Treść decyzji wysłana na GitHub:
 
 ## Co masz zrobić
 
+<% if review.project.intum_enabled? -%>
+Napisz treść komentarza podsumowującego decyzję z review — wysyłką zajmie się
+aplikacja, NICZEGO nie wysyłaj i nie otwieraj trackera. Pisz do czytelnika
+zadania: co zdecydowano i co z tego wynika, bez żargonu code review i bez
+relacji z tego, co robiłeś.
+
+Odpowiedz WYŁĄCZNIE treścią komentarza (markdown). Bez wstępu, bez komentarza
+od siebie. Jeśli nie da się napisać sensownego komentarza (np. brak treści
+decyzji) — odpowiedz jedną linią:
+
+ERROR: <krótki powód, po polsku>
+<% else -%>
 1. Otwórz zadanie i dodaj do niego komentarz podsumowujący decyzję z review.
    Pisz do czytelnika zadania: co zdecydowano i co z tego wynika, bez żargonu
    code review i bez relacji z tego, co robiłeś.
@@ -32,3 +44,4 @@ Treść decyzji wysłana na GitHub:
 
 3. Jeśli komentarz został dodany — odpowiedz WYŁĄCZNIE jego treścią,
    dokładnie taką, jaka trafiła do zadania. Bez wstępu, bez komentarza od siebie.
+<% end -%>

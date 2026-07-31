@@ -12,10 +12,21 @@ class RefreshDirectoryJob < ApplicationJob
   # umie wypełnić — inaczej kind bez producenta kolejkowałby joby bez końca,
   # bo jego cache nigdy nie przestanie być stęchły.
   def self.refreshable?(project, kind)
-    %w[gh_collaborator gh_label].include?(kind) && project.github_slug.present?
+    case kind
+    when "gh_collaborator", "gh_label" then project.github_slug.present?
+    when "intum_user" then project.intum_enabled?
+    else false
+    end
   end
 
-  def perform(project, github: GithubClient.new)
+  def perform(project, github: GithubClient.new, intum: nil)
+    refresh_github(project, github)
+    refresh_intum(project, intum)
+  end
+
+  private
+
+  def refresh_github(project, github)
     return if project.github_slug.blank?
 
     DirectoryEntry.replace!(project, "gh_collaborator",
@@ -25,7 +36,15 @@ class RefreshDirectoryJob < ApplicationJob
     Rails.logger.warn("RefreshDirectoryJob projekt #{project.id}: #{e.message}")
   end
 
-  private
+  def refresh_intum(project, intum)
+    return unless project.intum_enabled?
+
+    intum ||= IntumClient.new(base_url: project.intum_base_url, token: project.intum_api_token)
+    DirectoryEntry.replace!(project, "intum_user",
+                            intum.users.map { |u| { external_id: u["id"], name: u["name"] } })
+  rescue IntumClient::Error => e
+    Rails.logger.warn("RefreshDirectoryJob projekt #{project.id} (intum): #{e.message}")
+  end
 
   # Loginy i nazwy labelek identyfikują się same — id i nazwa to to samo.
   def as_entries(names)
