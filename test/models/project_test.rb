@@ -193,4 +193,34 @@ class ProjectTest < ActiveSupport::TestCase
     assert archived.archived?
     assert_not projects(:webapp).archived?
   end
+
+  test "intum_api_token jest zaszyfrowany w bazie" do
+    project = projects(:webapp)
+    project.update!(intum_api_token: "sekretny-token")
+
+    raw = ActiveRecord::Base.connection.select_value(
+      "SELECT intum_api_token FROM projects WHERE id = #{project.id}")
+    assert_not_includes raw.to_s, "sekretny-token"
+    assert_equal "sekretny-token", project.reload.intum_api_token
+  end
+
+  test "intum_base_url wycina hosta z task_url_prefix" do
+    project = projects(:webapp)
+    project.task_url_prefix = "https://tracker.example.com/organize/tasks/"
+    assert_equal "https://tracker.example.com", project.intum_base_url
+
+    project.task_url_prefix = nil
+    assert_nil project.intum_base_url
+  end
+
+  test "intum_enabled? wymaga prefiksu i tokena" do
+    project = projects(:webapp)
+    assert_not project.intum_enabled?
+
+    project.task_url_prefix = "https://tracker.example.com/organize/tasks/"
+    assert_not project.intum_enabled?
+
+    project.intum_api_token = "t"
+    assert project.intum_enabled?
+  end
 end

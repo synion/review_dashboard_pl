@@ -10,6 +10,10 @@ class Project < ApplicationRecord
   has_many :inbox_items, dependent: :destroy
   has_many :directory_entries, dependent: :destroy
 
+  # Token API trackera (Intum/Sugester) — w bazie zaszyfrowany; formularz pokazuje
+  # tylko placeholder „ustawiony", nigdy wartość.
+  encrypts :intum_api_token
+
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   # Jedyny porządek list projektów (grid, archiwum, fallback main) — wspólny scope,
@@ -78,6 +82,21 @@ class Project < ApplicationRecord
   def github_slug
     match = GITHUB_REPO_URL.match(repo_url.to_s)
     "#{match[:owner]}/#{match[:repo]}" if match
+  end
+
+  # Host API trackera wycinany z prefiksu zadań (np. https://tracker.example.com/organize/tasks/
+  # → https://tracker.example.com) — osobne pole byłoby drugim miejscem na tę samą prawdę.
+  def intum_base_url
+    uri = URI.parse(task_url_prefix.to_s)
+    "#{uri.scheme}://#{uri.host}" if uri.scheme && uri.host
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  # Pełna integracja (lista osób, komentarz z responsible przez HTTP) wymaga
+  # obu: adresu trackera i tokena. Bez tego dashboard działa jak dotychczas.
+  def intum_enabled?
+    intum_base_url.present? && intum_api_token.present?
   end
 
   private

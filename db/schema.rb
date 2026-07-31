@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_110002) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_120001) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -102,6 +102,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_110002) do
     t.string "default_model"
     t.string "docs_path", default: "doc/llm"
     t.datetime "inbox_checked_at"
+    t.string "intum_api_token"
     t.datetime "main_at"
     t.string "name"
     t.string "repo_path"
@@ -150,6 +151,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_110002) do
     t.text "summary"
     t.text "task_comment"
     t.text "task_comment_instructions"
+    t.string "task_comment_responsible_id"
+    t.string "task_comment_responsible_name"
     t.string "task_comment_status", default: "skipped", null: false
     t.text "task_description"
     t.string "task_description_status", default: "skipped", null: false
