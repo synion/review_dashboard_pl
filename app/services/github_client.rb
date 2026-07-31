@@ -90,6 +90,31 @@ class GithubClient
          label: "gh api reviews", chdir: repo_dir, stdin_data: payload.to_json)
   end
 
+  # Osoby z prawem zapisu do repo — kandydaci na drugiego reviewera. `--paginate`
+  # z jq strumieniuje obiekt na linię (NDJSON), bo sklejone tablice z kolejnych
+  # stron nie byłyby poprawnym JSON-em.
+  def collaborators(repo:, repo_dir:)
+    result = run!([ "gh", "api", "repos/#{repo}/collaborators", "--paginate", "--jq", ".[] | {login: .login}" ],
+                  label: "gh api collaborators", chdir: repo_dir)
+    result.stdout.each_line.map { |line| JSON.parse(line) }
+  end
+
+  # Labelki zdefiniowane w repo — do wyboru „label po decyzji". Limit 200 zamiast
+  # domyślnych 30: repo z większą liczbą labeli ucinałoby listę po cichu.
+  def labels(repo_dir:)
+    result = run!([ "gh", "label", "list", "--json", "name", "--limit", "200" ],
+                  label: "gh label list", chdir: repo_dir)
+    JSON.parse(result.stdout)
+  end
+
+  def add_reviewer(pr_url, login:, repo_dir:)
+    run!([ "gh", "pr", "edit", pr_url, "--add-reviewer", login ], label: "gh pr edit --add-reviewer", chdir: repo_dir)
+  end
+
+  def add_label(pr_url, name:, repo_dir:)
+    run!([ "gh", "pr", "edit", pr_url, "--add-label", name ], label: "gh pr edit --add-label", chdir: repo_dir)
+  end
+
   private
 
   def submit_simple_review(pr_url, verdict:, body:, repo_dir:)

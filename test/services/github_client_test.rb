@@ -134,4 +134,45 @@ class GithubClientTest < ActiveSupport::TestCase
     assert_equal "abc123", GithubClient.new(runner: fake).pr_head_sha(PR_URL, repo_dir: "/repo")
     assert_equal [ "gh", "pr", "view", PR_URL, "--json", "headRefOid" ], fake.calls.sole[:cmd]
   end
+
+  test "collaborators parsuje NDJSON z paginowanego gh api" do
+    ndjson = %({"login":"anna"}\n{"login":"jan"}\n)
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: ndjson, stderr: "", timed_out: false) ])
+    logins = GithubClient.new(runner: fake).collaborators(repo: "acme/webapp", repo_dir: "/repo")
+
+    assert_equal [ { "login" => "anna" }, { "login" => "jan" } ], logins
+    assert_equal [ "gh", "api", "repos/acme/webapp/collaborators", "--paginate", "--jq", ".[] | {login: .login}" ],
+                 fake.calls.sole[:cmd]
+  end
+
+  test "labels listuje nazwy labeli repo" do
+    payload = [ { name: "bug" }, { name: "wip" } ].to_json
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: payload, stderr: "", timed_out: false) ])
+    labels = GithubClient.new(runner: fake).labels(repo_dir: "/repo")
+
+    assert_equal [ { "name" => "bug" }, { "name" => "wip" } ], labels
+    assert_equal [ "gh", "label", "list", "--json", "name", "--limit", "200" ], fake.calls.sole[:cmd]
+  end
+
+  test "add_reviewer edytuje PR przez gh pr edit" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "", stderr: "", timed_out: false) ])
+    GithubClient.new(runner: fake).add_reviewer(PR_URL, login: "anna", repo_dir: "/repo")
+
+    assert_equal [ "gh", "pr", "edit", PR_URL, "--add-reviewer", "anna" ], fake.calls.sole[:cmd]
+  end
+
+  test "add_label edytuje PR przez gh pr edit" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "", stderr: "", timed_out: false) ])
+    GithubClient.new(runner: fake).add_label(PR_URL, name: "po reviews", repo_dir: "/repo")
+
+    assert_equal [ "gh", "pr", "edit", PR_URL, "--add-label", "po reviews" ], fake.calls.sole[:cmd]
+  end
+
+  test "add_reviewer rzuca Error ze stderr gdy gh odmawia" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 1, stdout: "", stderr: "not a collaborator", timed_out: false) ])
+    error = assert_raises(GithubClient::Error) do
+      GithubClient.new(runner: fake).add_reviewer(PR_URL, login: "obcy", repo_dir: "/repo")
+    end
+    assert_includes error.message, "not a collaborator"
+  end
 end
