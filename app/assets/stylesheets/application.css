@@ -295,19 +295,23 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .combobox { position: relative; }
 .combobox input[type="text"] { width: 100%; }
 .combobox-list {
-  position: absolute; z-index: 30; left: 0; right: 0; margin-top: 2px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
-  max-height: 240px; overflow-y: auto; box-shadow: var(--shadow);
-  display: flex; flex-direction: column;
+  position: absolute; z-index: 30; left: 0; right: 0; margin-top: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  max-height: 240px; overflow-y: auto; padding: 4px;
+  /* Cień wyraźnie mocniejszy niż kart: lista ma czytelnie LEWITOWAĆ nad stroną,
+     a nie wyglądać jak jej kolejny wiersz. */
+  box-shadow: 0 10px 28px light-dark(rgba(15, 23, 42, .22), rgba(0, 0, 0, .6)),
+              0 2px 6px light-dark(rgba(15, 23, 42, .12), rgba(0, 0, 0, .4));
+  display: flex; flex-direction: column; gap: 1px;
 }
 /* `display: flex` wygrywa z atrybutem hidden (UA daje mu tylko display: none),
    więc chowanie listy trzeba przybić jawnie. */
 .combobox-list[hidden] { display: none; }
 .combobox-option {
-  text-align: left; padding: 6px 10px; border: 0; background: none;
-  font: inherit; color: var(--fg); cursor: pointer;
+  text-align: left; padding: 8px 10px; border: 0; background: none;
+  font: inherit; font-size: 14px; color: var(--fg); cursor: pointer; border-radius: 6px;
 }
-.combobox-option:hover { background: var(--line-soft); }
+.combobox-option:hover { background: light-dark(#eef2ff, #2a3050); }
 
 /* ===================== wąskie ekrany ===================== */
 /* Tabela review ma 7 kolumn — na telefonie chowamy to, co da się odczytać z karty
