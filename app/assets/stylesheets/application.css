@@ -300,6 +300,9 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
   max-height: 240px; overflow-y: auto; box-shadow: var(--shadow);
   display: flex; flex-direction: column;
 }
+/* `display: flex` wygrywa z atrybutem hidden (UA daje mu tylko display: none),
+   więc chowanie listy trzeba przybić jawnie. */
+.combobox-list[hidden] { display: none; }
 .combobox-option {
   text-align: left; padding: 6px 10px; border: 0; background: none;
   font: inherit; color: var(--fg); cursor: pointer;
