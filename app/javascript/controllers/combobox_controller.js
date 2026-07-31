@@ -1,8 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 
 // Combobox z podpowiedziami z lokalnego cache (endpoint /projects/:id/directory).
-// Wpisywanie filtruje (debounce), klik pozycji zapisuje id do hidden fielda,
-// × czyści wybór. Wartość wysyłana formularzem to zawsze hidden (id), nie tekst.
+// Wpisywanie filtruje (debounce), klik pozycji zapisuje id do hidden fielda.
+// Wartość wysyłana formularzem to zawsze hidden (id), nie tekst.
 export default class extends Controller {
   static targets = ["input", "list", "hidden"]
   static values = { url: String }
@@ -19,10 +19,15 @@ export default class extends Controller {
   }
 
   search() {
-    clearTimeout(this.timer)
     // Ręczna edycja tekstu unieważnia poprzedni wybór — inaczej formularz
-    // wysłałby id niewidoczne już w inpucie.
+    // wysłałby id niewidoczne już w inpucie. Focus tego nie robi (open),
+    // żeby samo kliknięcie w pole nie kasowało prefillu z projektu.
     this.hiddenTarget.value = ""
+    this.open()
+  }
+
+  open() {
+    clearTimeout(this.timer)
     this.timer = setTimeout(() => this.fetchOptions(), 200)
   }
 
@@ -49,12 +54,6 @@ export default class extends Controller {
   select(option) {
     this.hiddenTarget.value = option.id
     this.inputTarget.value = option.name
-    this.hide()
-  }
-
-  clear() {
-    this.hiddenTarget.value = ""
-    this.inputTarget.value = ""
     this.hide()
   }
 

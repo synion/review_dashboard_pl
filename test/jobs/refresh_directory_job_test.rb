@@ -22,7 +22,7 @@ class RefreshDirectoryJobTest < ActiveSupport::TestCase
   end
 
   test "zapisuje collaboratorów i labelki do directory_entries" do
-    fake = FakeGithub.new(collaborators: [ { "login" => "anna" } ], labels: [ { "name" => "bug" } ])
+    fake = FakeGithub.new(collaborators: %w[anna], labels: %w[bug])
     RefreshDirectoryJob.perform_now(@project, github: fake)
 
     assert_equal [ "anna" ], @project.directory_entries.where(kind: "gh_collaborator").pluck(:name)

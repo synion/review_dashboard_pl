@@ -2,35 +2,40 @@
 # Selecty filtrują po tej tabeli zamiast pytać zewnętrzne API przy każdym wpisanym znaku.
 class DirectoryEntry < ApplicationRecord
   KINDS = %w[gh_collaborator gh_label intum_user].freeze
+  STALE_AFTER = 12.hours
 
   belongs_to :project
 
   validates :kind, inclusion: { in: KINDS }
 
-  # Podpowiedzi dla comboboxa: fragment nazwy, bez wielkości liter, po nazwie.
+  # Jedno źródło walidacji kindu z requestu (wzorzec Review.claude_config?).
+  def self.kind?(kind)
+    KINDS.include?(kind)
+  end
+
+  # Podpowiedzi dla comboboxa: fragment nazwy, po nazwie. LIKE w SQLite nie
+  # rozróżnia wielkości liter (ASCII), więc bez LOWER — nie unieważnia indeksu.
   # Limit trzyma odpowiedź małą — user i tak doprecyzuje wpisując dalej.
   def self.search(project, kind, query, limit: 20)
-    raise ArgumentError, "nieznany kind: #{kind}" unless KINDS.include?(kind)
-
     scope = project.directory_entries.where(kind: kind).order(:name).limit(limit)
     return scope if query.blank?
 
-    scope.where("LOWER(name) LIKE ?", "%#{sanitize_sql_like(query.downcase)}%")
+    scope.where("name LIKE ?", "%#{sanitize_sql_like(query)}%")
   end
 
-  # Transakcyjna podmiana całej listy danego kind: upsert po external_id
-  # (nazwa może się zmienić), wpisy nieobecne w nowej liście znikają.
+  # Transakcyjna podmiana całej listy danego kind: jeden upsert po istniejącym
+  # unikalnym indeksie zamiast pary zapytań na wpis; wpisy nieobecne w nowej
+  # liście znikają.
   def self.replace!(project, kind, entries)
-    raise ArgumentError, "nieznany kind: #{kind}" unless KINDS.include?(kind)
-
     now = Time.current
+    rows = entries.map do |entry|
+      { project_id: project.id, kind: kind, external_id: entry[:external_id],
+        name: entry[:name], refreshed_at: now, created_at: now, updated_at: now }
+    end
     transaction do
       project.directory_entries.where(kind: kind)
-             .where.not(external_id: entries.map { |e| e[:external_id] }).delete_all
-      entries.each do |entry|
-        project.directory_entries.find_or_initialize_by(kind: kind, external_id: entry[:external_id])
-               .update!(name: entry[:name], refreshed_at: now)
-      end
+             .where.not(external_id: rows.map { |r| r[:external_id] }).delete_all
+      upsert_all(rows, unique_by: %i[project_id kind external_id]) if rows.any?
     end
   end
 
@@ -38,6 +43,6 @@ class DirectoryEntry < ApplicationRecord
   # wtedy endpoint directory zleca RefreshDirectoryJob w tle.
   def self.stale?(project, kind)
     last = project.directory_entries.where(kind: kind).maximum(:refreshed_at)
-    last.nil? || last < 12.hours.ago
+    last.nil? || last < STALE_AFTER.ago
   end
 end

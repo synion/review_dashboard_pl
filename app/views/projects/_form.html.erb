@@ -46,6 +46,36 @@
       <%= f.text_area :task_comment_instructions, rows: 4 %>
       <span class="hint">Default dla checkboxa „Dodaj komentarz do zadania" przy decyzji — tam da się ją jednorazowo nadpisać.</span>
     </div>
+    <%# Akcje po decyzji: defaults comboboxów w panelu. Odśwież dotyczy całego
+        cache list (collaboratorzy + labelki), więc siedzi przy nagłówku sekcji,
+        nie w hincie jednego pola. Combobox wymaga zapisanego projektu (endpoint
+        directory) — przy tworzeniu zwykłe pole tekstowe. %>
+    <h3>Akcje po decyzji
+      <% if project.persisted? %>
+        <%= link_to "↻ Odśwież listy podpowiedzi", refresh_directory_project_path(project),
+              class: "hint", data: { turbo_method: :post } %>
+      <% end %>
+    </h3>
+    <div class="field">
+      <%= f.label :second_reviewer_default, "Domyślny drugi reviewer (login z GitHuba)" %>
+      <% if project.persisted? %>
+        <%= render "shared/combobox", project: project, kind: "gh_collaborator",
+              field_name: "project[second_reviewer_default]", initial: project.second_reviewer_default %>
+      <% else %>
+        <%= f.text_field :second_reviewer_default, placeholder: "login-wspolpracownika" %>
+      <% end %>
+      <span class="hint">Prefill comboboxa „Dodaj reviewera po decyzji", gdy PR-a nikt wcześniej nie reviewował.</span>
+    </div>
+    <div class="field">
+      <%= f.label :approve_label_default, "Domyślny label po decyzji" %>
+      <% if project.persisted? %>
+        <%= render "shared/combobox", project: project, kind: "gh_label",
+              field_name: "project[approve_label_default]", initial: project.approve_label_default %>
+      <% else %>
+        <%= f.text_field :approve_label_default, placeholder: "np. after-review" %>
+      <% end %>
+      <span class="hint">Prefill comboboxa „Dodaj label po decyzji", gdy ktoś już reviewował PR-a.</span>
+    </div>
     <div class="field">
       <%= f.label :worktree_command, "Komenda tworząca worktree" %>
       <%= f.text_field :worktree_command, placeholder: "bin/worktree-docker %{branch}" %>

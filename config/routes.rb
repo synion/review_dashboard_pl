@@ -45,5 +45,6 @@ Rails.application.routes.draw do
     resource :decision, only: :create
     resource :followup, only: :create
     resource :task_comment, only: :create
+    resource :followup_actions, only: :create
   end
 end

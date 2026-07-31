@@ -1,24 +1,34 @@
 # Przeładowuje lokalny cache list do comboboxów (directory_entries). Odpalany
-# przyciskiem „Odśwież" i leniwie przez endpoint directory, gdy cache się zestarzeje.
-# Awaria klienta = zostaje ostatni znany stan — odświeżenie podpowiedzi nie może
-# niczego wywalać.
+# przyciskiem „Odśwież" i leniwie przez endpoint directory, gdy cache się
+# zestarzeje. Awaria klienta = zostaje ostatni znany stan — odświeżenie
+# podpowiedzi nie może niczego wywalać.
 class RefreshDirectoryJob < ApplicationJob
   queue_as :default
+  # Dwa joby tego samego projektu ścigałyby się na delete_all + upsert
+  # po tym samym unikalnym indeksie (wzorzec z RefreshInboxJob).
+  limits_concurrency key: ->(project, **) { project.id }
+
+  # Endpoint directory kolejkuje odświeżenie tylko dla kindów, które ten job
+  # umie wypełnić — inaczej kind bez producenta kolejkowałby joby bez końca,
+  # bo jego cache nigdy nie przestanie być stęchły.
+  def self.refreshable?(project, kind)
+    %w[gh_collaborator gh_label].include?(kind) && project.github_slug.present?
+  end
 
   def perform(project, github: GithubClient.new)
-    refresh_github(project, github) if project.github_slug
+    return if project.github_slug.blank?
+
+    DirectoryEntry.replace!(project, "gh_collaborator",
+                            as_entries(github.collaborators(repo: project.github_slug, repo_dir: project.repo_path)))
+    DirectoryEntry.replace!(project, "gh_label", as_entries(github.labels(repo_dir: project.repo_path)))
+  rescue GithubClient::Error => e
+    Rails.logger.warn("RefreshDirectoryJob projekt #{project.id}: #{e.message}")
   end
 
   private
 
-  def refresh_github(project, github)
-    collaborators = github.collaborators(repo: project.github_slug, repo_dir: project.repo_path)
-                          .map { |c| { external_id: c["login"], name: c["login"] } }
-    DirectoryEntry.replace!(project, "gh_collaborator", collaborators)
-
-    labels = github.labels(repo_dir: project.repo_path).map { |l| { external_id: l["name"], name: l["name"] } }
-    DirectoryEntry.replace!(project, "gh_label", labels)
-  rescue GithubClient::Error => e
-    Rails.logger.warn("RefreshDirectoryJob projekt #{project.id}: #{e.message}")
+  # Loginy i nazwy labelek identyfikują się same — id i nazwa to to samo.
+  def as_entries(names)
+    names.map { |name| { external_id: name, name: name } }
   end
 end

@@ -15,10 +15,21 @@ class DecisionsController < ApplicationController
     # jednym update! z decyzją, żeby panel dostał jeden broadcast.
     attrs.merge!(task_comment_status: "queued",
                  task_comment_instructions: params[:task_comment_instructions].to_s.strip.presence) if comment_task?
+    # Wybory akcji po decyzji mrozimy na review razem z decyzją (status queued
+    # jak przy komentarzu do zadania) — „Ponów" po awarii użyje dokładnie tego,
+    # co user widział, nie późniejszych defaultów.
+    attrs.merge!(followup_reviewer_login: params[:followup_reviewer].presence,
+                 followup_reviewer_status: params[:followup_reviewer].presence && "queued",
+                 followup_label_name: params[:followup_label].presence,
+                 followup_label_status: params[:followup_label].presence && "queued")
     @review.update!(attrs)
     if comment_task?
       CommentTaskJob.perform_later(@review)
       notice += ". Komentarz do zadania w kolejce"
+    end
+    if attrs[:followup_reviewer_status] || attrs[:followup_label_status]
+      FollowupActionsJob.perform_later(@review)
+      notice += ". Akcje na PR-ze (reviewer/label) w kolejce"
     end
     redirect_to review_path(@review), notice: notice
   rescue GithubClient::Error => e

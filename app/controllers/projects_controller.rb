@@ -89,7 +89,8 @@ class ProjectsController < ApplicationController
   def project_params
     params.require(:project).permit(:name, :repo_path, :repo_url, :default_claude_config, :default_model,
                                     :default_effort, :docs_path, :review_prompt_extra, :task_comment_instructions,
-                                    :worktree_command, :worktree_delete_command, :task_url_prefix)
+                                    :worktree_command, :worktree_delete_command, :task_url_prefix,
+                                    :second_reviewer_default, :approve_label_default)
   end
 
   # Kolejka „czeka na Ciebie" to PR-y CZYJEGOŚ autorstwa, na których wisi moje review.

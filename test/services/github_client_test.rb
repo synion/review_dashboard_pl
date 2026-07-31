@@ -135,23 +135,30 @@ class GithubClientTest < ActiveSupport::TestCase
     assert_equal [ "gh", "pr", "view", PR_URL, "--json", "headRefOid" ], fake.calls.sole[:cmd]
   end
 
-  test "collaborators parsuje NDJSON z paginowanego gh api" do
-    ndjson = %({"login":"anna"}\n{"login":"jan"}\n)
-    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: ndjson, stderr: "", timed_out: false) ])
+  test "collaborators zwraca loginy z paginowanego gh api" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "anna\njan\n", stderr: "", timed_out: false) ])
     logins = GithubClient.new(runner: fake).collaborators(repo: "acme/webapp", repo_dir: "/repo")
 
-    assert_equal [ { "login" => "anna" }, { "login" => "jan" } ], logins
-    assert_equal [ "gh", "api", "repos/acme/webapp/collaborators", "--paginate", "--jq", ".[] | {login: .login}" ],
+    assert_equal %w[anna jan], logins
+    assert_equal [ "gh", "api", "repos/acme/webapp/collaborators", "--paginate", "--jq", ".[].login" ],
                  fake.calls.sole[:cmd]
   end
 
-  test "labels listuje nazwy labeli repo" do
-    payload = [ { name: "bug" }, { name: "wip" } ].to_json
-    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: payload, stderr: "", timed_out: false) ])
+  test "labels zwraca nazwy labeli repo" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "bug\nwip\n", stderr: "", timed_out: false) ])
     labels = GithubClient.new(runner: fake).labels(repo_dir: "/repo")
 
-    assert_equal [ { "name" => "bug" }, { "name" => "wip" } ], labels
-    assert_equal [ "gh", "label", "list", "--json", "name", "--limit", "200" ], fake.calls.sole[:cmd]
+    assert_equal %w[bug wip], labels
+    assert_equal [ "gh", "label", "list", "--json", "name", "--jq", ".[].name", "--limit", "200" ], fake.calls.sole[:cmd]
+  end
+
+  test "pr_reviews pobiera tylko pole reviews" do
+    payload = { reviews: [ { author: { login: "anna" }, state: "APPROVED" } ] }.to_json
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: payload, stderr: "", timed_out: false) ])
+    reviews = GithubClient.new(runner: fake).pr_reviews(PR_URL, repo_dir: "/repo")
+
+    assert_equal [ { "author" => { "login" => "anna" }, "state" => "APPROVED" } ], reviews
+    assert_equal [ "gh", "pr", "view", PR_URL, "--json", "reviews" ], fake.calls.sole[:cmd]
   end
 
   test "add_reviewer edytuje PR przez gh pr edit" do

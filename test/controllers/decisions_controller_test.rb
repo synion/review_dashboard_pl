@@ -161,4 +161,50 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     assert_select ".flash-error", text: /nie ma powiązanego PR-a/
   end
+
+  test "wybrany reviewer i label zamrażają się na review ze statusem queued i kolejkują job" do
+    GithubClient.stub :new, fake_client([]) do
+      assert_enqueued_with(job: FollowupActionsJob) do
+        post review_decision_path(@review), params: { verdict: "approve", body: "LGTM",
+                                                      followup_reviewer: "anna", followup_label: "after-review" }
+      end
+    end
+
+    @review.reload
+    assert_equal "decided", @review.status
+    assert_equal %w[anna queued], [ @review.followup_reviewer_login, @review.followup_reviewer_status ]
+    assert_equal %w[after-review queued], [ @review.followup_label_name, @review.followup_label_status ]
+  end
+
+  test "puste comboboxy akcji nie kolejkują joba" do
+    GithubClient.stub :new, fake_client([]) do
+      assert_no_enqueued_jobs(only: FollowupActionsJob) do
+        post review_decision_path(@review), params: { verdict: "approve", body: "LGTM",
+                                                      followup_reviewer: "", followup_label: "" }
+      end
+    end
+
+    assert_nil @review.reload.followup_reviewer_status
+  end
+
+  test "ponowienie: failed wraca do queued i job jest kolejkowany" do
+    @review.update!(status: "decided", decision: "approve",
+                    followup_reviewer_login: "anna", followup_reviewer_status: "failed",
+                    followup_reviewer_error: "chwilowo padło")
+
+    assert_enqueued_with(job: FollowupActionsJob) do
+      post review_followup_actions_path(@review)
+    end
+
+    assert_equal "queued", @review.reload.followup_reviewer_status
+  end
+
+  test "ponowienie bez porażek nic nie kolejkuje" do
+    @review.update!(status: "decided", decision: "approve",
+                    followup_reviewer_login: "anna", followup_reviewer_status: "sent")
+
+    assert_no_enqueued_jobs(only: FollowupActionsJob) do
+      post review_followup_actions_path(@review)
+    end
+  end
 end

@@ -22,20 +22,28 @@ class DirectoriesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "stęchły cache zleca odświeżenie w tle, ale odpowiada od razu" do
+    DirectoryEntry.replace!(@project, "gh_label", [ { external_id: "bug", name: "bug" } ])
     @project.directory_entries.update_all(refreshed_at: 2.days.ago)
 
     assert_enqueued_with(job: RefreshDirectoryJob) do
-      get directory_project_path(@project, kind: "intum_user", q: "")
+      get directory_project_path(@project, kind: "gh_label", q: "")
     end
     assert_response :success
   end
 
   test "świeży cache nie zleca odświeżenia" do
-    @project.directory_entries.update_all(refreshed_at: 5.minutes.ago)
+    DirectoryEntry.replace!(@project, "gh_label", [ { external_id: "bug", name: "bug" } ])
 
+    assert_no_enqueued_jobs do
+      get directory_project_path(@project, kind: "gh_label", q: "")
+    end
+  end
+
+  test "kind bez producenta (intum_user w PR1) nie kolejkuje joba mimo stęchłego cache" do
     assert_no_enqueued_jobs do
       get directory_project_path(@project, kind: "intum_user", q: "")
     end
+    assert_response :success
   end
 
   test "refresh_directory zleca job i wraca do projektu" do

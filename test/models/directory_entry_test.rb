@@ -43,7 +43,8 @@ class DirectoryEntryTest < ActiveSupport::TestCase
     assert_equal [ "Anna Kowalska", "Jan Nowak" ], DirectoryEntry.search(@project, "intum_user", "").pluck(:name)
   end
 
-  test "search odrzuca nieznany kind" do
-    assert_raises(ArgumentError) { DirectoryEntry.search(@project, "wrong", "x") }
+  test "kind? rozpoznaje znane kindy" do
+    assert DirectoryEntry.kind?("gh_label")
+    assert_not DirectoryEntry.kind?("wrong")
   end
 end

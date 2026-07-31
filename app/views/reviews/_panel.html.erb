@@ -97,9 +97,10 @@
           — porównanie z kodem sprzed decyzji (<code class="inline"><%= review.decision_head_sha.to_s.first(7) %></code>)
         </p>
       <% end %>
+      <%= render "reviews/followup_actions", review: review %>
     </div>
     <%= render "reviews/task_comment", review: review %>
-  <% elsif review.status == "reviewed" && review.github_actions_available? %>
+  <% elsif review.decision_pending? %>
     <%# Warunek na status, nie samo github_actions_available?: waiting_review celowo nie dostaje
         formularza decyzji — najpierw followup ma zweryfikować poprawki. %>
     <div class="card">
@@ -133,6 +134,16 @@
             </div>
           </div>
         <% end %>
+        <%# Kto już reviewował decyduje o podpowiedzi: nikt → drugi reviewer,
+            ktoś → label. Cache czytany z review (broadcast po odświeżeniu w tle
+            przerysuje panel), reguła wyboru w helperze. %>
+        <% suggestion = followup_suggestion(review) %>
+        <div class="field">
+          <p class="muted"><%= suggestion[:note] %></p>
+          <label><%= suggestion[:label] %></label>
+          <%= render "shared/combobox", project: review.project, kind: suggestion[:kind],
+                field_name: suggestion[:field_name], initial: suggestion[:initial] %>
+        </div>
         <button class="btn btn-ok btn-big" name="verdict" value="approve">✓ Approve</button>
         <button class="btn btn-danger btn-big" name="verdict" value="reject">✗ Reject</button>
         <button class="btn btn-big" name="verdict" value="comment">💬 Comment</button>
