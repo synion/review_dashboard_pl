@@ -221,6 +221,25 @@ input[type=text], input[type=url], textarea, select { width: 100%; padding: 10px
 ::placeholder { color: var(--muted); opacity: 1; }
 .field { margin-bottom: 14px; }
 .field > label { display: block; font-weight: 600; margin-bottom: 4px; }
+/* Podpowiedź pod polem: ma być czytelna dopiero, gdy user się zawaha — nie może
+   konkurować z labelami. */
+.hint { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+/* Formularz nowego review: nagłówki sekcji w tym samym języku co sekcje list
+   (kolejki, projekty), notka obok mówi, ile z tego naprawdę trzeba wypełnić. */
+/* Kolumna formularza wyśrodkowana na stronie — razem z nagłówkiem i linkiem
+   powrotu, żeby nie wisiały przyklejone do lewej krawędzi nad środkową kartą. */
+.form-page { max-width: 640px; margin: 0 auto; }
+.form-card .field { margin-bottom: 22px; }
+.form-card input[type=submit] { margin-top: 6px; }
+.form-section { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 26px 0 12px; }
+.form-section:first-of-type { margin-top: 0; }
+.form-section-note { text-transform: none; letter-spacing: 0; font-weight: normal; font-size: 12px; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.form-grid .field { margin-bottom: 8px; }
+.checkbox-label { display: flex; align-items: baseline; gap: 6px; }
+@media (max-width: 720px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
 /* Instrukcja komentarza do zadania — rozwija się dopiero po zaznaczeniu checkboxa,
    żeby formularz decyzji nie puchł dla opcji, która domyślnie jest wyłączona. */
 .task-comment-details { display: none; margin-top: 8px; }

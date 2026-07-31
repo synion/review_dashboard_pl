@@ -116,7 +116,10 @@ class ProjectsController < ApplicationController
   def load_queues
     # Scope na projekt główny (load_inbox wyżej filtruje tak samo) — archiwum
     # i tak odpada, bo Project.main widzi tylko aktywne.
-    waiting = Review.where(project: @main_project,
+    # outward: samoreview to prywatna runda przed PR-em — jego wynik czeka na liście
+    # projektu, a nie w kolejkach „co teraz kliknąć" na stronie wejściowej.
+    waiting = Review.outward
+                    .where(project: @main_project,
                            status: Review::ATTENTION_STATUSES + Review::IN_PROGRESS_STATUSES)
                     .includes(:project, :findings).to_a
     @attention_reviews = waiting.select { |r| r.status.in?(Review::ATTENTION_STATUSES) }
@@ -128,13 +131,14 @@ class ProjectsController < ApplicationController
     @running_review_ids = @in_progress_reviews.any? ? ClaudeRun.where(status: "running").distinct.pluck(:review_id) : []
   end
 
-  # Jedno zapytanie na całą listę zamiast trzech na projekt. GROUP BY oddaje
-  # pary [project_id, status], kubełki składamy w Ruby.
+  # Dwa zapytania GROUP BY na całą listę zamiast trzech na projekt. „czeka"
+  # i „w toku" liczą tylko outward (samoreview nie woła o uwagę — patrz
+  # Review.outward); „łącznie" liczy wszystko, bo tyle naprawdę jest w projekcie.
   def review_counts
     counts = Hash.new { |hash, key| hash[key] = { attention: 0, in_progress: 0, total: 0 } }
-    Review.group(:project_id, :status).count.each do |(project_id, status), number|
+    Review.group(:project_id).count.each { |project_id, number| counts[project_id][:total] = number }
+    Review.outward.group(:project_id, :status).count.each do |(project_id, status), number|
       bucket = counts[project_id]
-      bucket[:total] += number
       bucket[:attention] += number if Review::ATTENTION_STATUSES.include?(status)
       bucket[:in_progress] += number if Review::IN_PROGRESS_STATUSES.include?(status)
     end

@@ -385,4 +385,17 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".projgrid .projcard-add[href=?]", new_project_path
     assert_select ".projgrid .projcard-add.projcard", count: 0
   end
+
+  test "should keep self reviews out of the home queues and attention counters" do
+    InboxItem.delete_all
+    project = projects(:webapp)
+    self_review = Review.create!(project: project, branch: "sw-samoreview", status: "reviewed")
+
+    get root_path
+
+    assert_select "#review_queue_#{self_review.id}", count: 0
+    assert_select "#project_row_#{project.id} [data-count=attention]", text: "0"
+    # „łącznie" liczy wszystko — samoreview jest w projekcie, tylko nie woła o uwagę.
+    assert_select "#project_row_#{project.id} [data-count=total]", text: "3"
+  end
 end

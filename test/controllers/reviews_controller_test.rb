@@ -1037,4 +1037,34 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "tr#review_row_#{reviews(:pr_review).id} td.title-cell .muted",
                   text: /PR #1234 · sl-fix-vat · opus/
   end
+
+  test "should create a branch-only self review without queueing the task description" do
+    assert_no_enqueued_jobs(only: DescribeTaskJob) do
+      assert_enqueued_with(job: DescribeReviewJob) do
+        post project_reviews_path(@project),
+             params: { review: { branch: "sw-samoreview" }, fetch_task_description: "1" }
+      end
+    end
+
+    review = Review.order(:id).last
+    assert_redirected_to review_path(review)
+    assert review.self_review?
+    assert_equal "skipped", review.task_description_status
+  end
+
+  test "should suggest existing worktree branches in the new review form" do
+    listing = "worktree #{@project.repo_path}\nbranch refs/heads/master\n\n" \
+              "worktree /tmp/webapp-sw-samoreview\nbranch refs/heads/sw-samoreview\n"
+    fake = Minitest::Mock.new
+    fake.expect(:run, CommandRunner::Result.new(exit_code: 0, stdout: listing, stderr: "", timed_out: false),
+                [ [ "git", "worktree", "list", "--porcelain" ] ], chdir: @project.repo_path)
+
+    CommandRunner.stub :run, ->(cmd, **kw) { fake.run(cmd, **kw) } do
+      get new_project_review_path(@project)
+    end
+
+    assert_select "input[name='review[branch]'][list=worktree_branches]"
+    assert_select "datalist#worktree_branches option[value=sw-samoreview]"
+    assert_select "datalist#worktree_branches option[value=master]", count: 0
+  end
 end

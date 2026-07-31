@@ -10,10 +10,10 @@ class ReviewTest < ActiveSupport::TestCase
     assert_equal "ZAMROŻONA", review.effective_task_comment_instructions
   end
 
-  test "wymaga pr_url albo task_url" do
+  test "wymaga pr_url, task_url albo brancha" do
     review = Review.new(project: projects(:webapp))
     assert_not review.valid?
-    assert_equal [ "Podaj link do PR albo do zadania" ], review.errors[:base]
+    assert_equal [ "Podaj link do PR, link do zadania albo branch (samoreview)" ], review.errors[:base]
   end
 
   # Ta sama wartość jest już utwardzona po stronie Project (default_claude_config) —
@@ -387,5 +387,26 @@ class ReviewTest < ActiveSupport::TestCase
     review.findings.create!(priority: "minor", title: "c", body: "z")
 
     assert_equal({ "implemented" => 2 }, review.fix_summary)
+  end
+
+  test "should accept a branch-only review and flag it as self review" do
+    review = Review.new(project: projects(:webapp), branch: "sw-moja-zmiana")
+
+    assert review.valid?, review.errors.full_messages.to_sentence
+    assert review.self_review?
+    assert_equal "branch sw-moja-zmiana", review.task_link
+  end
+
+  test "should not treat reviews with a PR or a task as self reviews" do
+    assert_not reviews(:pr_review).self_review?
+    assert_not reviews(:task_only).self_review?
+  end
+
+  test "should exclude self reviews from the outward scope" do
+    self_review = Review.create!(project: projects(:webapp), branch: "sw-samoreview")
+
+    assert_not_includes Review.outward, self_review
+    assert_includes Review.outward, reviews(:pr_review)
+    assert_includes Review.outward, reviews(:task_only)
   end
 end

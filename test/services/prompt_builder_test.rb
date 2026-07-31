@@ -243,4 +243,16 @@ class PromptBuilderTest < ActiveSupport::TestCase
     review.claude_runs.create!(kind: "review", claude_config: "/Users/dev/.claude", status: "failed")
     assert_not_includes PromptBuilder.review(review), "Kontekst poprzedniego review"
   end
+
+  test "should point describe and review prompts at the branch diff for a self review" do
+    review = Review.create!(project: projects(:webapp), branch: "sw-samoreview",
+                            scope: { "areas" => %w[functionality] })
+
+    [ PromptBuilder.describe(review), PromptBuilder.review(review) ].each do |prompt|
+      assert_includes prompt, "`sw-samoreview`"
+      assert_includes prompt, "origin/master"
+      assert_not_includes prompt, "gh pr view"
+      assert_not_includes prompt, "zadani" + "u: "
+    end
+  end
 end

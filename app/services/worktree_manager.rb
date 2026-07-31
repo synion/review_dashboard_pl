@@ -24,6 +24,26 @@ class WorktreeManager
     run!([ "gh", "pr", "checkout", pr_url ], label: "gh pr checkout", chdir: worktree_path)
   end
 
+  # Branche istniejących worktree — podpowiedzi w formularzu nowego review.
+  # Bez głównego checkoutu (to nie jest praca do review) i bez detached HEAD.
+  # Miękka degradacja do []: formularz ma się otworzyć także przy zepsutym repo,
+  # a błąd i tak wyjdzie przy próbie użycia worktree.
+  def existing_branches
+    result = run!([ "git", "worktree", "list", "--porcelain" ], label: "git worktree list")
+
+    result.stdout.split("\n\n").filter_map { |entry|
+      lines = entry.lines.map(&:chomp)
+      next if lines.first == "worktree #{@project.repo_path}"
+
+      lines.find { |line| line.start_with?("branch refs/heads/") }
+           &.delete_prefix("branch refs/heads/")
+    }.sort
+  rescue Error, SystemCallError
+    # SystemCallError: nieistniejący repo_path wywala już samo spawnowanie procesu
+    # (ENOENT z chdir), zanim git zdąży cokolwiek powiedzieć.
+    []
+  end
+
   private
 
   # Odpala komendę i rzuca Error z jej stderr gdy się nie powiedzie —
