@@ -119,7 +119,13 @@ class ProjectsController < ApplicationController
     waiting = Review.where(project: @main_project,
                            status: Review::ATTENTION_STATUSES + Review::IN_PROGRESS_STATUSES)
                     .includes(:project, :findings).to_a
+    # Jeden PR = jedna karta. Review, którego PR wisi już w kolejce z GitHuba, nie wraca
+    # niżej w drugiej sekcji: to ta sama robota opisana dwa razy, tylko innym zegarem
+    # (sygnał z GitHuba vs ostatni ruch w dashboardzie). Kafel kolejki dowozi za to stan
+    # review i następny krok — patrz projects/_inbox_item.
+    in_inbox = @inbox_items.map(&:pr_number).compact
     @attention_reviews = waiting.select { |r| r.status.in?(Review::ATTENTION_STATUSES) }
+                                .reject { |r| r.pr_number.present? && in_inbox.include?(r.pr_number) }
                                 .sort_by { |r| [ Review::ATTENTION_ORDER.index(r.status), r.updated_at ] }
     @in_progress_reviews = waiting.select { |r| r.status.in?(Review::IN_PROGRESS_STATUSES) }
                                   .sort_by(&:updated_at).reverse

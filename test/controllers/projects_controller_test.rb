@@ -230,7 +230,10 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     get root_path
 
-    assert_select "#inbox_pr_9001 a[href=?]", review_path(reviews(:pr_review)), text: /Otwórz review/
+    # Kafel przejmuje stan i następny krok istniejącego review — inaczej ta sama robota
+    # stałaby drugi raz niżej, w „Rozpoczęte w dashboardzie".
+    assert_select "#inbox_pr_9001 a[href=?]", review_path(reviews(:pr_review)),
+                  text: /Sesja review pracuje/
     assert_select "#inbox_pr_9001 a", text: /Zleć review/, count: 0
   end
 
@@ -366,5 +369,31 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_select "details#archived_projects"
+  end
+
+  # Jeden PR = jedna karta: review, którego PR wisi w kolejce z GitHuba, nie może wracać
+  # niżej w drugiej sekcji z innym zegarem („czeka 12 godz." vs „czeka 6 godz.").
+  test "should show a PR from the GitHub queue only once" do
+    item = inbox_items(:requested)
+    review = reviews(:pr_review)
+    review.update!(pr_number: item.pr_number, status: "reviewed", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+
+    get root_path
+
+    assert_select "#attention #inbox_pr_#{item.pr_number}"
+    assert_select "#dashboard_work #review_queue_#{review.id}", count: 0
+    # Stan i znaleziska nie mogą przy tym przepaść — kafel je przejmuje.
+    assert_select "#inbox_pr_#{item.pr_number} .qmeta", text: /Review zakończony · 1 znalezisko/
+    assert_select "#inbox_pr_#{item.pr_number} .qact", text: /wyślij decyzję/
+  end
+
+  test "should keep dashboard-only work in its own section" do
+    InboxItem.delete_all
+    reviews(:pr_review).update!(status: "reviewed", summary: "OK")
+
+    get root_path
+
+    assert_select "#dashboard_work #review_queue_#{reviews(:pr_review).id}"
   end
 end
