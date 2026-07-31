@@ -444,4 +444,61 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     get root_path
     assert_select "#dashboard_work #review_queue_#{review.id} .queued-hint", text: /weryfikacja uwag w toku/
   end
+
+  test "puste pole tokena przy zapisie nie kasuje zapisanego tokena" do
+    project = projects(:webapp)
+    project.update!(intum_api_token: "stary-token")
+
+    patch project_path(project), params: { project: { name: project.name, intum_api_token: "" } }
+
+    assert_equal "stary-token", project.reload.intum_api_token
+  end
+
+  test "niepuste pole tokena podmienia token" do
+    project = projects(:webapp)
+    project.update!(intum_api_token: "stary-token")
+
+    patch project_path(project), params: { project: { name: project.name, intum_api_token: "nowy-token" } }
+
+    assert_equal "nowy-token", project.reload.intum_api_token
+  end
+
+  test "test_intum bez konfiguracji odsyła z alertem" do
+    post test_intum_project_path(projects(:webapp))
+    assert_redirected_to edit_project_path(projects(:webapp))
+    assert_match(/Najpierw zapisz/, flash[:alert])
+  end
+
+  class FakeIntum
+    def initialize(users: [], error: nil)
+      @users, @error = users, error
+    end
+
+    def users(limit_pages: nil)
+      raise IntumClient::Error, @error if @error
+      @users
+    end
+  end
+
+  test "test_intum pokazuje liczbę osób przy działającym tokenie" do
+    project = projects(:webapp)
+    project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
+
+    IntumClient.stub :new, FakeIntum.new(users: [ { "id" => "1", "name" => "Anna" } ]) do
+      post test_intum_project_path(project)
+    end
+
+    assert_match(/1 osób/, flash[:notice])
+  end
+
+  test "test_intum tłumaczy błąd klienta na alert" do
+    project = projects(:webapp)
+    project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
+
+    IntumClient.stub :new, FakeIntum.new(error: "tracker odpowiedział 403") do
+      post test_intum_project_path(project)
+    end
+
+    assert_match(/403/, flash[:alert])
+  end
 end

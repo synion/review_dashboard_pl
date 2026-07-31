@@ -29,8 +29,8 @@ class DirectoriesController < ApplicationController
   def refresh_stale(kind)
     return unless RefreshDirectoryJob.refreshable?(@project, kind) && DirectoryEntry.stale?(@project, kind)
 
-    Rails.cache.fetch("directory_refresh_#{@project.id}", expires_in: 5.minutes) do
-      RefreshDirectoryJob.perform_later(@project)
+    Rails.cache.fetch("directory_refresh_#{@project.id}_#{kind}", expires_in: 5.minutes) do
+      RefreshDirectoryJob.perform_later(@project, kind: kind)
       true
     end
   end

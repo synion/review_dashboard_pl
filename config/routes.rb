@@ -20,6 +20,7 @@ Rails.application.routes.draw do
       # bo listy (collaboratorzy, labelki, osoby trackera) są per repo/tracker.
       get :directory, to: "directories#show"
       post :refresh_directory, to: "directories#refresh"
+      post :test_intum
     end
     resources :reviews, only: %i[index new create] do
       collection do

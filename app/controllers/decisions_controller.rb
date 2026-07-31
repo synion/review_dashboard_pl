@@ -14,7 +14,9 @@ class DecisionsController < ApplicationController
     # stanu projektu. Status kolejki tu, nie w jobie — patrz refresh_task_description;
     # jednym update! z decyzją, żeby panel dostał jeden broadcast.
     attrs.merge!(task_comment_status: "queued",
-                 task_comment_instructions: params[:task_comment_instructions].to_s.strip.presence) if comment_task?
+                 task_comment_instructions: params[:task_comment_instructions].to_s.strip.presence,
+                 task_comment_responsible_id: params[:task_comment_responsible_id].presence,
+                 task_comment_responsible_name: responsible_name) if comment_task?
     # Wybory akcji po decyzji mrozimy na review razem z decyzją (status queued
     # jak przy komentarzu do zadania) — „Ponów" po awarii użyje dokładnie tego,
     # co user widział, nie późniejszych defaultów.
@@ -52,6 +54,13 @@ class DecisionsController < ApplicationController
   # bez task_url w ogóle nie pokazuje checkboxa, ale parametr można spreparować.
   def comment_task?
     params[:task_comment] == "1" && @review.task_url.present?
+  end
+
+  # Nazwa do wyświetlenia w panelu — combobox wysyła tylko id, nazwę bierzemy
+  # z lokalnego cache. Brak wpisu (spreparowany id) = brak nazwy, id zostaje.
+  def responsible_name
+    id = params[:task_comment_responsible_id].presence
+    id && DirectoryEntry.name_for(@review.project, "intum_user", id)
   end
 
   def render_error(message)

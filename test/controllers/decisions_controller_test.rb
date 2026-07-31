@@ -199,6 +199,21 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "queued", @review.reload.followup_reviewer_status
   end
 
+  test "wybrana osoba drugiego sprawdzenia mrozi się na review z nazwą z cache" do
+    @review.update!(task_url: "https://tracker.example.com/organize/tasks/123")
+    DirectoryEntry.replace!(@review.project, "intum_user", [ { external_id: "55", name: "Anna Kowalska" } ])
+
+    GithubClient.stub :new, fake_client([]) do
+      post review_decision_path(@review), params: { verdict: "approve", body: "LGTM", task_comment: "1",
+                                                    task_comment_responsible_id: "55" }
+    end
+
+    @review.reload
+    assert_equal %w[55 Anna\ Kowalska],
+                 [ @review.task_comment_responsible_id, @review.task_comment_responsible_name ]
+    assert_equal "queued", @review.task_comment_status
+  end
+
   test "ponowienie bez porażek nic nie kolejkuje" do
     @review.update!(status: "decided", decision: "approve",
                     followup_reviewer_login: "anna", followup_reviewer_status: "sent")

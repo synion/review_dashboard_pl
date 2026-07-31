@@ -39,6 +39,12 @@ class DirectoryEntry < ApplicationRecord
     end
   end
 
+  # Nazwa do wyświetlenia dla id z comboboxa — jedyne miejsce rozwiązywania
+  # id → nazwa, obok pozostałych zapytań do cache.
+  def self.name_for(project, kind, external_id)
+    project.directory_entries.find_by(kind: kind, external_id: external_id)&.name
+  end
+
   # Cache danego kind uznajemy za stęchły, gdy pusty albo nieodświeżany pół dnia —
   # wtedy endpoint directory zleca RefreshDirectoryJob w tle.
   def self.stale?(project, kind)

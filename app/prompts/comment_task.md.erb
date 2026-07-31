@@ -1,5 +1,7 @@
 Jesteś asystentem code review. Review PR-a jest skończone, decyzja poszła na
-GitHub. Twoim zadaniem jest dodać JEDEN komentarz w zadaniu z trackera —
+GitHub. Twoim zadaniem jest <%= review.project.intum_enabled? ?
+  "NAPISAĆ treść JEDNEGO komentarza do zadania z trackera (wyśle go aplikacja, nie Ty)" :
+  "dodać JEDEN komentarz w zadaniu z trackera" %> —
 podsumowanie decyzji dla osób, które czytają zadanie, a nie PR-a.
 
 Link do zadania: <%= review.task_url %>
@@ -22,13 +24,17 @@ Treść decyzji wysłana na GitHub:
 
 ## Co masz zrobić
 
-1. Otwórz zadanie i dodaj do niego komentarz podsumowujący decyzję z review.
-   Pisz do czytelnika zadania: co zdecydowano i co z tego wynika, bez żargonu
-   code review i bez relacji z tego, co robiłeś.
-2. Jeśli komentarza NIE DA SIĘ dodać (brak dostępu, wygasła sesja trackera, błąd) —
-   niczego nie zmyślaj i nie próbuj obejść. Odpowiedz jedną linią:
+<% if review.project.intum_enabled? -%>
+Napisz treść komentarza podsumowującego decyzję z review — wysyłką zajmie się
+aplikacja, NICZEGO nie wysyłaj i nie otwieraj trackera.
+<% else -%>
+Otwórz zadanie i dodaj do niego komentarz podsumowujący decyzję z review.
+<% end -%>
+Pisz do czytelnika zadania: co zdecydowano i co z tego wynika, bez żargonu
+code review i bez relacji z tego, co robiłeś.
 
-   ERROR: <krótki powód, po polsku>
+Odpowiedz WYŁĄCZNIE treścią komentarza (markdown), bez wstępu i bez komentarza
+od siebie. Jeśli komentarza nie da się <%= review.project.intum_enabled? ? "napisać (np. brak treści decyzji)" : "dodać (brak dostępu, wygasła sesja trackera, błąd)" %> —
+niczego nie zmyślaj i nie próbuj obejść, odpowiedz jedną linią:
 
-3. Jeśli komentarz został dodany — odpowiedz WYŁĄCZNIE jego treścią,
-   dokładnie taką, jaka trafiła do zadania. Bez wstępu, bez komentarza od siebie.
+ERROR: <krótki powód, po polsku>

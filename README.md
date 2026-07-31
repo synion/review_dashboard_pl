@@ -87,7 +87,7 @@ claude -p --verbose --output-format stream-json --dangerously-skip-permissions
 | Zdolność | Status | Do czego |
 |---|---|---|
 | `gh` w PATH | **wymagane** | opis PR-a (`gh pr view/diff`) robi sesja Claude, nie dashboard |
-| dostęp do trackera zadań (skill / MCP) | opcjonalne | „Opis zadania" i „Komentarz do zadania" każą sesji **otworzyć `task_url`** — bez skilla do Twojego trackera te kroki skończą się błędem (review działa dalej) |
+| dostęp do trackera zadań (skill / MCP) | opcjonalne | „Opis zadania" i „Komentarz do zadania" każą sesji **otworzyć `task_url`** — bez skilla do Twojego trackera te kroki skończą się błędem (review działa dalej). Wyjątek: projekt z tokenem integracji (Intum) — wtedy komentarz **wysyła aplikacja przez API**, a sesja tylko pisze jego treść |
 | Playwright w repo projektu | opcjonalne | obszar „QA + Playwright" pisze i odpala test klikający feature |
 
 Żadnych innych skilli dashboard nie wymaga — prompty (w `app/prompts/`) są
@@ -112,6 +112,8 @@ Wszystko klika się w UI (**Nowy projekt**). Pola:
 | Katalog dokumentacji (`docs_path`) | nie (default `doc/llm`) | jeśli istnieje w repo, review czyta stamtąd konwencje projektu |
 | Stałe zasady review | nie | tekst doklejany do każdego promptu review w tym projekcie |
 | Instrukcja komentarza do zadania | nie | jak ma wyglądać komentarz w trackerze po decyzji |
+| API token trackera (`intum_api_token`) | nie | włącza integrację z trackerem (Intum): komentarz po decyzji idzie bezpośrednio z aplikacji (bez sesji Claude) i można go skierować do osoby drugiego sprawdzenia; przycisk „Testuj połączenie" sprawdza token i uprawnienia. Szyfrowany w bazie |
+| Domyślny drugi reviewer / label po decyzji | nie | prefille comboboxów akcji na PR-ze po decyzji (reviewer gdy nikt nie reviewował, label gdy ktoś już tak) |
 
 **Kontrakt na skrypt worktree:** dostaje nazwę brancha, tworzy działający worktree
 (z configami i bazą — surowy `git worktree add` nie wystarcza) i wypisuje go tak,
@@ -152,7 +154,7 @@ Własne PR-y nie znikają z apki — review swojego kodu zakładasz normalnie pr
 2. Claude pisze **opis zmian** (a równolegle — jeśli jest `task_url` — opis zadania z komentarzami z trackera).
 3. Zaznacz **obszary do sprawdzenia** (funkcjonalność, UX, czytelność, API, zasady projektu, QA + Playwright) → **Start review**. Review pracuje w świeżym worktree z wycheckoutowanym PR-em.
 4. Wynik: podsumowanie + znaleziska (`critical` / `important` / `minor`) + opcjonalny test Playwright (**Obejrzyj** = headed ze spotlightami, **Szybka weryfikacja** = headless).
-5. **Approve / Reject / Comment** → `gh pr review` z edytowalną treścią; znaleziska z linią lecą jako komentarze inline. Opcjonalnie: komentarz z decyzją do zadania w trackerze.
+5. **Approve / Reject / Comment** → `gh pr review` z edytowalną treścią; znaleziska z linią lecą jako komentarze inline. Opcjonalnie: komentarz z decyzją do zadania w trackerze (z tokenem integracji — wysyłany przez API, z możliwym skierowaniem do osoby drugiego sprawdzenia), dodanie drugiego reviewera lub labela na PR (comboboxy z podpowiedziami).
 6. Po decyzji: **followup** (dyskusja z reviewerem, `--resume` z pełnym kontekstem), **kompaktowanie** sesji gdy kontekst puchnie, „wróć do sesji" (`claude --resume` w terminalu). Przy wejściu na listę dashboard sprawdza (max raz na godzinę per review), czy autor poprosił o ponowne review.
 
 Artefakty każdego review (result.json, logi sesji, logi Playwright) leżą

@@ -131,6 +131,13 @@
             <div class="task-comment-details">
               <label>Instrukcja komentarza — edycja dotyczy tylko tej decyzji (default zmienisz w projekcie)</label>
               <textarea name="task_comment_instructions" rows="4"><%= review.effective_task_comment_instructions %></textarea>
+              <%# Drugie sprawdzenie: komentarz zostaje skierowany do wybranej osoby
+                  (responsible KOMENTARZA — nigdy nie przepinamy całego zadania). %>
+              <% if review.project.intum_enabled? %>
+                <label>👤 Skieruj komentarz do (drugie sprawdzenie, opcjonalnie)</label>
+                <%= render "shared/combobox", project: review.project, kind: "intum_user",
+                      field_name: "task_comment_responsible_id", placeholder: "Wpisz nazwisko…" %>
+              <% end %>
             </div>
           </div>
         <% end %>
