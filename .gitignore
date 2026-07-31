@@ -33,6 +33,10 @@
 
 # Ignore key files for decrypting credentials and more.
 /config/*.key
+# Credentials per środowisko (`credentials:edit --environment development`) trzymają
+# klucz w podkatalogu, którego wzorzec wyżej nie łapie — bez tej linijki klucz
+# deszyfrujący wchodzi do `git status` jako plik do zacommitowania.
+/config/credentials/*.key
 
 .gstack/
 
