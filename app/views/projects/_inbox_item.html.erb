@@ -6,6 +6,11 @@
     <span class="status-badge status-<%= item.reason %>"><%= item.label %></span>
     <%= link_to item.project.name, project_reviews_path(item.project), class: "qproj" %>
     <span class="qwait">czeka <%= inbox_waiting_for(item) %></span>
+    <%# Cykl poboczny nie zmienia statusu review — bez dopisku kafel wygląda,
+        jakby puszczona weryfikacja uwag nic nie robiła. %>
+    <% if review && @verifying_review_ids.include?(review.id) %>
+      <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
+    <% end %>
   </div>
   <%= link_to item.title.presence || "PR ##{item.pr_number}", item.url, class: "qttl" %>
   <div class="qact">

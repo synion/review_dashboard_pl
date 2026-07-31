@@ -126,9 +126,14 @@ class ProjectsController < ApplicationController
                                 .sort_by { |r| [ Review::ATTENTION_ORDER.index(r.status), r.updated_at ] }
     @in_progress_reviews = waiting.select { |r| r.status.in?(Review::IN_PROGRESS_STATUSES) }
                                   .sort_by(&:updated_at).reverse
-    # Ten sam sygnał co na liście review: „reviewing" bez pracującej sesji znaczy,
-    # że job stoi w kolejce workera. Pytamy tylko, gdy jest o co pytać.
-    @running_review_ids = @in_progress_reviews.any? ? ClaudeRun.where(status: "running").distinct.pluck(:review_id) : []
+    # Te same sygnały co na liście review, jednym zapytaniem: „reviewing" bez
+    # pracującej sesji znaczy, że job stoi w kolejce workera, a weryfikacja uwag
+    # (pending też) nie zmienia statusu review, więc kafel musi o niej wiedzieć sam.
+    active_runs = ClaudeRun.where(status: "running")
+                           .or(ClaudeRun.where(kind: "verify_findings", status: "pending"))
+                           .pluck(:review_id, :kind, :status)
+    @running_review_ids = active_runs.filter_map { |review_id, _kind, run_status| review_id if run_status == "running" }.uniq
+    @verifying_review_ids = active_runs.filter_map { |review_id, kind, _run_status| review_id if kind == "verify_findings" }.uniq
   end
 
   # Dwa zapytania GROUP BY na całą listę zamiast trzech na projekt. „czeka"

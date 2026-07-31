@@ -114,6 +114,9 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .fix-implemented { background: var(--done-bg); color: var(--ok); }
 .fix-ignored { background: var(--err-bg); color: var(--danger); }
 .fix-unclear { background: var(--badge-bg); color: var(--muted); }
+.verdict-confirmed { background: var(--done-bg); color: var(--ok); }
+.verdict-refuted { background: var(--err-bg); color: var(--danger); }
+.verdict-disputed { background: var(--badge-bg); color: var(--muted); }
 
 /* ===================== strona wejściowa: kolejki + projekty ===================== */
 .pagehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 4px; }
@@ -208,6 +211,16 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .finding { border-left: 4px solid var(--muted); padding: 8px 12px; margin: 8px 0; background: var(--line-soft); }
 .finding-critical { border-color: var(--danger); }
 .finding-important { border-color: var(--warn); }
+/* Obalone znalezisko zostaje widoczne (decyzja należy do człowieka), ale schodzi na dalszy plan. */
+.finding-refuted { opacity: 0.55; }
+
+.modal { border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; max-width: 460px; background: var(--card-bg, #fff); }
+.modal::backdrop { background: rgba(0, 0, 0, 0.35); }
+.modal h2 { margin-top: 0; }
+/* Dwa pola, nie trzy jak w formularzu review — i selecty na pełną szerokość kolumny. */
+.modal .form-grid { grid-template-columns: 1fr 1fr; }
+.modal select { width: 100%; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .progress-line { color: var(--muted); font-size: 14px; white-space: pre-wrap; }
 details { margin: 8px 0; }
 summary { cursor: pointer; color: var(--muted); }

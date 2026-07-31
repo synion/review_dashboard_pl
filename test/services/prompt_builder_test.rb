@@ -14,7 +14,7 @@ class PromptBuilderTest < ActiveSupport::TestCase
   test "każdy szablon promptu wstawia wspólne zasady pisania" do
     templates = Dir.glob(PromptBuilder::TEMPLATES_DIR.join("*.md.erb"))
                    .reject { |path| File.basename(path).start_with?("_") }
-    assert_equal 6, templates.size
+    assert_equal 7, templates.size
     templates.each do |path|
       assert_includes File.read(path), "<%= style %>", "#{File.basename(path)} nie wstawia zasad pisania"
     end
@@ -254,5 +254,18 @@ class PromptBuilderTest < ActiveSupport::TestCase
       assert_not_includes prompt, "gh pr view"
       assert_not_includes prompt, "zadani" + "u: "
     end
+  end
+
+  test "should build an adversarial verify findings prompt with the finding ids" do
+    review = reviews(:pr_review)
+    review.update!(branch: "sl-fix-vat")
+    finding = review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "scenariusz z nil")
+
+    prompt = PromptBuilder.verify_findings(review)
+
+    assert_includes prompt, "OBALIĆ"
+    assert_includes prompt, "id #{finding.id}"
+    assert_includes prompt, "verdicts.json"
+    assert_includes prompt, "`sl-fix-vat`"
   end
 end

@@ -42,12 +42,15 @@ class ClaudeSessionRunner
   private
 
   # --resume wznawia poprzednią sesję (pełny kontekst review) — używane przy
-  # dyskusji z reviewerem (kind: followup). Model i effort wybierane per review.
+  # dyskusji z reviewerem (kind: followup). Model i effort z review, chyba że
+  # run niesie własne (np. weryfikacja zasadności odpalona mocniejszym modelem).
   def command
     review = @run.review
     cmd = COMMAND.dup
-    cmd += [ "--model", review.model ] if review.model.present?
-    cmd += [ "--effort", review.effort ] if review.effort.present?
+    model = @run.model.presence || review.model
+    effort = @run.effort.presence || review.effort
+    cmd += [ "--model", model ] if model.present?
+    cmd += [ "--effort", effort ] if effort.present?
     cmd += [ "--resume", @run.resume_session_id ] if @run.resume_session_id.present?
     cmd
   end

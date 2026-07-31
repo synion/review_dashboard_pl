@@ -52,7 +52,7 @@
   </thead>
   <tbody>
     <%= render partial: "review_row", collection: @reviews, as: :review,
-               locals: { running_ids: @running_review_ids } %>
+               locals: { running_ids: @running_review_ids, verifying_ids: @verifying_review_ids } %>
   </tbody>
 </table>
 <%# Pusta tabela bez słowa wygląda jak zepsuta strona, a najczęstszą przyczyną jest

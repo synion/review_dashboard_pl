@@ -193,4 +193,15 @@ class ClaudeSessionRunnerTest < ActiveSupport::TestCase
     ClaudeSessionRunner.new(@run, runner: fake).call("x")
     assert_equal 1_000_000, @run.reload.context_window
   end
+
+  test "should let the run override the model and effort from the review" do
+    @review.update!(model: "sonnet", effort: "high")
+    @run.update!(model: "opus", effort: "max")
+    fake = FakeRunner.new(lines: [
+      { type: "result", subtype: "success", session_id: "s", total_cost_usd: 0.1, duration_ms: 5, result: "OK" }.to_json
+    ])
+    ClaudeSessionRunner.new(@run, runner: fake).call("x")
+    assert_equal %w[claude -p --verbose --output-format stream-json --dangerously-skip-permissions --model opus --effort max],
+                 fake.calls.first[:cmd]
+  end
 end

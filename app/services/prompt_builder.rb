@@ -29,6 +29,12 @@ class PromptBuilder
     render("verify_fixes", review, force_context: true)
   end
 
+  # Świeża sesja Z ZAŁOŻENIA (nie przez przypadek): cała wartość weryfikacji
+  # zasadności bierze się z braku kontekstu sesji, która te uwagi wymyśliła.
+  def self.verify_findings(review)
+    render("verify_findings", review, force_context: true)
+  end
+
   # `resumed` przychodzi z joba, bo tylko on wie, czy sesja faktycznie dostała
   # `--resume`. Świeża sesja nie zna poprzedniego przebiegu, więc kontekst musi
   # przyjechać w prompcie także wtedy, gdy konto się nie zmieniło, a plik sesji

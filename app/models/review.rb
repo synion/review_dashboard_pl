@@ -192,6 +192,26 @@ class Review < ApplicationRecord
     findings.filter_map(&:fix_status).tally
   end
 
+  # Weryfikacja zasadności znalezisk świeżą sesją. Branch jest konieczny — sesja
+  # musi przeczytać kod, a review z samego zadania nie ma czego czytać. Statusy jak
+  # przy followupie: przed decyzją weryfikacja jest najcenniejsza, ale po decyzji
+  # też bywa potrzebna (autor podważa uwagi). Guard na run w locie: druga sesja
+  # pisałaby po tych samych werdyktach.
+  def findings_verifiable?
+    status.in?(FOLLOWUPABLE_STATUSES) && branch.present? && findings.any? &&
+      !findings_verification_in_progress?
+  end
+
+  # Weryfikacja chodzi cyklem pobocznym i nie zmienia statusu review — bez tego
+  # pytania ani lista, ani karta znalezisk nie miałyby jak pokazać, że coś trwa.
+  def findings_verification_in_progress?
+    claude_runs.exists?(kind: "verify_findings", status: %w[pending running])
+  end
+
+  def verdict_summary
+    findings.filter_map(&:verdict).tally
+  end
+
   def finished?
     FINISHED_STATUSES.include?(status)
   end
@@ -248,7 +268,8 @@ class Review < ApplicationRecord
 
     broadcast_safely("broadcast_row!") do
       broadcast_replace_to project, :reviews, target: "review_row_#{id}", partial: "reviews/review_row",
-                           locals: { review: self, running_ids: claude_runs.where(status: "running").exists? ? [ id ] : [] }
+                           locals: { review: self, running_ids: claude_runs.where(status: "running").exists? ? [ id ] : [],
+                                     verifying_ids: findings_verification_in_progress? ? [ id ] : [] }
     end
   end
 

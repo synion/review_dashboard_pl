@@ -17,6 +17,11 @@
       <%# Sam badge mówi „Zmergowany", nie „możesz o tym zapomnieć" — dopisek mówi. %>
       <span class="done-hint">✔ nie wymaga akcji</span>
     <% end %>
+    <%# Cykl poboczny nie zmienia statusu review — bez dopisku „Review zakończony"
+        wygląda, jakby kliknięcie weryfikacji nic nie zrobiło. %>
+    <% if verifying_ids.include?(review.id) %>
+      <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
+    <% end %>
   </td>
   <td><%= review.decision || "—" %></td>
   <td class="worktree-cell"><%= worktree_badge(review) %></td>

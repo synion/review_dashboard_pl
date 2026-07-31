@@ -409,4 +409,43 @@ class ReviewTest < ActiveSupport::TestCase
     assert_includes Review.outward, reviews(:pr_review)
     assert_includes Review.outward, reviews(:task_only)
   end
+
+  test "should allow verifying the findings only with a branch, findings and a settled review" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+    assert_not review.findings_verifiable?, "bez znalezisk nie ma czego weryfikować"
+
+    review.findings.create!(priority: "critical", title: "nil", body: "x")
+    assert review.reload.findings_verifiable?
+
+    review.update!(status: "decided")
+    assert review.findings_verifiable?, "po decyzji też — autor może podważać uwagi"
+
+    review.update!(status: "reviewing")
+    assert_not review.findings_verifiable?, "w trakcie review nie ma jeszcze pełnej listy"
+
+    review.update!(status: "reviewed", branch: nil)
+    assert_not review.findings_verifiable?, "bez brancha sesja nie ma czego czytać"
+  end
+
+  test "should block a second verification while one is pending" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+    review.findings.create!(priority: "critical", title: "nil", body: "x")
+    run = review.claude_runs.create!(kind: "verify_findings", claude_config: "/Users/dev/.claude")
+
+    assert_not review.findings_verifiable?
+
+    run.update!(status: "succeeded")
+    assert review.reload.findings_verifiable?, "po zakończonej weryfikacji można ponowić"
+  end
+
+  test "should tally the verdicts for the findings header" do
+    review = reviews(:pr_review)
+    review.findings.create!(priority: "critical", title: "a", body: "x", verdict: "refuted")
+    review.findings.create!(priority: "minor", title: "b", body: "y", verdict: "refuted")
+    review.findings.create!(priority: "minor", title: "c", body: "z")
+
+    assert_equal({ "refuted" => 2 }, review.verdict_summary)
+  end
 end

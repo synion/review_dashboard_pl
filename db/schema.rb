@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_193659) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_061534) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -20,10 +20,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_193659) do
     t.decimal "cost_usd", precision: 10, scale: 4
     t.datetime "created_at", null: false
     t.integer "duration_ms"
+    t.string "effort"
     t.text "error_message"
     t.datetime "finished_at"
     t.string "kind"
     t.text "last_message"
+    t.string "model"
     t.integer "pid"
     t.string "resume_session_id"
     t.integer "review_id", null: false
@@ -46,6 +48,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_193659) do
     t.integer "review_id", null: false
     t.string "title"
     t.datetime "updated_at", null: false
+    t.string "verdict"
+    t.text "verdict_note"
     t.index ["review_id"], name: "index_findings_on_review_id"
   end
 
@@ -107,6 +111,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_193659) do
     t.text "description"
     t.string "effort"
     t.text "error_message"
+    t.datetime "findings_verified_at"
     t.datetime "fixes_checked_at"
     t.datetime "github_checked_at"
     t.string "model"

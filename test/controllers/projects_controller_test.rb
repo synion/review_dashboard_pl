@@ -398,4 +398,21 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     # „łącznie" liczy wszystko — samoreview jest w projekcie, tylko nie woła o uwagę.
     assert_select "#project_row_#{project.id} [data-count=total]", text: "3"
   end
+
+  # Weryfikacja uwag nie zmienia statusu review, więc kafle strony wejściowej
+  # muszą dostać ten sygnał osobno — inaczej wygląda, jakby nic się nie działo.
+  test "should show the running findings verification on the home tiles" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK", pr_number: 9001,
+                   pr_url: "https://github.com/acme/webapp/pull/9001")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x")
+    review.claude_runs.create!(kind: "verify_findings", claude_config: "/Users/dev/.claude")
+
+    get root_path
+    assert_select "#inbox_pr_9001 .queued-hint", text: /weryfikacja uwag w toku/
+
+    InboxItem.destroy_all
+    get root_path
+    assert_select "#dashboard_work #review_queue_#{review.id} .queued-hint", text: /weryfikacja uwag w toku/
+  end
 end
