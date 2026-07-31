@@ -116,7 +116,7 @@ class ProjectsController < ApplicationController
   def load_queues
     # Scope na projekt główny (load_inbox wyżej filtruje tak samo) — archiwum
     # i tak odpada, bo Project.main widzi tylko aktywne.
-    # outward: samoreview to prywatna runda przed PR-em — jego wynik czeka na liście
+    # outward: selfreview to prywatna runda przed PR-em — jego wynik czeka na liście
     # projektu, a nie w kolejkach „co teraz kliknąć" na stronie wejściowej.
     waiting = Review.outward
                     .where(project: @main_project,
@@ -143,7 +143,7 @@ class ProjectsController < ApplicationController
   end
 
   # Dwa zapytania GROUP BY na całą listę zamiast trzech na projekt. „czeka"
-  # i „w toku" liczą tylko outward (samoreview nie woła o uwagę — patrz
+  # i „w toku" liczą tylko outward (selfreview nie woła o uwagę — patrz
   # Review.outward); „łącznie" liczy wszystko, bo tyle naprawdę jest w projekcie.
   def review_counts
     counts = Hash.new { |hash, key| hash[key] = { attention: 0, in_progress: 0, total: 0 } }

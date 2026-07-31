@@ -92,7 +92,7 @@ class ReviewsController < ApplicationController
                                    model: @project.default_model,
                                    effort: @project.default_effort,
                                    pr_url: params[:pr_url], task_url: params[:task_url])
-    # Podpowiedzi pola branch: istniejące worktree, żeby samoreview zaczynało się
+    # Podpowiedzi pola branch: istniejące worktree, żeby selfreview zaczynało się
     # od wyboru z listy, a nie od przepisywania nazwy brancha z terminala.
     @worktree_branches = WorktreeManager.new(@project).existing_branches
   end
@@ -102,7 +102,7 @@ class ReviewsController < ApplicationController
     @review.claude_config = @review.effective_claude_config
     # Status przed zapisem, nie update! po nim: rekord jest świeży, a każdy update!
     # na Review to pełny broadcast panelu, którego nikt jeszcze nie ogląda.
-    # !self_review?: samoreview nie ma skąd wziąć opisu zadania (ani PR-a, ani
+    # !self_review?: selfreview nie ma skąd wziąć opisu zadania (ani PR-a, ani
     # zadania), więc domyślnie zaznaczony checkbox nie może zakolejkować sesji.
     @review.task_description_status = "queued" if params[:fetch_task_description] == "1" && !@review.self_review?
     if @review.save

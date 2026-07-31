@@ -418,13 +418,13 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   test "should keep self reviews out of the home queues and attention counters" do
     InboxItem.delete_all
     project = projects(:webapp)
-    self_review = Review.create!(project: project, branch: "sw-samoreview", status: "reviewed")
+    self_review = Review.create!(project: project, branch: "sw-selfreview", status: "reviewed")
 
     get root_path
 
     assert_select "#review_queue_#{self_review.id}", count: 0
     assert_select "#project_row_#{project.id} [data-count=attention]", text: "0"
-    # „łącznie" liczy wszystko — samoreview jest w projekcie, tylko nie woła o uwagę.
+    # „łącznie" liczy wszystko — selfreview jest w projekcie, tylko nie woła o uwagę.
     assert_select "#project_row_#{project.id} [data-count=total]", text: "3"
   end
 

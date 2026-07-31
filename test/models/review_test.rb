@@ -13,7 +13,7 @@ class ReviewTest < ActiveSupport::TestCase
   test "wymaga pr_url, task_url albo brancha" do
     review = Review.new(project: projects(:webapp))
     assert_not review.valid?
-    assert_equal [ "Podaj link do PR, link do zadania albo branch (samoreview)" ], review.errors[:base]
+    assert_equal [ "Podaj link do PR, link do zadania albo branch (selfreview)" ], review.errors[:base]
   end
 
   # Ta sama wartość jest już utwardzona po stronie Project (default_claude_config) —
@@ -403,7 +403,7 @@ class ReviewTest < ActiveSupport::TestCase
   end
 
   test "should exclude self reviews from the outward scope" do
-    self_review = Review.create!(project: projects(:webapp), branch: "sw-samoreview")
+    self_review = Review.create!(project: projects(:webapp), branch: "sw-selfreview")
 
     assert_not_includes Review.outward, self_review
     assert_includes Review.outward, reviews(:pr_review)

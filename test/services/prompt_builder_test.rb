@@ -245,11 +245,11 @@ class PromptBuilderTest < ActiveSupport::TestCase
   end
 
   test "should point describe and review prompts at the branch diff for a self review" do
-    review = Review.create!(project: projects(:webapp), branch: "sw-samoreview",
+    review = Review.create!(project: projects(:webapp), branch: "sw-selfreview",
                             scope: { "areas" => %w[functionality] })
 
     [ PromptBuilder.describe(review), PromptBuilder.review(review) ].each do |prompt|
-      assert_includes prompt, "`sw-samoreview`"
+      assert_includes prompt, "`sw-selfreview`"
       assert_includes prompt, "origin/master"
       assert_not_includes prompt, "gh pr view"
       assert_not_includes prompt, "zadani" + "u: "

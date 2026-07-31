@@ -1045,7 +1045,7 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs(only: DescribeTaskJob) do
       assert_enqueued_with(job: DescribeReviewJob) do
         post project_reviews_path(@project),
-             params: { review: { branch: "sw-samoreview" }, fetch_task_description: "1" }
+             params: { review: { branch: "sw-selfreview" }, fetch_task_description: "1" }
       end
     end
 
@@ -1057,7 +1057,7 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
 
   test "should suggest existing worktree branches in the new review form" do
     listing = "worktree #{@project.repo_path}\nbranch refs/heads/master\n\n" \
-              "worktree /tmp/webapp-sw-samoreview\nbranch refs/heads/sw-samoreview\n"
+              "worktree /tmp/webapp-sw-selfreview\nbranch refs/heads/sw-selfreview\n"
     fake = Minitest::Mock.new
     fake.expect(:run, CommandRunner::Result.new(exit_code: 0, stdout: listing, stderr: "", timed_out: false),
                 [ [ "git", "worktree", "list", "--porcelain" ] ], chdir: @project.repo_path)
@@ -1067,7 +1067,7 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_select "input[name='review[branch]'][list=worktree_branches]"
-    assert_select "datalist#worktree_branches option[value=sw-samoreview]"
+    assert_select "datalist#worktree_branches option[value=sw-selfreview]"
     assert_select "datalist#worktree_branches option[value=master]", count: 0
   end
 

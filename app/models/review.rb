@@ -140,7 +140,7 @@ class Review < ApplicationRecord
     checkable.where("github_checked_at IS NULL OR github_checked_at < ?", GITHUB_CHECK_INTERVAL.ago)
   }
   # Review powiązane z czymś na zewnątrz (PR albo zadanie) — w odróżnieniu od
-  # samoreview, które jest prywatną rundą przed wystawieniem PR-a i nie wchodzi
+  # selfreview, które jest prywatną rundą przed wystawieniem PR-a i nie wchodzi
   # do kolejek ani liczników „czeka na Ciebie" na stronie wejściowej.
   scope :outward, -> {
     where("(pr_url IS NOT NULL AND pr_url <> '') OR (task_url IS NOT NULL AND task_url <> '')")
@@ -168,13 +168,13 @@ class Review < ApplicationRecord
   end
 
   # Link identyfikujący zadanie — PR, a gdy go nie ma, link do zadania.
-  # Samoreview nie ma żadnego z nich, więc identyfikuje je branch.
+  # Selfreview nie ma żadnego z nich, więc identyfikuje je branch.
   def task_link
     pr_url.presence || task_url.presence || (branch.present? ? "branch #{branch}" : nil)
   end
 
   # Prywatna runda review własnego brancha, zanim powstanie PR — celowo bez
-  # kolumny: brak obu linków JEST definicją samoreview (walidacja wymusza branch).
+  # kolumny: brak obu linków JEST definicją selfreview (walidacja wymusza branch).
   def self_review?
     pr_url.blank? && task_url.blank?
   end
@@ -430,11 +430,11 @@ class Review < ApplicationRecord
     claude_runs.where.not(context_window: nil).order(:id).last&.context_window
   end
 
-  # Sam branch wystarcza: samoreview własnych zmian przed wystawieniem PR-a.
+  # Sam branch wystarcza: selfreview własnych zmian przed wystawieniem PR-a.
   def pr_or_task_present
     return if pr_url.present? || task_url.present? || branch.present?
 
-    errors.add(:base, "Podaj link do PR, link do zadania albo branch (samoreview)")
+    errors.add(:base, "Podaj link do PR, link do zadania albo branch (selfreview)")
   end
 
   # Wklejenie PR-a z innego projektu kończyłoby się `gh pr checkout` i worktree
