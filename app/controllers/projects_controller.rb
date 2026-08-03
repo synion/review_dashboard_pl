@@ -154,6 +154,11 @@ class ProjectsController < ApplicationController
                            .or(ClaudeRun.where(kind: "verify_findings", status: "pending"))
                            .pluck(:review_id, :kind, :status)
     @running_review_ids = active_runs.filter_map { |review_id, _kind, run_status| review_id if run_status == "running" }.uniq
+    # Ta strona jest jedynym miejscem, w które user zagląda codziennie — bez tego
+    # PR zmergowany po cichu (bez mojej decyzji) wisiałby tu jako „wyślij decyzję"
+    # aż do wejścia na listę review projektu. Godzinny cache jest wspólny z listą,
+    # więc dwa wejścia nie znaczą dwóch wywołań gh.
+    Review.enqueue_github_checks(Review.where(project: @main_project).due_for_github_check)
     @verifying_review_ids = active_runs.filter_map { |review_id, kind, _run_status| review_id if kind == "verify_findings" }.uniq
   end
 

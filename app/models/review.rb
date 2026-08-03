@@ -12,10 +12,13 @@ class Review < ApplicationRecord
   # Stany końcowe: PR zniknął z GitHuba (wjechał albo autor go porzucił), więc nie ma
   # już czego review'ować ani o co pytać. Wypadają ze due_for_github_check.
   FINISHED_STATUSES = %w[merged closed].freeze
-  # Statusy, w których warto jeszcze pytać GitHuba o stan PR-a. „waiting_review" jest
-  # tu, bo inaczej review, którego PR wjechał po prośbie o poprawki, wisiałby
-  # w „czeka ponowne review" do końca świata.
-  CHECKABLE_STATUSES = %w[decided waiting_review].freeze
+  # Statusy, w których warto jeszcze pytać GitHuba o stan PR-a: wszystko, co stoi
+  # i czeka na człowieka. PR potrafi wjechać na każdym z tych etapów — także zanim
+  # zdążę wysłać decyzję (albo w ogóle odpalić review) — a wtedy bez pytania GitHuba
+  # review wisi w „Review zakończony / wyślij decyzję" do końca świata. Poza listą
+  # zostają statusy z pracującą sesją (created, describing, reviewing): tam status
+  # należy do joba, nie do GitHuba.
+  CHECKABLE_STATUSES = %w[ready reviewed decided waiting_review failed].freeze
   # Statusy, z których wolno odpalić followup. `decided` jest tu dla review, których
   # GitHub nigdy nie przestawi w waiting_review: własnego PR-a nie da się zgłosić
   # samemu sobie do review, a na obcym branchu autor po prostu nie musi klikać
@@ -144,6 +147,21 @@ class Review < ApplicationRecord
   scope :due_for_github_check, -> {
     checkable.where("github_checked_at IS NULL OR github_checked_at < ?", GITHUB_CHECK_INTERVAL.ago)
   }
+
+  # Odpytanie GitHuba idzie w tle (gh to ~1 s na PR) — render nie czeka na wynik.
+  # Stempel github_checked_at kładziemy już przy kolejkowaniu, żeby drugie odświeżenie
+  # strony przed startem workera nie zdublowało wywołań gh. Relacja przychodzi
+  # z zewnątrz, bo ścieżki różnią się tylko nią: listy pytają o przeterminowane,
+  # „Sprawdź teraz" o wszystkie kwalifikujące się. Na modelu, nie w kontrolerze:
+  # wołają to i lista review, i strona wejściowa — a to ta sama decyzja.
+  def self.enqueue_github_checks(reviews)
+    due = reviews.to_a
+    return 0 if due.empty?
+
+    where(id: due).update_all(github_checked_at: Time.current)
+    due.each { |review| CheckReviewRequestJob.perform_later(review) }
+    due.size
+  end
   # Review powiązane z czymś na zewnątrz (PR albo zadanie) — w odróżnieniu od
   # selfreview, które jest prywatną rundą przed wystawieniem PR-a i nie wchodzi
   # do kolejek ani liczników „czeka na Ciebie" na stronie wejściowej.

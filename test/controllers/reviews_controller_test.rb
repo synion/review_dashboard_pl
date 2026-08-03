@@ -147,10 +147,22 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs(only: CheckReviewRequestJob) { get project_reviews_path(@project) }
   end
 
-  test "index nie kolejkuje dla innych statusów ani review bez PR-a" do
-    reviews(:pr_review).update!(status: "reviewed")
+  # „reviewing" to review z pracującą sesją — jego status należy do joba, nie do
+  # GitHuba; task_only nie ma PR-a, więc nie ma o co pytać.
+  test "index nie kolejkuje dla review w toku ani review bez PR-a" do
+    reviews(:pr_review).update!(status: "reviewing")
     reviews(:task_only).update!(status: "decided")
     assert_no_enqueued_jobs(only: CheckReviewRequestJob) { get project_reviews_path(@project) }
+  end
+
+  # Merge bez mojej decyzji jest normalnym końcem PR-a, więc `reviewed` musi
+  # wchodzić do odpytywania — inaczej wisi w kolejce „wyślij decyzję" bez końca.
+  test "index kolejkuje sprawdzenie dla review czekającego na decyzję" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", github_checked_at: nil)
+    assert_enqueued_with(job: CheckReviewRequestJob, args: [ review ]) do
+      get project_reviews_path(@project)
+    end
   end
 
   # Sedno ręcznego sprawdzenia: świeży stempel jest dokładnie tym, co blokuje index.
@@ -172,8 +184,8 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "recheck_github pomija inne statusy i review bez PR-a" do
-    reviews(:pr_review).update!(status: "reviewed")
+  test "recheck_github pomija review w toku i review bez PR-a" do
+    reviews(:pr_review).update!(status: "reviewing")
     reviews(:task_only).update!(status: "decided")
     assert_no_enqueued_jobs(only: CheckReviewRequestJob) do
       post recheck_github_project_reviews_path(@project)

@@ -14,6 +14,21 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#projects .projcard", count: Project.active.count
   end
 
+  # Strona wejściowa jest jedynym miejscem, w które zagląda się codziennie — musi
+  # sama dowiedzieć się, że PR wjechał, a nie czekać na wejście w listę projektu.
+  test "index odpytuje GitHuba o review czekające na człowieka" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", github_checked_at: nil)
+    assert_enqueued_with(job: CheckReviewRequestJob, args: [ review ]) { get root_path }
+  end
+
+  test "index nie odpytuje GitHuba o review z innego projektu ani o świeżo sprawdzone" do
+    reviews(:pr_review).update!(status: "reviewed", github_checked_at: 10.minutes.ago)
+    projects(:dashboard).reviews.create!(pr_url: "https://github.com/example/dashboard/pull/3",
+                                        status: "reviewed", github_checked_at: nil)
+    assert_no_enqueued_jobs(only: CheckReviewRequestJob) { get root_path }
+  end
+
   test "kubełki liczników liczą failed jako czeka na Ciebie, a reviewing jako w toku" do
     project = projects(:webapp)
     reviews(:pr_review).update!(status: "failed")

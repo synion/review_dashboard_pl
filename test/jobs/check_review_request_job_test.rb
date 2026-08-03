@@ -71,6 +71,37 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_not_nil @review.github_checked_at
   end
 
+  # Najczęstszy przypadek w praktyce: autor merguje, zanim zdążę wysłać decyzję.
+  # Bez tego review zostaje na „Review zakończony / wyślij decyzję" na zawsze,
+  # bo nikt już nie pyta GitHuba o ten PR.
+  test "review bez wysłanej decyzji też gaśnie, gdy PR wjedzie" do
+    @review.update!(status: "reviewed", decision: nil)
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "MERGED" })
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal "merged", @review.reload.status
+  end
+
+  # Prośba o ponowne review dotyczy tylko review PO decyzji — na „reviewed" własne
+  # nazwisko na liście reviewRequests to zwykłe „ktoś mnie poprosił", czyli stan
+  # wyjściowy, a nie sygnał do followupu.
+  test "reviewed na otwartym PR zostaje reviewed, mimo prośby o review" do
+    @review.update!(status: "reviewed", decision: nil)
+    github = FakeGithub.new({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN" })
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal "reviewed", @review.reload.status
+    assert_not_nil @review.github_checked_at
+  end
+
+  # Zmergowanego PR-a nie ma po co review'ować ani ponawiać po padniętej sesji.
+  test "ready i failed z zmergowanym PR-em też kończą się na merged" do
+    %w[ready failed].each do |status|
+      @review.update!(status: status)
+      github = FakeGithub.new({ "reviewRequests" => [], "state" => "MERGED" })
+      CheckReviewRequestJob.perform_now(@review, github: github)
+      assert_equal "merged", @review.reload.status, "status #{status} nie zgasł po merge'u"
+    end
+  end
+
   test "status końcowy wypada ze scope'a — dashboard nie pyta o niego więcej" do
     @review.update!(status: "merged", github_checked_at: 2.hours.ago)
     assert_not_includes Review.due_for_github_check, @review

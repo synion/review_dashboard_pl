@@ -265,20 +265,7 @@ class ReviewsController < ApplicationController
 
   private
 
-  # Odpytanie GitHuba o re-request idzie w tle (gh to ~1 s na PR) — render nie czeka
-  # na wynik. Stempel github_checked_at kładziemy już przy kolejkowaniu, żeby drugie
-  # odświeżenie listy przed startem workera nie zdublowało wywołań gh. Zakres to sam
-  # projekt: wejście na jeden dashboard nie ma odpalać `gh` dla wszystkich pozostałych.
-  # Relacja przychodzi z zewnątrz, bo dwie ścieżki różnią się tylko nią: index pyta
-  # o przeterminowane, recheck_github o wszystkie kwalifikujące się.
-  def enqueue_github_checks(reviews)
-    due = reviews.to_a
-    return 0 if due.empty?
-
-    Review.where(id: due).update_all(github_checked_at: Time.current)
-    due.each { |review| CheckReviewRequestJob.perform_later(review) }
-    due.size
-  end
+  def enqueue_github_checks(reviews) = Review.enqueue_github_checks(reviews)
 
   def set_project
     @project = Project.find(params[:project_id])

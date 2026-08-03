@@ -1,5 +1,6 @@
-# Pyta GitHuba o stan PR-a po decyzji: czy autor poprosił mnie o ponowne review
-# (waiting_review), czy PR już wjechał / został porzucony (stan końcowy).
+# Pyta GitHuba o stan PR-a review, które czeka na człowieka: czy autor poprosił mnie
+# o ponowne review (waiting_review, tylko po decyzji), czy PR już wjechał / został
+# porzucony (stan końcowy — na każdym etapie, patrz Review::CHECKABLE_STATUSES).
 # Wykrycie tylko oznacza — nie odpala sesji, nie rusza findings.
 class CheckReviewRequestJob < ApplicationJob
   queue_as :default
