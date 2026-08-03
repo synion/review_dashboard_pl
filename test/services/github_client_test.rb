@@ -161,18 +161,23 @@ class GithubClientTest < ActiveSupport::TestCase
     assert_equal [ "gh", "pr", "view", PR_URL, "--json", "reviews" ], fake.calls.sole[:cmd]
   end
 
-  test "add_reviewer edytuje PR przez gh pr edit" do
+  test "add_reviewer prosi o review przez REST, bez gh pr edit" do
     fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "", stderr: "", timed_out: false) ])
     GithubClient.new(runner: fake).add_reviewer(PR_URL, login: "anna", repo_dir: "/repo")
 
-    assert_equal [ "gh", "pr", "edit", PR_URL, "--add-reviewer", "anna" ], fake.calls.sole[:cmd]
+    call = fake.calls.sole
+    assert_equal [ "gh", "api", "repos/acme/webapp/pulls/1234/requested_reviewers", "--method", "POST", "--input", "-" ],
+                 call[:cmd]
+    assert_equal({ "reviewers" => [ "anna" ] }, JSON.parse(call[:stdin_data]))
   end
 
-  test "add_label edytuje PR przez gh pr edit" do
+  test "add_label dopina labelkę przez REST endpoint issue" do
     fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "", stderr: "", timed_out: false) ])
     GithubClient.new(runner: fake).add_label(PR_URL, name: "po reviews", repo_dir: "/repo")
 
-    assert_equal [ "gh", "pr", "edit", PR_URL, "--add-label", "po reviews" ], fake.calls.sole[:cmd]
+    call = fake.calls.sole
+    assert_equal [ "gh", "api", "repos/acme/webapp/issues/1234/labels", "--method", "POST", "--input", "-" ], call[:cmd]
+    assert_equal({ "labels" => [ "po reviews" ] }, JSON.parse(call[:stdin_data]))
   end
 
   test "add_reviewer rzuca Error ze stderr gdy gh odmawia" do

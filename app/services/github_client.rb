@@ -90,7 +90,7 @@ class GithubClient
     return submit_simple_review(pr_url, verdict: verdict, body: body, repo_dir: repo_dir) if comments.blank?
 
     payload = { event: VERDICT_EVENTS.fetch(verdict), body: body, comments: comments }
-    run!([ "gh", "api", reviews_endpoint(pr_url), "--method", "POST", "--input", "-" ],
+    run!([ "gh", "api", pr_endpoint(pr_url, "pulls", "reviews"), "--method", "POST", "--input", "-" ],
          label: "gh api reviews", chdir: repo_dir, stdin_data: payload.to_json)
   end
 
@@ -114,12 +114,19 @@ class GithubClient
     pr_view(pr_url, fields: "reviews", repo_dir: repo_dir)["reviews"].to_a
   end
 
+  # Obie akcje idą przez REST, a nie przez `gh pr edit`: ta komenda dociąga w swoim
+  # zapytaniu GraphQL pole `projectCards` (Projects classic), a GitHub odpowiada na nie
+  # twardym błędem o wycofaniu — edycja nie dochodziła do skutku niezależnie od tego,
+  # co zmieniała. REST-owe endpointy nie znają Projects i robią dokładnie jedną rzecz.
   def add_reviewer(pr_url, login:, repo_dir:)
-    run!([ "gh", "pr", "edit", pr_url, "--add-reviewer", login ], label: "gh pr edit --add-reviewer", chdir: repo_dir)
+    run!([ "gh", "api", pr_endpoint(pr_url, "pulls", "requested_reviewers"), "--method", "POST", "--input", "-" ],
+         label: "gh api requested_reviewers", chdir: repo_dir, stdin_data: { reviewers: [ login ] }.to_json)
   end
 
+  # Labelki wiszą pod zasobem issue — PR-y dzielą z issues numerację i ten endpoint.
   def add_label(pr_url, name:, repo_dir:)
-    run!([ "gh", "pr", "edit", pr_url, "--add-label", name ], label: "gh pr edit --add-label", chdir: repo_dir)
+    run!([ "gh", "api", pr_endpoint(pr_url, "issues", "labels"), "--method", "POST", "--input", "-" ],
+         label: "gh api labels", chdir: repo_dir, stdin_data: { labels: [ name ] }.to_json)
   end
 
   private
@@ -129,11 +136,13 @@ class GithubClient
     run!([ "gh", "pr", "review", pr_url, flag, "--body-file", "-" ], label: "gh pr review", chdir: repo_dir, stdin_data: body)
   end
 
-  def reviews_endpoint(pr_url)
+  # Ścieżka REST-owa dla PR-a: `kind` to "pulls" albo "issues" (część zasobów PR-a
+  # GitHub trzyma pod issue o tym samym numerze), `path` to końcówka endpointu.
+  def pr_endpoint(pr_url, kind, path)
     match = self.class.parse_pr_url(pr_url)
     raise Error, "Nie rozpoznaję linku do PR-a: #{pr_url}" unless match
 
-    "repos/#{match[:owner]}/#{match[:repo]}/pulls/#{match[:number]}/reviews"
+    "repos/#{match[:owner]}/#{match[:repo]}/#{kind}/#{match[:number]}/#{path}"
   end
 
   def pr_view(pr_url, fields:, repo_dir:)
