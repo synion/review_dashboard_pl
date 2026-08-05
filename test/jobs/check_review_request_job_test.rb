@@ -123,6 +123,31 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_not_nil @review.github_checked_at
   end
 
+  # „Ruch na PR" na liście bierze się stąd — data ma się zapisać także wtedy,
+  # gdy status review się nie zmienia (gałąź update_columns).
+  test "updatedAt z GitHuba ląduje w pr_activity_at przy rutynowym sprawdzeniu" do
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN",
+                              "updatedAt" => "2026-08-04T10:00:00Z" })
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal Time.utc(2026, 8, 4, 10), @review.reload.pr_activity_at
+  end
+
+  test "pr_activity_at zapisuje się też przy zmianie statusu (merge)" do
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "MERGED",
+                              "updatedAt" => "2026-08-04T10:00:00Z" })
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal Time.utc(2026, 8, 4, 10), @review.reload.pr_activity_at
+  end
+
+  # Stara data to więcej niż żadna — padnięty gh (puste info) nie może wyzerować
+  # ostatniej znanej aktywności.
+  test "błąd gh nie kasuje wcześniej zapisanego pr_activity_at" do
+    @review.update!(pr_activity_at: Time.utc(2026, 8, 1))
+    github = FakeGithub.new(error: GithubClient::Error.new("rate limit"))
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal Time.utc(2026, 8, 1), @review.reload.pr_activity_at
+  end
+
   # Login bierze się z GitHuba (gh api user), a nie z configu — ręcznie wpisany
   # potrafił się rozjechać z kontem, do którego rozwiązuje się `@me`.
   test "login reviewera bierze się z zalogowanego konta gh" do

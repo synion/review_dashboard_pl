@@ -252,6 +252,29 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#inbox_pr_9001 a", text: /Zleć review/, count: 0
   end
 
+  # GitHub trzyma „prosi o review" po decyzji comment/reject — bez dopisku kafel
+  # wygląda jak nowa prośba i ten sam PR odklikuje się w kółko.
+  test "should mark the requested tile when the decision was already sent" do
+    item = inbox_items(:requested)
+    reviews(:pr_review).update!(pr_number: item.pr_number, status: "decided",
+                                decision: "comment", decided_at: Time.utc(2026, 8, 1, 12))
+
+    get root_path
+
+    assert_select "#inbox_pr_9001 .done-hint", text: /decyzja wysłana: comment/
+  end
+
+  # waiting_review = autor poprosił PONOWNIE po decyzji — dopisek by kłamał.
+  test "should not mark the tile when the author re-requested after the decision" do
+    item = inbox_items(:requested)
+    reviews(:pr_review).update!(pr_number: item.pr_number, status: "waiting_review",
+                                decision: "comment", decided_at: Time.utc(2026, 8, 1, 12))
+
+    get root_path
+
+    assert_select "#inbox_pr_9001 .done-hint", count: 0
+  end
+
   test "should show how long each GitHub signal has been waiting" do
     inbox_items(:requested).update!(signal_at: 3.days.ago)
 

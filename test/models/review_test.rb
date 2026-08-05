@@ -448,4 +448,17 @@ class ReviewTest < ActiveSupport::TestCase
 
     assert_equal({ "refuted" => 2 }, review.verdict_summary)
   end
+
+  # Wyróżnienie „Ruchu na PR" na liście: świeci tylko, gdy obie daty istnieją
+  # i PR ruszył się PO decyzji — nil-e nie mogą świecić.
+  test "pr_activity_after_decision? porównuje ruch na PR z datą decyzji" do
+    review = reviews(:pr_review)
+    assert_not review.pr_activity_after_decision?
+
+    review.update!(decided_at: Time.utc(2026, 8, 3), pr_activity_at: Time.utc(2026, 8, 2))
+    assert_not review.pr_activity_after_decision?
+
+    review.update!(pr_activity_at: Time.utc(2026, 8, 4))
+    assert review.pr_activity_after_decision?
+  end
 end

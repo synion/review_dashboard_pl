@@ -77,10 +77,19 @@ module ReviewsHelper
   # świadomie omija timestampy (update_columns/update_all), więc szumu tu nie ma.
   # „dziś"/„wczoraj" zamiast gołej daty, bo pytanie brzmi „czy ruszałem to dzisiaj",
   # a nie „którego to było" — i tego z „29 Jul 14:03" nie odczytuje się wzrokiem.
-  def review_last_activity(review)
-    date = review.updated_at.to_date
-    prefix = { Date.current => "dziś", Date.yesterday => "wczoraj" }[date]
-    prefix ? "#{prefix} #{review.updated_at.strftime("%H:%M")}" : l(review.updated_at, format: :short)
+  def review_last_activity(review) = short_time_label(review.updated_at)
+
+  # „Ruch na PR" — `updatedAt` PR-a z GitHuba; nil, dopóki CheckReviewRequestJob
+  # nie spytał (stare review, review bez PR-a). Świeci, gdy PR ruszył się już
+  # po wysłanej decyzji — patrz Review#pr_activity_after_decision?.
+  def pr_activity_badge(review)
+    return "—" if review.pr_activity_at.nil?
+
+    label = short_time_label(review.pr_activity_at)
+    return label unless review.pr_activity_after_decision?
+
+    tag.span("● #{label}", class: "pr-activity-fresh",
+             title: "Na PR-ze coś się działo po Twojej decyzji (#{short_time_label(review.decided_at)})")
   end
 
   # Trzeci stan jest tu sednem: „ścieżka w bazie, katalogu nie ma" znaczy, że worktree

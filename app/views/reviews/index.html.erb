@@ -42,6 +42,9 @@
       <%# Kiedy ostatnio coś się z tym review działo — review sprzed tygodnia, do którego
           wróciłem dziś followupem, na samej dacie utworzenia wygląda jak porzucony. %>
       <th><%= review_sort_link(@project, "Aktywność", "updated_at") %></th>
+      <%# Ostatni ruch na samym PR-ze (updatedAt z GitHuba) — obok „Aktywności"
+          dashboardu, żeby jednym rzutem oka porównać „ja vs oni". %>
+      <th><%= review_sort_link(@project, "Ruch na PR", "pr_activity_at") %></th>
       <th>PR / zadanie</th>
       <th><%= review_sort_link(@project, "Status", "status") %></th>
       <th><%= review_sort_link(@project, "Decyzja", "decision") %></th>

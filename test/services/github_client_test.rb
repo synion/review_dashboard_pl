@@ -30,12 +30,13 @@ class GithubClientTest < ActiveSupport::TestCase
     assert_includes error.message, "no pull requests found"
   end
 
-  test "pr_review_state pobiera reviewRequests i state" do
-    payload = { reviewRequests: [ { login: "synion" } ], state: "OPEN" }.to_json
+  test "pr_review_state pobiera reviewRequests, state i updatedAt" do
+    payload = { reviewRequests: [ { login: "synion" } ], state: "OPEN", updatedAt: "2026-08-04T10:00:00Z" }.to_json
     fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: payload, stderr: "", timed_out: false) ])
     info = GithubClient.new(runner: fake).pr_review_state(PR_URL, repo_dir: "/repo")
-    assert_equal({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN" }, info)
-    assert_equal [ { cmd: [ "gh", "pr", "view", PR_URL, "--json", "reviewRequests,state" ], chdir: "/repo", stdin_data: nil } ], fake.calls
+    assert_equal({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN",
+                   "updatedAt" => "2026-08-04T10:00:00Z" }, info)
+    assert_equal [ { cmd: [ "gh", "pr", "view", PR_URL, "--json", "reviewRequests,state,updatedAt" ], chdir: "/repo", stdin_data: nil } ], fake.calls
   end
 
   test "submit_review mapuje verdict na flagę gh i wysyła body przez stdin" do

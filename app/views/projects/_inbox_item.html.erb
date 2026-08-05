@@ -11,6 +11,12 @@
     <% if review && @verifying_review_ids.include?(review.id) %>
       <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
     <% end %>
+    <%# GitHub trzyma „prosi o review", dopóki autor nie zdejmie prośby — comment/reject
+        jej nie zdejmują, więc kafel wygląda jak nowa prośba i ten sam PR odklikuje się
+        w kółko. Dlaczego nie waiting_review — patrz Review#decision_sent?. %>
+    <% if item.reason == "requested" && review&.decision_sent? %>
+      <span class="done-hint">✔ decyzja wysłana: <%= review.decision %> · <%= short_time_label(review.decided_at) %></span>
+    <% end %>
   </div>
   <%= link_to item.title.presence || "PR ##{item.pr_number}", item.url, class: "qttl" %>
   <div class="qact">

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_05_090001) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -139,6 +139,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120001) do
     t.string "model"
     t.string "playwright_command"
     t.string "playwright_test_path"
+    t.datetime "pr_activity_at"
     t.integer "pr_number"
     t.json "pr_reviewers"
     t.datetime "pr_reviewers_checked_at"

@@ -276,6 +276,20 @@ class Review < ApplicationRecord
     FINISHED_STATUSES.include?(status)
   end
 
+  # Ktoś ruszył PR po wysłanej decyzji — sygnał „wróć i spójrz" na liście.
+  # „Ktoś", nie „autor": updatedAt podnosi każda aktywność, także własny komentarz
+  # dodany wprost na GitHubie — świadomy kompromis za jedno tanie pole z gh.
+  def pr_activity_after_decision?
+    pr_activity_at.present? && decided_at.present? && pr_activity_at > decided_at
+  end
+
+  # Decyzja wyszła i nie wróciła: `waiting_review` znaczy, że autor poprosił
+  # PONOWNIE po decyzji — wtedy piłka naprawdę jest u reviewera. Guard na
+  # decided_at, bo konsumenci pokazują tę datę.
+  def decision_sent?
+    status == "decided" && decided_at.present?
+  end
+
   def effective_claude_config
     claude_config.presence || project.default_claude_config
   end

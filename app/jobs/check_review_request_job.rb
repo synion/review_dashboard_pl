@@ -16,14 +16,19 @@ class CheckReviewRequestJob < ApplicationJob
 
     info = pr_review_state(review, github)
 
+    # Kiedy na PR-ze ostatnio cokolwiek się działo — do kolumny „Ruch na PR"
+    # na liście. `compact`: padnięty gh daje puste info, a brak klucza nie
+    # nadpisze nilem ostatniej znanej daty — stara jest więcej warta niż żadna.
+    stamps = { github_checked_at: Time.current, pr_activity_at: info["updatedAt"] }.compact
+
     if (final_status = FINAL_STATES[info["state"]])
-      review.update!(status: final_status, github_checked_at: Time.current)
+      review.update!(status: final_status, **stamps)
     elsif review.status == "decided" && rerequested?(info, github, review)
-      review.update!(status: "waiting_review", github_checked_at: Time.current)
+      review.update!(status: "waiting_review", **stamps)
     else
       # Sam stempel przez update_columns — rutynowe „nic się nie zmieniło" nie ma
       # co odpalać walidacji ani broadcastów panelu.
-      review.update_columns(github_checked_at: Time.current)
+      review.update_columns(stamps)
     end
   end
 

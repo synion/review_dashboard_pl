@@ -1,5 +1,5 @@
 class ReviewsController < ApplicationController
-  SORTS = %w[created_at updated_at status decision].freeze
+  SORTS = %w[created_at updated_at pr_activity_at status decision].freeze
   # Status, w który wraca review, gdy po przełączeniu konta ponawiamy krok,
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze

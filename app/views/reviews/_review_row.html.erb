@@ -1,6 +1,7 @@
 <tr id="review_row_<%= review.id %>">
   <td class="date-cell"><%= l review.created_at, format: :short %></td>
   <td class="activity-cell"><%= review_last_activity(review) %></td>
+  <td class="pr-activity-cell"><%= pr_activity_badge(review) %></td>
   <td class="title-cell">
     <%= link_to (review.pr_title.presence || review.task_link), review_path(review) %>
     <%# Numer PR-a i branch pod tytułem: bez nich wiersz nie mówi, KTÓREJ zmiany dotyczy,
@@ -23,7 +24,12 @@
       <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
     <% end %>
   </td>
-  <td><%= review.decision || "—" %></td>
+  <td>
+    <%= review.decision || "—" %>
+    <%# Data pod decyzją: „comment sprzed tygodnia bez odzewu" wygląda zupełnie
+        inaczej niż „comment sprzed godziny", a sama nazwa decyzji tego nie mówi. %>
+    <% if review.decided_at %><div class="muted"><%= short_time_label(review.decided_at) %></div><% end %>
+  </td>
   <td class="worktree-cell"><%= worktree_badge(review) %></td>
   <%# Confirm wymienia worktree z nazwy: usuwanie review kasuje też jego katalog i bazę
       devową, a to znacznie więcej, niż sugeruje samo „usuń review". Przycisk jest cichy:
