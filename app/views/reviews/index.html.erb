@@ -47,7 +47,7 @@
       <th><%= review_sort_link(@project, "Ruch na PR", "pr_activity_at") %></th>
       <th>PR / zadanie</th>
       <th><%= review_sort_link(@project, "Status", "status") %></th>
-      <th><%= review_sort_link(@project, "Decyzja", "decision") %></th>
+      <th><%= review_sort_link(@project, "Decyzja", "decided_at") %></th>
       <%# Nie sortowalne: istnienie katalogu to odczyt z dysku, a nie kolumna w bazie. %>
       <th>Worktree</th>
       <th></th>
