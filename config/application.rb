@@ -16,6 +16,11 @@ module ReviewDashboard
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w[assets tasks])
 
+    # Wszystkie godziny w widokach („dziś 14:03", „Ruch na PR") mają być lokalne —
+    # na UTC każda była 1–2 h do tyłu. Baza dalej trzyma UTC (default AR),
+    # konwersja dzieje się tylko przy wyświetlaniu.
+    config.time_zone = "Europe/Warsaw"
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files
