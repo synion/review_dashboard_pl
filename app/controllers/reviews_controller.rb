@@ -6,7 +6,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact verify_fixes verify_findings]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact verify_fixes verify_findings override_status]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -182,6 +182,19 @@ class ReviewsController < ApplicationController
     @review.update!(task_description_status: "queued")
     DescribeTaskJob.perform_later(@review)
     redirect_to @review
+  end
+
+  # Awaryjna naprawa statusu, gdy cykl skłamał (przypadkowy start review, fałszywy
+  # re-request): rusza wyłącznie kolumnę status — decyzja, findings i GitHub zostają.
+  def override_status
+    status = params[:status].to_s
+    return redirect_to(review_path(@review), alert: "Niedozwolony status: #{status}") unless Review::OVERRIDABLE_STATUSES.include?(status)
+    # Pracująca sesja cyklu i tak zapisze status po swojemu — najpierw „Przerwij".
+    # Węższy guard niż w switch_config celowo: sesja poboczna statusu nie rusza.
+    return redirect_to(review_path(@review), alert: "Najpierw przerwij działającą sesję") unless @review.status_overridable?
+
+    @review.update!(status: status, error_message: nil)
+    redirect_to review_path(@review), notice: "Status zmieniony na „#{helpers.review_status_label(@review)}”"
   end
 
   def reimport

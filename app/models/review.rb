@@ -36,6 +36,9 @@ class Review < ApplicationRecord
   # minut (patrz komentarze w ReviewsController). Bez tego świeżo założone review
   # znika z obu kubełków i jest widoczne tylko w „Wszystkich".
   IN_PROGRESS_STATUSES = %w[created describing reviewing].freeze
+  # Statusy dozwolone przy ręcznej naprawie z show — tylko „stojące": in-progress
+  # należą do jobów i ręczna zmiana ścigałaby się z pracującą sesją.
+  OVERRIDABLE_STATUSES = (STATUSES - IN_PROGRESS_STATUSES).freeze
   DECISIONS = %w[approve reject comment].freeze
   # Obszary review — odpowiadają sekcjom /rev; klucz → etykieta w widoku.
   AREAS = {
@@ -429,6 +432,14 @@ class Review < ApplicationRecord
   def compactable?
     !finished? && !IN_PROGRESS_STATUSES.include?(status) &&
       running_claude_run.nil? && resumable_session_run.present?
+  end
+
+  # Ręczną naprawę statusu blokuje tylko sesja, która sama pisze status
+  # (review/followup/compact). Sesja poboczna (describe_task, komentarz) statusu
+  # nie dotyka i może chodzić dalej — to często właśnie podczas jej zwisu user
+  # chce status prostować, więc szeroki guard zamykałby wyjście awaryjne.
+  def status_overridable?
+    running_review_run.nil?
   end
 
   # Sesja, którą pokazuje panel postępu. Świadomie tylko „running": zakończony run

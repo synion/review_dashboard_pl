@@ -21,6 +21,13 @@ module ReviewsHelper
 
   def review_status_label(review) = STATUS_LABELS.fetch(review.status, review.status)
 
+  # Opcje ręcznej naprawy statusu: etykieta z badge'a + surowa nazwa w nawiasie,
+  # żeby dało się je skojarzyć z filtrem listy i rozmową o kodzie. fetch bez
+  # fallbacku — rozjazd stałych ma krzyczeć, wejście jest zamknięte listą z modelu.
+  def status_override_options
+    Review::OVERRIDABLE_STATUSES.map { |status| [ "#{STATUS_LABELS.fetch(status)} (#{status})", status ] }
+  end
+
   def review_next_step(review) = NEXT_STEPS[review.status]
 
   # „czeka 3 dni" zamiast daty: przy wejściu liczy się, czy coś stoi od rana, czy od
@@ -184,5 +191,4 @@ module ReviewsHelper
     end
     parts.join("\n")
   end
-
 end

@@ -41,6 +41,7 @@ Rails.application.routes.draw do
       post :compact
       post :verify_fixes
       post :verify_findings
+      patch :override_status
     end
     resources :playwright_runs, only: :create
     resource :decision, only: :create

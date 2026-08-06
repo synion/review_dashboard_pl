@@ -224,6 +224,20 @@
   </div>
 <% end %>
 
+<%# Awaryjna naprawa statusu: cykl czasem kłamie (przypadkowy start review, fałszywy
+    re-request), a status ma zawsze mówić, co zrobić. Przy pracującej sesji cyklu
+    ukryte — kontroler i tak by odmówił, patrz override_status. %>
+<% if review.status_overridable? %>
+  <details>
+    <summary>🛠 Napraw status ręcznie</summary>
+    <p class="muted">Zmienia tylko status — decyzja, znaleziska i GitHub zostają nietknięte.</p>
+    <%= form_with url: override_status_review_path(review), method: :patch do %>
+      <%= select_tag :status, options_for_select(status_override_options, review.status) %>
+      <button class="btn">Zmień status</button>
+    <% end %>
+  </details>
+<% end %>
+
 <%# Wszystkie sesje, nie tylko ostatnia: po nieudanym ponowieniu ostatnia bywa tą,
     która padła po kilku sekundach, a praca została w poprzedniej. Kind, status
     i czas trwania są tym, po czym da się je rozróżnić. %>

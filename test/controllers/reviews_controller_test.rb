@@ -1176,4 +1176,49 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "dialog#verify_findings_dialog", count: 0
     assert_select "#review_#{review.id}_side_progress"
   end
+
+  # Awaryjna naprawa statusu: cykl czasem kłamie (przypadkowy start review, fałszywy
+  # re-request) — user prostuje status ręcznie z poziomu show, bez konsoli.
+  test "override_status zmienia status i czyści komunikat błędu" do
+    review = reviews(:pr_review)
+    review.update!(status: "failed", error_message: "Timeout po 1800s")
+    patch override_status_review_path(review, status: "decided")
+    assert_redirected_to review_path(review)
+    assert_equal [ "decided", nil ], [ review.reload.status, review.error_message ]
+  end
+
+  # In-progress należą do jobów — ręczne "reviewing" ścigałoby się z sesją.
+  test "override_status odrzuca statusy w toku i spoza listy" do
+    review = reviews(:pr_review)
+    review.update!(status: "failed")
+    %w[reviewing describing created wymyslony].each do |status|
+      patch override_status_review_path(review, status: status)
+      assert_equal "failed", review.reload.status, "status #{status} nie powinien przejść"
+    end
+  end
+
+  # Blokuje tylko sesja cyklu (pisze status po swojemu) — poboczny describe_task
+  # statusu nie dotyka, a jego zwis to częsty powód ręcznej naprawy.
+  test "override_status blokuje zmianę przy sesji cyklu, ale nie przy pobocznej" do
+    review = reviews(:pr_review)
+    review.update!(status: "failed")
+    review.claude_runs.create!(kind: "describe_task", claude_config: "/x", status: "running")
+    patch override_status_review_path(review, status: "decided")
+    assert_equal "decided", review.reload.status
+
+    review.claude_runs.create!(kind: "review", claude_config: "/x", status: "running")
+    patch override_status_review_path(review, status: "failed")
+    assert_equal "decided", review.reload.status
+  end
+
+  test "panel pokazuje formularz naprawy statusu, ale nie przy działającej sesji cyklu" do
+    review = reviews(:pr_review)
+    review.update!(status: "failed")
+    get review_path(review)
+    assert_select "form[action=?] select[name=status]", override_status_review_path(review)
+
+    review.claude_runs.create!(kind: "review", claude_config: "/x", status: "running")
+    get review_path(review)
+    assert_select "form[action=?]", override_status_review_path(review), count: 0
+  end
 end
