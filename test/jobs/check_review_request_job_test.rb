@@ -55,7 +55,7 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
   # Reviewer dodany przez dashboard to ktoś inny — własny login na liście może
   # pochodzić tylko od autora, więc to prawdziwy re-request.
   test "request na własny login liczy się, gdy dashboard dodawał kogoś innego" do
-    @review.update!(followup_reviewer_login: "tbogus", followup_reviewer_status: "sent")
+    @review.update!(followup_reviewer_login: "inny_reviewer", followup_reviewer_status: "sent")
     github = FakeGithub.new({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN" })
     CheckReviewRequestJob.perform_now(@review, github: github)
     assert_equal "waiting_review", @review.reload.status
