@@ -40,6 +40,27 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_not_nil @review.github_checked_at
   end
 
+  # Akcja „reviewer" po decyzji potrafi dodać własny login (znacznik „PR czeka na
+  # moje kolejne review" na GitHubie). Taki request wisi w reviewRequests od chwili
+  # decyzji aż do następnego review — jego obecność nie mówi NIC o autorze. Bez
+  # wyjątku dashboard pół godziny po decyzji kłamał „Czeka ponowne review".
+  test "request wysłany przez dashboard na własny login nie udaje re-requesta" do
+    @review.update!(followup_reviewer_login: "synion", followup_reviewer_status: "sent")
+    github = FakeGithub.new({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN" })
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal "decided", @review.reload.status
+    assert_not_nil @review.github_checked_at
+  end
+
+  # Reviewer dodany przez dashboard to ktoś inny — własny login na liście może
+  # pochodzić tylko od autora, więc to prawdziwy re-request.
+  test "request na własny login liczy się, gdy dashboard dodawał kogoś innego" do
+    @review.update!(followup_reviewer_login: "tbogus", followup_reviewer_status: "sent")
+    github = FakeGithub.new({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN" })
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal "waiting_review", @review.reload.status
+  end
+
   # Zmergowany PR wygrywa nad re-requestem: skoro wjechał, prośba o poprawki
   # jest już nieaktualna, a review nie ma czego sprawdzać.
   test "zmergowany PR kończy review na stałe mimo re-requesta" do

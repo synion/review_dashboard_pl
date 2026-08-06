@@ -46,6 +46,11 @@ class CheckReviewRequestJob < ApplicationJob
     return false unless info["state"] == "OPEN"
 
     login = github.viewer_login(repo_dir: review.workdir)
-    Array(info["reviewRequests"]).any? { |request| request["login"] == login }
+    return false unless Array(info["reviewRequests"]).any? { |request| request["login"] == login }
+
+    # Akcja „reviewer" po decyzji potrafi dodać własny login — taki request wisi
+    # od chwili decyzji aż do następnego review, więc jego obecność nie mówi nic
+    # o autorze. Prawdziwy ruch autora widać wtedy w „Ruch na PR" (pr_activity_at).
+    !(review.followup_reviewer_status == "sent" && review.followup_reviewer_login == login)
   end
 end
