@@ -18,10 +18,11 @@ class RunReviewJob < ApplicationJob
       Rails.logger.warn("Review #{review.id}: sesja zawisła, ponawiam (próba #{attempt + 1}/#{MAX_ATTEMPTS})")
       retry
     end
+    return unless review.still_reviewing?
+
     ReviewResultImporter.call(review)
     review.update!(status: "reviewed")
   rescue StandardError => e
-    # Review mógł zostać usunięty z dashboardu w trakcie działania joba.
-    review.fail!(e.message) if Review.exists?(review.id)
+    review.fail!(e.message) if review.still_reviewing?
   end
 end

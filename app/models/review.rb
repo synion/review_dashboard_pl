@@ -351,6 +351,18 @@ class Review < ApplicationRecord
     update!(status: "failed", error_message: message)
   end
 
+  # Guard dla jobów cyklu (review/followup) na spóźnione runy: gdy sesja wisiała,
+  # a review w międzyczasie poszedł dalej (drugi followup skończył, decyzja wyszła),
+  # marudera nie stać już na zapis — inaczej timeout nadpisywał "decided" na "failed",
+  # a decyzja znikała z listy mimo że wisi na GitHubie. Reload, bo zmiana statusu
+  # przyszła z innego procesu. Usunięty review też nie jest już „w toku" — stąd
+  # rescue zamiast osobnej bramki Review.exists? w każdym jobie.
+  def still_reviewing?
+    reload.status == "reviewing"
+  rescue ActiveRecord::RecordNotFound
+    false
+  end
+
   def last_claude_run
     claude_runs.order(:id).last
   end

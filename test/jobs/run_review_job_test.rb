@@ -74,6 +74,22 @@ class RunReviewJobTest < ActiveSupport::TestCase
     assert_equal({ calls: RunReviewJob::MAX_ATTEMPTS, status: "failed" }, { calls: calls, status: @review.reload.status })
   end
 
+  # Ten sam wyścig co w FollowupReviewJob: spóźniony run nie może nadpisać stanu,
+  # w który review poszedł dalej w międzyczasie (np. usunięty i odtworzony cykl).
+  test "spóźniony błąd nie nadpisuje statusu po wysłanej decyzji" do
+    review_id = @review.id
+    factory = lambda do |_run|
+      Object.new.tap do |s|
+        s.define_singleton_method(:call) do |_prompt|
+          Review.find(review_id).update!(status: "decided")
+          raise ClaudeSessionRunner::Failed, "Timeout po 1800s"
+        end
+      end
+    end
+    RunReviewJob.perform_now(@review, session_factory: factory)
+    assert_equal [ "decided", nil ], [ @review.reload.status, @review.error_message ]
+  end
+
   test "zwykły Failed nie jest ponawiany" do
     calls = 0
     factory = lambda do |_run|

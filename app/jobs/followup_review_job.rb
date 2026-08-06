@@ -12,10 +12,11 @@ class FollowupReviewJob < ApplicationJob
     run = review.claude_runs.create!(kind: "followup", claude_config: config,
                                      user_message: message, resume_session_id: base&.session_id)
     session_factory.call(run).call(PromptBuilder.followup(review, message, resumed: base.present?))
+    return unless review.still_reviewing?
+
     ReviewResultImporter.call(review)
     review.update!(status: "reviewed")
   rescue StandardError => e
-    # Review mógł zostać usunięty z dashboardu w trakcie działania joba.
-    review.fail!(e.message) if Review.exists?(review.id)
+    review.fail!(e.message) if review.still_reviewing?
   end
 end

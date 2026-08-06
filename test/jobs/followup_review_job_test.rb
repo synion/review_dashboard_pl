@@ -91,6 +91,37 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
     assert_equal "reviewed", @review.reload.status
   end
 
+  # Sesja, która w trakcie pracy zastaje review przestawione z zewnątrz na "decided"
+  # (drugi followup skończył, user zdecydował) i dopiero potem oddaje spóźniony wynik.
+  def session_deciding_midway(&tail)
+    review_id = @review.id
+    lambda do |_run|
+      Object.new.tap do |s|
+        s.define_singleton_method(:call) do |_prompt|
+          Review.find(review_id).update!(status: "decided")
+          tail.call
+        end
+      end
+    end
+  end
+
+  # Wyścig z Review 60: user odpala drugi followup, gdy pierwszy wisi, decyduje po
+  # sukcesie drugiego, a timeout pierwszego nadpisywał "decided" → "failed". Spóźniony
+  # run nie może ruszać review, który poszedł dalej — ani statusem, ani wynikiem.
+  test "spóźniony run nie nadpisuje statusu ani wyniku po wysłanej decyzji" do
+    FollowupReviewJob.perform_now(@review, "sprawdź poprawki",
+                                  session_factory: session_deciding_midway { raise ClaudeSessionRunner::Failed, "Timeout po 1800s" })
+    assert_equal [ "decided", nil ], [ @review.reload.status, @review.error_message ]
+  end
+
+  test "spóźniony sukces nie cofa review z decided do reviewed" do
+    path = @review.artifacts_dir.join("result.json")
+    write_late_result = -> { File.write(path, { summary: "Spóźniony wynik", findings: [], playwright: nil }.to_json); "done" }
+    FollowupReviewJob.perform_now(@review, "sprawdź poprawki",
+                                  session_factory: session_deciding_midway(&write_late_result))
+    assert_equal [ "decided", "Stare podsumowanie" ], [ @review.reload.status, @review.summary ]
+  end
+
   # Sesja bez `--resume` nie zna poprzedniego przebiegu, a prompt każe jej nadpisać
   # cały result.json — bez sekcji kontekstu importer skasowałby dotychczasowe findings
   # i zastąpił je zgadywanką. Konto tu się nie zmienia: plik sesji po prostu zniknął.
