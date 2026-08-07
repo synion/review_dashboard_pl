@@ -1,5 +1,11 @@
 <%= turbo_stream_from @review %>
-<div class="nav-back"><%= link_to "← wróć do listy", project_reviews_path(@review.project) %></div>
+<%# Ta sama ramka co prawa kolumna dashboardu: wejście z kafla wymienia tylko ją,
+    a wejście adresem (odświeżenie, link z czatu) renderuje stronę normalnie. %>
+<%= turbo_frame_tag "detail" do %>
+<div class="nav-back">
+  <%= link_to "← wróć do listy", project_reviews_path(@review.project) %>
+  <%= link_to "dashboard", root_path, data: { turbo_frame: "_top" } %>
+</div>
 <div class="pagehead">
   <h1><%= @review.pr_title.presence || "Review ##{@review.id}" %></h1>
   <p class="summary">
@@ -18,3 +24,4 @@
 <div id="review_<%= @review.id %>_panel">
   <%= render "reviews/panel", review: @review %>
 </div>
+<% end %>

@@ -1,28 +1,49 @@
 <%# Strona wejściowa odpowiada na jedno pytanie: co teraz kliknąć. Kolejki review
-    są więc PONAD listą projektów — projekty to nawigacja, a nie praca. %>
-<div class="pagehead">
-  <h1>Review dashboard</h1>
-  <%= render "projects/summary" %>
-</div>
+    są więc PONAD listą projektów — projekty to nawigacja, a nie praca.
 
-<%# Kolejki pokazują wyłącznie projekt główny — przełącza go switcher u góry albo
-    radio na karcie projektu; odpowiedź turbo_stream podmienia #summary, #queues
-    i #projects. %>
-<%= render "projects/queues" %>
+    Układ master–detail: po lewej wybór pracy, po prawej jej szczegóły w ramce
+    #detail. Bez tego każdy klik w kafel gubił listę i wracało się do niej
+    „wstecz", żeby wziąć następną pozycję. %>
+<% content_for :container_class, "container-wide" %>
+<div class="dash" data-controller="detail-pane">
+  <div class="dash-main">
+    <div class="pagehead">
+      <h1>Review dashboard</h1>
+      <%= render "projects/summary" %>
+    </div>
 
-<%= render "projects/grid" %>
+    <%# Kolejki pokazują wyłącznie projekt główny — przełącza go switcher u góry albo
+        radio na karcie projektu; odpowiedź turbo_stream podmienia #summary, #queues
+        i #projects. %>
+    <%= render "projects/queues" %>
 
-<% if @archived_projects.any? %>
-  <%# Zwinięte: archiwum jest potrzebne raz na kwartał i nie może wyglądać jak druga,
-      równorzędna lista projektów. %>
-  <details id="archived_projects">
-    <summary>Zarchiwizowane (<%= @archived_projects.size %>)</summary>
-    <% @archived_projects.each do |project| %>
-      <div class="archrow" id="project_row_<%= project.id %>">
-        <%= link_to project.name, project_reviews_path(project) %>
-        <span class="muted"><%= @counts[project.id][:total] %> review</span>
-        <%= button_to "Przywróć", unarchive_project_path(project), class: "btn" %>
+    <%= render "projects/grid" %>
+
+    <% if @archived_projects.any? %>
+      <%# Zwinięte: archiwum jest potrzebne raz na kwartał i nie może wyglądać jak druga,
+          równorzędna lista projektów. %>
+      <details id="archived_projects">
+        <summary>Zarchiwizowane (<%= @archived_projects.size %>)</summary>
+        <% @archived_projects.each do |project| %>
+          <div class="archrow" id="project_row_<%= project.id %>">
+            <%= link_to project.name, project_reviews_path(project), data: { turbo_frame: "detail" } %>
+            <span class="muted"><%= @counts[project.id][:total] %> review</span>
+            <%= button_to "Przywróć", unarchive_project_path(project), class: "btn" %>
+          </div>
+        <% end %>
+      </details>
+    <% end %>
+  </div>
+
+  <%# Ramka, nie osobna strona: klik po lewej wymienia TYLKO tę kolumnę, a lista
+      pracy zostaje na ekranie. Nawigacja ramki dopisuje się do historii
+      (turbo-action="advance"), więc „wstecz" cofa wybór, a nie całą stronę. %>
+  <aside class="dash-detail">
+    <%= turbo_frame_tag "detail", data: { turbo_action: "advance" } do %>
+      <div class="detail-empty">
+        <p>Wybierz coś po lewej.</p>
+        <p class="muted">Kafel kolejki otworzy tu review, nazwa projektu — jego listę review.</p>
       </div>
     <% end %>
-  </details>
-<% end %>
+  </aside>
+</div>

@@ -1,10 +1,13 @@
-<%# PR czekający na MOJE review. Tytuł prowadzi na GitHuba, bo najpierw i tak
-    patrzę na PR — dopiero potem decyduję, czy zlecać review w dashboardzie. %>
+<%# PR czekający na MOJE review. Cały kafel jest klikalny i prowadzi TAM, GDZIE
+    jest robota do zrobienia — do dashboardu w prawym panelu. Wyjście na GitHuba
+    zostaje, ale jako osobna pigułka „↗": jedyny link w kaflu, który wychodzi
+    poza stronę, musi być jedynym, który tak wygląda. %>
 <% review = @inbox_reviews[[ item.project_id, item.pr_number ]] %>
-<article class="qitem q-inbox q-<%= item.reason %>" id="inbox_pr_<%= item.pr_number %>">
+<article class="qitem qitem-open q-inbox q-<%= item.reason %>" id="inbox_pr_<%= item.pr_number %>">
   <div class="qtop">
     <span class="status-badge status-<%= item.reason %>"><%= item.label %></span>
-    <%= link_to item.project.name, project_reviews_path(item.project), class: "qproj" %>
+    <%= link_to item.project.name, project_reviews_path(item.project), class: "qproj",
+                data: { turbo_frame: "detail" } %>
     <span class="qwait">czeka <%= inbox_waiting_for(item) %></span>
     <%# Cykl poboczny nie zmienia statusu review — bez dopisku kafel wygląda,
         jakby puszczona weryfikacja uwag nic nie robiła. %>
@@ -17,22 +20,29 @@
     <% if item.reason == "requested" && review&.decision_sent? %>
       <span class="done-hint">✔ decyzja wysłana: <%= review.decision %> · <%= short_time_label(review.decided_at) %></span>
     <% end %>
+    <%= link_to "PR ##{item.pr_number} ↗", item.url, class: "qext", target: "_blank", rel: "noopener",
+                title: "PR na GitHubie — otwiera się w nowej karcie" %>
   </div>
-  <%= link_to item.title.presence || "PR ##{item.pr_number}", item.url, class: "qttl" %>
-  <div class="qact">
-    <% if review %>
-      <%# Review na ten PR już istnieje — kafel przejmuje jego stan i następny krok,
-          żeby ta sama robota nie stała drugi raz w sekcji „Rozpoczęte w dashboardzie". %>
-      <%= link_to review_next_step(review) || "Otwórz review w dashboardzie", review_path(review) %>
-    <% else %>
-      <%= link_to "Zleć review →",
-                  new_project_review_path(item.project, pr_url: item.url, task_url: item.task_url) %>
-    <% end %>
-  </div>
+  <%# Link rozciągnięty na cały kafel (::after w CSS) — jeden cel kliknięcia
+      zamiast trzech mikroskopijnych. %>
+  <% if review %>
+    <%# Review na ten PR już istnieje — kafel przejmuje jego stan i następny krok,
+        żeby ta sama robota nie stała drugi raz w sekcji „Rozpoczęte w dashboardzie". %>
+    <%= link_to (item.title.presence || "PR ##{item.pr_number}"), review_path(review),
+                class: "qttl qttl-open", data: { turbo_frame: "detail" },
+                title: "Otwiera review w prawym panelu" %>
+    <div class="qact"><span class="qgo"><%= review_next_step(review) || "Otwórz review w dashboardzie" %></span></div>
+  <% else %>
+    <%= link_to (item.title.presence || "PR ##{item.pr_number}"),
+                new_project_review_path(item.project, pr_url: item.url, task_url: item.task_url),
+                class: "qttl qttl-open", data: { turbo_frame: "detail" },
+                title: "Otwiera formularz nowego review w prawym panelu" %>
+    <div class="qact"><span class="qgo">Zleć review</span></div>
+  <% end %>
   <div class="qmeta">
     <%= [ review ? review_status_label(review) : nil,
           review ? review_findings_summary(review) : nil,
-          "PR ##{item.pr_number}", "autor #{item.author}",
+          "autor #{item.author}",
           (item.actor.presence if item.actor.present? && item.actor != item.author)&.then { |a| "ostatnio: #{a}" },
           review&.branch&.presence ].compact.join(" · ") %>
   </div>

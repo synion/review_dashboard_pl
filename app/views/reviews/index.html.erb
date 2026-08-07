@@ -1,5 +1,10 @@
 <%= turbo_stream_from @project, :reviews %>
-<div class="nav-back"><%= link_to "← wszystkie projekty", projects_path %></div>
+<%# Patrz reviews/show: ta sama ramka co prawa kolumna dashboardu. %>
+<%= turbo_frame_tag "detail" do %>
+<div class="nav-back">
+  <%# Poza ramkę: to wyjście z układu master–detail, a nie zmiana jego prawej kolumny. %>
+  <%= link_to "← wszystkie projekty", projects_path, data: { turbo_frame: "_top" } %>
+</div>
 <div class="pagehead">
   <h1>Review — <%= @project.name %></h1>
   <p class="summary">
@@ -20,11 +25,12 @@
     Wcześniej każdy button_to (blokowy <form>) zjeżdżał do osobnej linii. %>
 <div class="toolbar project-links">
   <%= link_to "+ Nowy review", new_project_review_path(@project), class: "btn btn-primary" unless @project.archived? %>
-  <%= link_to "Edytuj projekt", edit_project_path(@project), class: "btn btn-small" %>
+  <%= link_to "Edytuj projekt", edit_project_path(@project), class: "btn btn-small",
+              data: { turbo_frame: "_top" } %>
   <%# Dostępny też w archiwum: nowych review nie ma, ale PR-y istniejących dalej się mergują. %>
   <%= button_to "🔄 Sprawdź GitHub teraz", recheck_github_project_reviews_path(@project), class: "btn btn-small" %>
   <% if @project.repo_url.present? %>
-    <%= link_to "repo na GitHubie ↗", @project.repo_url, class: "btn btn-small" %>
+    <%= link_to "repo na GitHubie ↗", @project.repo_url, class: "btn btn-small", target: "_blank" %>
   <% end %>
   <form method="get" class="filter">
     <select name="status" onchange="this.form.submit()">
@@ -69,4 +75,5 @@
       Jeszcze żadnego review w tym projekcie. Zacznij od „+ Nowy review".
     <% end %>
   </p>
+<% end %>
 <% end %>

@@ -42,6 +42,8 @@
     <% flash.each do |kind, message| %>
       <div class="flash flash-<%= kind %>"><%= message %></div>
     <% end %>
-    <main class="container"><%= yield %></main>
+    <%# Strona wejściowa jest dwukolumnowa (lista po lewej, szczegóły po prawej) i
+        w 960 px się nie mieści — szerokość zamawia sam widok przez :container_class. %>
+    <main class="container <%= content_for(:container_class) %>"><%= yield %></main>
   </body>
 </html>
