@@ -32,6 +32,24 @@
           <span class="count<%= " count-zero" if counts[:in_progress].zero? %>"><b data-count="in_progress"><%= counts[:in_progress] %></b> w toku</span>
           <span class="count<%= " count-zero" if counts[:total].zero? %>"><b data-count="total"><%= counts[:total] %></b> łącznie</span>
         </div>
+        <%# Automat: dwa niezależne przełączniki, bo mają różny koszt — pierwszy zakłada
+            review i pali pełną sesję na każdą nową prośbę, drugi tylko wznawia istniejącą.
+            Zapis natychmiast (requestSubmit), bez „Zapisz": to przełącznik, nie formularz.
+            Hidden „0" przed każdym checkboxem, bo odznaczony nie wysyła nic. %>
+        <%= form_with url: automation_project_path(project), method: :patch, class: "projauto" do %>
+          <label title="Nowa prośba o Twoje review z GitHuba: dashboard sam zakłada review i odpala sesję. Wymaga adresu repo na GitHubie.">
+            <%= hidden_field_tag "project[auto_review_requested]", "0", id: nil %>
+            <%= check_box_tag "project[auto_review_requested]", "1", project.auto_review_requested?,
+                              id: "auto_requested_#{project.id}", onchange: "this.form.requestSubmit()" %>
+            auto: nowe prośby
+          </label>
+          <label title="Autor zgłosił PR ponownie po Twojej decyzji: dashboard sam odpala followup i aktualizuje review.">
+            <%= hidden_field_tag "project[auto_review_returned]", "0", id: nil %>
+            <%= check_box_tag "project[auto_review_returned]", "1", project.auto_review_returned?,
+                              id: "auto_returned_#{project.id}", onchange: "this.form.requestSubmit()" %>
+            auto: po poprawkach
+          </label>
+        <% end %>
         <%# Jedna akcja główna na kartę; „Wszystkie review" to ta sama nawigacja co
             klik w nazwę projektu, więc zostaje cichym linkiem. %>
         <div class="project-links projcard-actions">

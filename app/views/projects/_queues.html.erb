@@ -3,7 +3,15 @@
     i „W toku" znikają, gdy są puste, więc same nie mogą być celami podmiany.
     Partial czyta wyłącznie `dashboard`, bo z tła (broadcast) nie ma żadnych
     ivarów kontrolera. %>
-<div id="queues" data-controller="queue-animation">
+<%# Liczniki jadą też do tytułu karty — dashboard bywa otwarty w tle i pasek kart
+    jest wtedy jedynym miejscem, w którym widać, że coś przyszło. Wiszą na TYM
+    wrapperze, bo to on przyjeżdża broadcastem, więc tytuł odświeża się razem
+    z kolejkami, bez osobnego kanału. %>
+<div id="queues" data-controller="queue-animation page-title"
+     data-page-title-waiting-value="<%= dashboard.inbox_items.size %>"
+     data-page-title-unfinished-value="<%= dashboard.attention_reviews.size %>"
+     data-page-title-running-value="<%= dashboard.in_progress_reviews.size %>"
+     data-page-title-base-value="Review Dashboard">
   <%# „Czeka na Ciebie" to WYŁĄCZNIE piłka z GitHuba na czyimś PR-ze: prośba o moje
       review albo cudzy komentarz po moim review. Własne PR-y nie wchodzą — swojego
       kodu nie recenzuję. Stany dashboardu (opis gotowy, decyzja do wysłania, padnięta

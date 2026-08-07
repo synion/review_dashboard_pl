@@ -1,5 +1,5 @@
 class ProjectsController < ApplicationController
-  before_action :set_project, only: %i[edit update archive unarchive test_intum]
+  before_action :set_project, only: %i[edit update archive unarchive test_intum automation]
 
   def index
     @archived_projects = Project.archived.by_name
@@ -27,6 +27,25 @@ class ProjectsController < ApplicationController
   def refresh_inbox
     Project.active.with_repo.each { |project| RefreshInboxJob.perform_later(project) }
     redirect_to projects_path, notice: "Pytam GitHuba o PR-y czekające na Twoje review…"
+  end
+
+  # Przełączniki automatu z kafla projektu. 204, nie redirect: checkbox pokazuje już
+  # stan, który user kliknął, a przeładowanie strony wejściowej zgubiłoby scroll przy
+  # zmianie ustawienia trzeciego projektu od dołu. Turbo traktuje 204 jako „nic nie rób".
+  # update, nie update!: projekt z nieistniejącą już ścieżką repo nie może wywalić 500
+  # na przełączeniu boolean-a — user ma dostać powód i drogę do formularza.
+  def automation
+    ok = @project.update(automation_params)
+    respond_to do |format|
+      format.turbo_stream { ok ? head(:no_content) : head(:unprocessable_entity) }
+      format.html do
+        if ok
+          redirect_to projects_path
+        else
+          redirect_to edit_project_path(@project), alert: @project.errors.full_messages.to_sentence
+        end
+      end
+    end
   end
 
   # docs_path ma "doc/llm" jako default w schemacie — jawne podanie tu byłoby
@@ -108,6 +127,12 @@ class ProjectsController < ApplicationController
                                     :default_effort, :docs_path, :review_prompt_extra, :task_comment_instructions,
                                     :worktree_command, :worktree_delete_command, :task_url_prefix,
                                     :second_reviewer_default, :approve_label_default, :intum_api_token)
+  end
+
+  # Osobno od project_params: przełączniki automatu mają dokładnie jedno miejsce
+  # w UI (kafel projektu), więc formularz edycji nie może ich po cichu zerować.
+  def automation_params
+    params.require(:project).permit(:auto_review_requested, :auto_review_returned)
   end
 
   # Kolejka „czeka na Ciebie" to PR-y CZYJEGOŚ autorstwa, na których wisi moje review.

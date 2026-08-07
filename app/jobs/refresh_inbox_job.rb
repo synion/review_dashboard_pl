@@ -10,7 +10,11 @@ class RefreshInboxJob < ApplicationJob
   # szereguje duplikaty zamiast puszczać je naraz.
   limits_concurrency key: ->(project, **) { project.id }
 
+  # Automat siedzi tu, a nie w GithubInbox: ten jest czytelnikiem GitHuba i pisarzem
+  # kolejki, a zakładanie review to decyzja o pracy — należy do joba, który tę kolejkę
+  # zamówił. Po refreshu, nie przed: automat ma patrzeć na świeży stan.
   def perform(project, inbox: GithubInbox.new)
     inbox.refresh(project)
+    AutoReview.create_for_requested(project)
   end
 end

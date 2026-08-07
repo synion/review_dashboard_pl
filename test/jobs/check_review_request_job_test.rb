@@ -1,6 +1,8 @@
 require "test_helper"
 
 class CheckReviewRequestJobTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   class FakeGithub
     attr_reader :calls
 
@@ -175,6 +177,27 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     github = FakeGithub.new({ "reviewRequests" => [ { "login" => "inny_login" } ], "state" => "OPEN" },
                             login: "inny_login")
     CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal "waiting_review", @review.reload.status
+  end
+
+  # „PR wrócił po poprawkach" to dokładnie ten re-request — jedyny moment, w którym
+  # automat drugiego przełącznika ma prawo odpalić sesję.
+  test "włączony automat po poprawkach odpala followup zaraz po wykryciu re-requesta" do
+    # Przez @review.project, nie projects(:webapp): asocjacja jest już wczytana
+    # z setupu, a AutoReview pyta o ustawienie właśnie ją.
+    @review.project.update!(auto_review_returned: true)
+    github = FakeGithub.new({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN" })
+
+    assert_enqueued_with job: FollowupReviewJob, args: [ @review, AutoReview::RETURNED_MESSAGE ] do
+      CheckReviewRequestJob.perform_now(@review, github: github)
+    end
+    assert_equal "reviewing", @review.reload.status
+  end
+
+  test "wyłączony automat zostawia re-request do kliknięcia" do
+    assert_no_enqueued_jobs only: FollowupReviewJob do
+      CheckReviewRequestJob.perform_now(@review, github: FakeGithub.new({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN" }))
+    end
     assert_equal "waiting_review", @review.reload.status
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_05_090001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_07_132457) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -96,6 +96,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_090001) do
   create_table "projects", force: :cascade do |t|
     t.string "approve_label_default"
     t.datetime "archived_at"
+    t.boolean "auto_review_requested", default: false, null: false
+    t.boolean "auto_review_returned", default: false, null: false
     t.datetime "created_at", null: false
     t.string "default_claude_config"
     t.string "default_effort"
@@ -117,6 +119,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_090001) do
   end
 
   create_table "reviews", force: :cascade do |t|
+    t.boolean "autostart", default: false, null: false
     t.string "branch"
     t.string "claude_config"
     t.datetime "created_at", null: false

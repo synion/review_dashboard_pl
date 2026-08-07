@@ -1,6 +1,8 @@
 require "test_helper"
 
 class DescribeReviewJobTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   class FakeGithub
     def initialize(body: nil) = @body = body
 
@@ -86,5 +88,28 @@ class DescribeReviewJobTest < ActiveSupport::TestCase
                                           session_factory: ->(_run) { FakeSession.new("OPIS") })
 
     assert_equal "https://tracker.example.com/organize/tasks/1", review.reload.task_url
+  end
+
+  # Review założone przez automat ma przejść z describe wprost w review — bez tego
+  # przełącznik „auto: nowe prośby" zostawiałby stos gotowych review do odklikania.
+  test "review z flagą autostart rusza od razu po opisie" do
+    review = reviews(:pr_review)
+    review.update!(autostart: true)
+
+    assert_enqueued_with job: RunReviewJob, args: [ review ] do
+      DescribeReviewJob.perform_now(review, github: FakeGithub.new, worktrees: FakeWorktrees.new,
+                                            session_factory: ->(_run) { FakeSession.new("OPIS") })
+    end
+    assert_equal "reviewing", review.reload.status
+  end
+
+  test "review bez flagi zatrzymuje się na ready" do
+    review = reviews(:pr_review)
+
+    assert_no_enqueued_jobs only: RunReviewJob do
+      DescribeReviewJob.perform_now(review, github: FakeGithub.new, worktrees: FakeWorktrees.new,
+                                            session_factory: ->(_run) { FakeSession.new("OPIS") })
+    end
+    assert_equal "ready", review.reload.status
   end
 end

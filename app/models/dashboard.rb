@@ -15,16 +15,22 @@ class Dashboard
 
   def projects = @projects ||= Project.active.by_name
 
-  # Widok pokazuje wyłącznie projekt główny — kolejki różnych projektów mieszały
-  # się nie do odróżnienia.
+  # „Czeka na Twoje review" znaczy „kliknij", więc PR z pracującą (albo zakolejkowaną)
+  # sesją z niej wypada — jego miejsce jest w „W toku", gdzie nic się nie klika.
+  # Bez tego ten sam PR stał w dwóch sekcjach naraz i pierwsza kłamała, że czeka
+  # na decyzję człowieka.
   def inbox_items
-    @inbox_items ||= InboxItem.where(project: main_project).includes(:project).by_urgency.to_a
+    @inbox_items ||= all_inbox_items.reject do |item|
+      review = inbox_reviews[[ item.project_id, item.pr_number ]]
+      review && Review::IN_PROGRESS_STATUSES.include?(review.status)
+    end
   end
 
   # Review dla tych PR-ów, żeby kafel wiedział, czy prowadzi do istniejącego review,
-  # czy proponuje założenie nowego. Jedno zapytanie, nie jedno na kafel.
+  # czy proponuje założenie nowego. Jedno zapytanie, nie jedno na kafel. Liczone
+  # z PEŁNEJ kolejki, bo to na jego podstawie inbox_items odsiewa pracujące.
   def inbox_reviews
-    @inbox_reviews ||= Review.where(project: main_project, pr_number: inbox_items.map(&:pr_number))
+    @inbox_reviews ||= Review.where(project: main_project, pr_number: all_inbox_items.map(&:pr_number))
                              .index_by { |review| [ review.project_id, review.pr_number ] }
   end
 
@@ -72,6 +78,12 @@ class Dashboard
   end
 
   private
+
+  # Widok pokazuje wyłącznie projekt główny — kolejki różnych projektów mieszały
+  # się nie do odróżnienia.
+  def all_inbox_items
+    @all_inbox_items ||= InboxItem.where(project: main_project).includes(:project).by_urgency.to_a
+  end
 
   def active_runs
     @active_runs ||= ClaudeRun.where(status: "running")
