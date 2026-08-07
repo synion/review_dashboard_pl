@@ -35,6 +35,10 @@ class GithubInbox
       items.each { |attrs| upsert(project, attrs) }
       project.update_columns(inbox_checked_at: Time.current)
     end
+    # Stąd, a nie z callbacku InboxItem: kolejkę przepisuje delete_all + upserty,
+    # więc callbacki modelu i tak nie zobaczyłyby usunięć, a przy okazji strzelałyby
+    # broadcastem raz na pozycję zamiast raz na odświeżenie.
+    BroadcastDashboardJob.perform_later
     items.size
   rescue GithubClient::Error => e
     # Padnięte `gh search` NIE MOŻE wyczyścić kolejki: pusty wynik znaczyłby „nikt nie

@@ -91,12 +91,15 @@ class ProjectsController < ApplicationController
 
   # Wszystko, czego potrzebują partiale strony wejściowej (_summary, _queues, _grid)
   # — jedno miejsce dla index i select, żeby odpowiedź turbo_stream nie mogła się
-  # rozjechać z pełnym renderem o brakujący ivar.
+  # rozjechać z pełnym renderem o brakujący ivar. Same liczby siedzą w Dashboard,
+  # bo z tego samego stanu renderuje kolejki BroadcastDashboardJob; tutaj zostają
+  # tylko efekty uboczne wejścia na stronę.
   def load_dashboard
-    @projects = Project.active.by_name
-    @main_project = Project.main
-    load_inbox
-    load_queues
+    @dashboard = Dashboard.new
+    @projects = @dashboard.projects
+    @main_project = @dashboard.main_project
+    refresh_stale_inboxes
+    check_github_statuses
   end
 
   def project_params
@@ -109,57 +112,22 @@ class ProjectsController < ApplicationController
 
   # Kolejka „czeka na Ciebie" to PR-y CZYJEGOŚ autorstwa, na których wisi moje review.
   # Renderujemy ostatni znany stan i dopiero zlecamy odświeżenie — inaczej pierwsze
-  # wejście na stronę czekałoby kilka sekund na `gh`.
-  def load_inbox
-    # Widok pokazuje wyłącznie projekt główny — kolejki różnych projektów mieszały
-    # się nie do odróżnienia. Odświeżanie w tle zostaje jednak dla WSZYSTKICH
-    # aktywnych projektów, żeby przełączenie radia pokazywało świeży stan od razu.
-    @inbox_items = InboxItem.where(project: @main_project).includes(:project).by_urgency.to_a
-    # Review dla tych PR-ów, żeby kafel wiedział, czy prowadzi do istniejącego review,
-    # czy proponuje założenie nowego. Jedno zapytanie, nie jedno na kafel.
-    @inbox_reviews = Review.where(project: @main_project, pr_number: @inbox_items.map(&:pr_number))
-                          .index_by { |review| [ review.project_id, review.pr_number ] }
-    @inbox_checked_at = @main_project&.inbox_checked_at
+  # wejście na stronę czekałoby kilka sekund na `gh`. Wynik dojedzie sam:
+  # GithubInbox po przepisaniu kolejki broadcastuje kolejki na stronę wejściową.
+  #
+  # Odświeżanie obejmuje WSZYSTKIE aktywne projekty, nie tylko główny, żeby
+  # przełączenie radia pokazywało świeży stan od razu.
+  def refresh_stale_inboxes
     @projects.select { |project| project.repo_url.present? && project.inbox_stale? }
              .each { |project| RefreshInboxJob.perform_later(project) }
   end
 
-  # Dwie kolejki jednym zapytaniem: sama liczba w kubełku nie mówi, CO zrobić, a to
-  # jedyne pytanie, na które ta strona ma odpowiadać przy wejściu. Sortowanie w Ruby,
-  # bo kolejność „Czeka na Ciebie" jest po statusie wg ATTENTION_ORDER, czego SQLite
-  # nie wyrazi bez CASE dłuższego niż cała ta metoda.
-  def load_queues
-    # Scope na projekt główny (load_inbox wyżej filtruje tak samo) — archiwum
-    # i tak odpada, bo Project.main widzi tylko aktywne.
-    # outward: selfreview to prywatna runda przed PR-em — jego wynik czeka na liście
-    # projektu, a nie w kolejkach „co teraz kliknąć" na stronie wejściowej.
-    waiting = Review.outward
-                    .where(project: @main_project,
-                           status: Review::ATTENTION_STATUSES + Review::IN_PROGRESS_STATUSES)
-                    .includes(:project, :findings).to_a
-    # Jeden PR = jedna karta. Review, którego PR wisi już w kolejce z GitHuba, nie wraca
-    # niżej w drugiej sekcji: to ta sama robota opisana dwa razy, tylko innym zegarem
-    # (sygnał z GitHuba vs ostatni ruch w dashboardzie). Kafel kolejki dowozi za to stan
-    # review i następny krok — patrz projects/_inbox_item.
-    in_inbox = @inbox_items.map(&:pr_number).compact
-    @attention_reviews = waiting.select { |r| r.status.in?(Review::ATTENTION_STATUSES) }
-                                .reject { |r| r.pr_number.present? && in_inbox.include?(r.pr_number) }
-                                .sort_by { |r| [ Review::ATTENTION_ORDER.index(r.status), r.updated_at ] }
-    @in_progress_reviews = waiting.select { |r| r.status.in?(Review::IN_PROGRESS_STATUSES) }
-                                  .sort_by(&:updated_at).reverse
-    # Te same sygnały co na liście review, jednym zapytaniem: „reviewing" bez
-    # pracującej sesji znaczy, że job stoi w kolejce workera, a weryfikacja uwag
-    # (pending też) nie zmienia statusu review, więc kafel musi o niej wiedzieć sam.
-    active_runs = ClaudeRun.where(status: "running")
-                           .or(ClaudeRun.where(kind: "verify_findings", status: "pending"))
-                           .pluck(:review_id, :kind, :status)
-    @running_review_ids = active_runs.filter_map { |review_id, _kind, run_status| review_id if run_status == "running" }.uniq
-    # Ta strona jest jedynym miejscem, w które user zagląda codziennie — bez tego
-    # PR zmergowany po cichu (bez mojej decyzji) wisiałby tu jako „wyślij decyzję"
-    # aż do wejścia na listę review projektu. Godzinny cache jest wspólny z listą,
-    # więc dwa wejścia nie znaczą dwóch wywołań gh.
+  # Ta strona jest jedynym miejscem, w które user zagląda codziennie — bez tego
+  # PR zmergowany po cichu (bez mojej decyzji) wisiałby tu jako „wyślij decyzję"
+  # aż do wejścia na listę review projektu. Godzinny cache jest wspólny z listą,
+  # więc dwa wejścia nie znaczą dwóch wywołań gh.
+  def check_github_statuses
     Review.enqueue_github_checks(Review.where(project: @main_project).due_for_github_check)
-    @verifying_review_ids = active_runs.filter_map { |review_id, kind, _run_status| review_id if kind == "verify_findings" }.uniq
   end
 
   # Dwa zapytania GROUP BY na całą listę zamiast trzech na projekt. „czeka"

@@ -10,9 +10,13 @@
   <div class="projgrid">
     <% @projects.each do |project| %>
       <% counts = @counts[project.id] %>
-      <article class="projcard" id="project_row_<%= project.id %>">
+      <%# Cała karta prowadzi tam, gdzie prowadzi jej nazwa — do listy review projektu
+          w prawym panelu. Radio „główny", edycja i archiwizacja siedzą NAD warstwą
+          klikalną (z-index w .qitem-open :is(a,button,label)), więc dalej działają. %>
+      <article class="projcard qitem-open" id="project_row_<%= project.id %>">
         <h3>
-          <%= link_to project.name, project_reviews_path(project) %>
+          <%= link_to project.name, project_reviews_path(project), class: "qttl-open",
+                      data: { turbo_frame: detail_frame }, title: opens_hint("review projektu") %>
           <label class="main-radio" title="Pokazuj kolejki tego projektu na tej stronie">
             <%= radio_button_tag :project_id, project.id, project == @main_project,
                                  form: "main-switcher", onchange: "this.form.requestSubmit()" %>
@@ -31,8 +35,10 @@
         <%# Jedna akcja główna na kartę; „Wszystkie review" to ta sama nawigacja co
             klik w nazwę projektu, więc zostaje cichym linkiem. %>
         <div class="project-links projcard-actions">
-          <%= link_to "+ Nowy review", new_project_review_path(project), class: "btn btn-primary btn-small" %>
-          <%= link_to "Wszystkie review", project_reviews_path(project), class: "link-quiet" %>
+          <%= link_to "+ Nowy review", new_project_review_path(project), class: "btn btn-primary btn-small",
+                      data: { turbo_frame: detail_frame } %>
+          <%= link_to "Wszystkie review", project_reviews_path(project), class: "link-quiet",
+                      data: { turbo_frame: detail_frame } %>
         </div>
         <div class="projmeta">
           <%# Ścieżka w jednej linii z ellipsis: z `word-break: break-all` łamała się na

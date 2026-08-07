@@ -42,6 +42,12 @@ a { color: var(--accent); }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 700; color: var(--fg); text-decoration: none; font-size: 18px; }
 .topbar nav { font-size: 14px; }
+/* button_to renderuje blokowy <form> — bez flexa przełącznik układu zjeżdżałby
+   pod przycisk motywu. */
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar-actions form.button_to { display: inline-block; margin: 0; }
+.pill.btn-view { font-family: inherit; cursor: pointer; white-space: nowrap; color: var(--fg); border-color: var(--muted); }
+.pill.btn-view:hover { border-color: var(--fg); }
 .topbar nav a { color: var(--muted); }
 /* Przełącznik motywu w stylu .pill. Podwójny selektor bije kolor/ramkę .pill
    (plik definiuje go później) — szara pigułka na tle topbara była niewidoczna.
@@ -118,6 +124,38 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .verdict-refuted { background: var(--err-bg); color: var(--danger); }
 .verdict-disputed { background: var(--badge-bg); color: var(--muted); }
 
+/* ===================== strona wejściowa: master–detail ===================== */
+/* Lewa kolumna to wybór pracy, prawa — jej szczegóły. Stała szerokość lewej:
+   kafle kolejki mają skanować się po lewej krawędzi, a rozciągnięte na pół ekranu
+   rozjeżdżały wzrok. Prawa bierze resztę, bo to w niej stoi treść review. */
+.container-wide { max-width: 1600px; }
+.dash { display: grid; grid-template-columns: minmax(432px, 552px) minmax(0, 1fr); gap: 24px; align-items: start; }
+/* Każda kolumna przewija się sama i trzyma się wysokości okna — bez tego długi
+   panel review odjeżdża z ekranu razem z listą, po którą się tu przyszło.
+   96px to topbar + margines .container. */
+.dash-main, .dash-detail { position: sticky; top: 24px; max-height: calc(100vh - 96px); overflow-y: auto; overscroll-behavior: contain; }
+.dash-main { padding-right: 4px; }
+/* Tryb klasyczny: jedna kolumna i pełne podstrony. Ten sam szkielet co „split",
+   więc kafle i karty wyglądają identycznie — różni się tylko to, dokąd prowadzi
+   kliknięcie (patrz ViewModeHelper). */
+.dash-single { display: block; }
+.dash-single .dash-main { position: static; max-height: none; overflow: visible; padding-right: 0; }
+.dash-detail { border-left: 1px solid var(--line); padding-left: 24px; }
+.dash-detail turbo-frame { display: block; }
+.detail-empty { color: var(--muted); padding: 48px 8px; text-align: center; }
+.detail-empty p { margin: 0 0 6px; }
+/* Wybrana pozycja: pełny kontrast tła plus obwódka — sam kolor tła ginął przy
+   kaflach, które już mają własne tło .surface. */
+.qitem.is-selected, .projcard.is-selected, .archrow.is-selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.queue-quiet .qitem.is-selected { opacity: 1; }
+@media (max-width: 1100px) {
+  /* Dwie kolumny poniżej ~1100px zostawiają na szczegóły pasek za wąski na diffy —
+     wracamy do jednej kolumny, szczegóły lądują pod listą. */
+  .dash { grid-template-columns: 1fr; }
+  .dash-main, .dash-detail { position: static; max-height: none; overflow: visible; }
+  .dash-detail { border-left: 0; border-top: 1px solid var(--line); padding: 16px 0 0; }
+}
+
 /* ===================== strona wejściowa: kolejki + projekty ===================== */
 .pagehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 4px; }
 .pagehead h1 { font-size: 22px; margin: 0; }
@@ -155,6 +193,65 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 .qttl { display: block; margin: 4px 0 2px; font-size: 15px; font-weight: 600; color: var(--fg); text-decoration: none; }
 .qttl:hover { color: var(--accent); }
 .qact { font-size: 14px; }
+
+/* ---- kafel klikalny w całości ----
+   Celem kliknięcia jest cały kafel, nie 12-pikselowy link w środku: „stretched
+   link" — przezroczyste ::after tytułu rozciągnięte na kartę. Bez JS-a, więc
+   zostaje prawdziwy <a> (klawiatura, środkowy przycisk, „otwórz w nowej karcie").
+   Reguła z z-index podnosi pozostałe interaktywne elementy NAD warstwę; tytuł
+   jest z niej wyłączony, bo position: relative na nim przykleiłoby ::after do
+   samego tytułu zamiast do kafla. */
+.qitem-open { position: relative; cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+.qitem-open :is(a:not(.qttl-open):not(.qext), button, label, input, form, details) { position: relative; z-index: 1; }
+.qttl-open::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+/* Hover całej karty, nie samego tytułu — inaczej nie widać, że klikalne jest
+   wszystko między krawędziami. */
+.qitem-open:hover { border-color: var(--accent); box-shadow: 0 2px 10px light-dark(rgba(37, 99, 235, .12), rgba(0, 0, 0, .45)); }
+.qitem-open:hover .qttl-open { color: var(--accent); }
+.qitem-open:hover .qgo { color: var(--accent); }
+.qitem-open:hover .qgo::before { transform: translateX(2px); }
+/* Fokus klawiaturą leci na niewidzialną warstwę — obwódkę rysujemy więc na kaflu. */
+.qitem-open:has(.qttl-open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Dokąd prowadzi kliknięcie kafla: strzałka w prawo = prawy panel. */
+.qgo { color: var(--muted); }
+.qgo::before { content: "→"; display: inline-block; margin-right: 6px; transition: transform .12s; }
+/* Jedyny link, który WYCHODZI ze strony, wygląda inaczej niż cała reszta kafla:
+   pigułka z ↗ dosunięta do prawej krawędzi wiersza stanu. */
+/* Pozycjonowana bezwzględnie, nie przez margin-left:auto — w zawijanym .qtop
+   pigułka spadała do drugiego wiersza i wyglądała jak kolejna metadana.
+   Miejsce dla niej robi padding .qtop, a nie całego kafla, żeby tytuł miał
+   pełną szerokość. */
+.qitem-open .qtop { padding-right: 100px; }
+.qext { position: absolute; z-index: 1; top: 9px; right: 12px; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); text-decoration: none; white-space: nowrap; }
+.qext:hover { border-color: var(--accent); color: var(--accent); background: var(--info-bg); }
+
+/* ---- kafle pojawiają się i znikają same ----
+   Kolejki dostają nowe pozycje z tła (odświeżenie GitHuba, joby review). Bez
+   animacji kafel po prostu podmieniał treść pod kursorem i nie było wiadomo,
+   czy to nowa robota, czy ta sama przesunięta. Krótko i bez skakania układu:
+   4 px w pionie plus przejście krycia. */
+@keyframes qitem-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes qitem-out { to { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: no-preference) {
+  /* Animuje się WŁĄCZNIE nowy węzeł: broadcast idzie morphem, więc kafle, które
+     zostają, nie są tworzone od nowa i nie mrugają przy każdym sygnale. */
+  #queues .qitem { animation: qitem-in .2s ease-out; }
+  #queues .qitem.is-leaving { animation: qitem-out .16s ease-in forwards; pointer-events: none; }
+  #queues .qitem.is-updated { animation: qitem-in .2s ease-out, qitem-flash 1.1s ease-out; }
+}
+
+/* Kafel, który zmienił stan sam — bez mojego kliknięcia. Zostaje podświetlony,
+   dopóki go nie kliknę: wracam do karty po godzinie i widzę, co ruszyło, zamiast
+   porównywać listę z pamięcią. Znacznik po lewej, przy krawędzi pilności, bo tam
+   i tak leci wzrok w dół kolumny. */
+@keyframes qitem-flash { from { background: var(--info-bg); } }
+#queues .qitem.is-updated { border-color: var(--accent); }
+#queues .qitem.is-updated .qtop::before {
+  content: "●"; color: var(--accent); font-size: 10px; line-height: 1;
+  margin-right: 2px; align-self: center;
+}
+#queues .queue-quiet .qitem.is-updated { opacity: 1; }
+
 .qmeta { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .qmeta:empty { display: none; }
 .empty { color: var(--muted); font-size: 14px; background: var(--surface); border: 1px dashed var(--line); border-radius: 8px; padding: 12px 14px; margin: 0; }

@@ -1,3 +1,4 @@
+<%= turbo_frame_tag "detail" do %>
 <div class="form-page">
 <div class="nav-back"><%= link_to "← review projektu #{@project.name}", project_reviews_path(@project) %></div>
 <div class="pagehead">
@@ -61,3 +62,4 @@
   <% end %>
 </div>
 </div>
+<% end %>

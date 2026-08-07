@@ -37,11 +37,22 @@
   <body>
     <header class="topbar">
       <%= link_to "Review Dashboard", root_path, class: "brand" %>
-      <button type="button" class="pill btn-theme" data-controller="theme" data-action="theme#toggle">Motyw:</button>
+      <span class="topbar-actions">
+        <%# Etykieta pokazuje AKTUALNY tryb (jak „Motyw:" obok), a kierunek przełączenia
+            mówi title — inaczej dwa sąsiadujące przyciski czytałyby się odwrotnie. %>
+        <%= button_to split_view? ? "Widok: dwie kolumny" : "Widok: pełne strony",
+                      view_mode_path(mode: split_view? ? "classic" : "split"), method: :patch,
+                      class: "pill btn-view", form_class: "button_to",
+                      title: split_view? ? "Przełącz na pełne strony — kafel otwiera osobną stronę" :
+                                           "Przełącz na dwie kolumny — kafel otwiera się w prawym panelu" %>
+        <button type="button" class="pill btn-theme" data-controller="theme" data-action="theme#toggle">Motyw:</button>
+      </span>
     </header>
     <% flash.each do |kind, message| %>
       <div class="flash flash-<%= kind %>"><%= message %></div>
     <% end %>
-    <main class="container"><%= yield %></main>
+    <%# Strona wejściowa jest dwukolumnowa (lista po lewej, szczegóły po prawej) i
+        w 960 px się nie mieści — szerokość zamawia sam widok przez :container_class. %>
+    <main class="container <%= content_for(:container_class) %>"><%= yield %></main>
   </body>
 </html>

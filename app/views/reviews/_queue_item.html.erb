@@ -1,28 +1,40 @@
 <%# Kafel kolejki na stronie wejściowej. Kolejność informacji jest celowa:
     najpierw stan i jak długo stoi, potem CO to jest, na końcu następny ruch —
-    tak, żeby przelot wzrokiem po lewej krawędzi wystarczał do wyboru pracy. %>
-<article class="qitem q-<%= review.status %>" id="review_queue_<%= review.id %>">
+    tak, żeby przelot wzrokiem po lewej krawędzi wystarczał do wyboru pracy.
+    Cały kafel klika się w prawy panel; pigułka „↗" to jedyne wyjście na GitHuba. %>
+<%# data-state: odcisk stanu dla podświetlenia zmian, które przyszły z tła —
+    patrz queue_animation_controller.js. %>
+<article class="qitem qitem-open q-<%= review.status %>" id="review_queue_<%= review.id %>"
+         data-state="<%= queue_item_state(review, dashboard) %>">
   <div class="qtop">
     <span class="status-badge status-<%= review.status %>"><%= review_status_label(review) %></span>
-    <%= link_to review.project.name, project_reviews_path(review.project), class: "qproj" %>
+    <%= link_to review.project.name, project_reviews_path(review.project), class: "qproj",
+                data: { turbo_frame: detail_frame } %>
     <span class="qwait" title="ostatnia aktywność: <%= review_last_activity(review) %>">
       <%= review.status.in?(Review::ATTENTION_STATUSES) ? "czeka" : "od" %> <%= review_waiting_for(review) %>
     </span>
-    <% if review.status == "reviewing" && running_ids.exclude?(review.id) %>
+    <% if review.status == "reviewing" && dashboard.running_review_ids.exclude?(review.id) %>
       <span class="queued-hint">⏳ Czeka w kolejce workera</span>
     <% end %>
     <%# Cykl poboczny nie zmienia statusu review — bez dopisku kafel wygląda,
         jakby puszczona weryfikacja uwag nic nie robiła. %>
-    <% if @verifying_review_ids&.include?(review.id) %>
+    <% if dashboard.verifying_review_ids.include?(review.id) %>
       <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
+    <% end %>
+    <% if review.pr_url.present? %>
+      <%= link_to "PR ##{review.pr_number} ↗", review.pr_url, class: "qext", target: "_blank", rel: "noopener",
+                  title: "PR na GitHubie — otwiera się w nowej karcie" %>
     <% end %>
   </div>
   <%= link_to (review.pr_title.presence || review.task_link || "review ##{review.id}"),
-              review_path(review), class: "qttl" %>
-  <div class="qact"><%= review_next_step(review) %></div>
+              review_path(review), class: "qttl qttl-open", data: { turbo_frame: detail_frame },
+              title: opens_hint("review") %>
+  <% if (next_step = review_next_step(review)) %>
+    <div class="qact"><span class="qgo"><%= next_step %></span></div>
+  <% end %>
   <div class="qmeta">
     <%= [ review_findings_summary(review),
-          review.pr_number ? "PR ##{review.pr_number}" : nil,
+          (review.pr_number if review.pr_url.blank?)&.then { |n| "PR ##{n}" },
           review.branch.presence,
           review.model.presence,
           review.effort.presence ].compact.join(" · ") %>

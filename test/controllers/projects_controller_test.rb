@@ -235,8 +235,10 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     get root_path
 
-    assert_select "##{"inbox_pr_9001"} a[href=?]",
-                  new_project_review_path(item.project, pr_url: item.url), text: /Zleć review/
+    # Klikalny jest cały kafel, więc adres niesie tytuł PR-a, a „Zleć review" stoi
+    # obok jako opis następnego kroku.
+    assert_select "#inbox_pr_9001 a[href=?]", new_project_review_path(item.project, pr_url: item.url)
+    assert_select "#inbox_pr_9001 .qgo", text: /Zleć review/
   end
 
   test "should link to the existing review when the PR is already in the dashboard" do
@@ -247,9 +249,9 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     # Kafel przejmuje stan i następny krok istniejącego review — inaczej ta sama robota
     # stałaby drugi raz niżej, w „Rozpoczęte w dashboardzie".
-    assert_select "#inbox_pr_9001 a[href=?]", review_path(reviews(:pr_review)),
-                  text: /Sesja review pracuje/
-    assert_select "#inbox_pr_9001 a", text: /Zleć review/, count: 0
+    assert_select "#inbox_pr_9001 a[href=?]", review_path(reviews(:pr_review))
+    assert_select "#inbox_pr_9001 .qgo", text: /Sesja review pracuje/
+    assert_select "#inbox_pr_9001", text: /Zleć review/, count: 0
   end
 
   # GitHub trzyma „prosi o review" po decyzji comment/reject — bez dopisku kafel
@@ -367,7 +369,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal projects(:dashboard), Project.main
     %w[summary queues projects].each do |target|
-      assert_match %(turbo-stream action="replace" target="#{target}"), response.body
+      assert_match %r{<turbo-stream[^>]*action="replace" target="#{target}"}, response.body
     end
   end
 

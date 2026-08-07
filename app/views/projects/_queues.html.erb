@@ -1,22 +1,25 @@
 <%# Wspólny wrapper: cel dla turbo_stream.replace po przełączeniu projektu
-    głównego — sekcje „Rozpoczęte" i „W toku" znikają, gdy są puste, więc same
-    nie mogą być celami podmiany. %>
-<div id="queues">
+    głównego ORAZ dla broadcastu z BroadcastDashboardJob — sekcje „Rozpoczęte"
+    i „W toku" znikają, gdy są puste, więc same nie mogą być celami podmiany.
+    Partial czyta wyłącznie `dashboard`, bo z tła (broadcast) nie ma żadnych
+    ivarów kontrolera. %>
+<div id="queues" data-controller="queue-animation">
   <%# „Czeka na Ciebie" to WYŁĄCZNIE piłka z GitHuba na czyimś PR-ze: prośba o moje
       review albo cudzy komentarz po moim review. Własne PR-y nie wchodzą — swojego
       kodu nie recenzuję. Stany dashboardu (opis gotowy, decyzja do wysłania, padnięta
       sesja) są niżej, bo to moja robota, a nie cudze oczekiwanie. %>
   <section id="attention" class="queue">
     <h2>Czeka na Twoje review</h2>
-    <% if @inbox_items.any? %>
-      <%= render partial: "projects/inbox_item", collection: @inbox_items, as: :item %>
+    <% if dashboard.inbox_items.any? %>
+      <%= render partial: "projects/inbox_item", collection: dashboard.inbox_items, as: :item,
+                 locals: { dashboard: dashboard } %>
     <% else %>
       <p class="empty">
-        <% if @main_project.nil? %>
+        <% if dashboard.main_project.nil? %>
           Nie ma żadnego aktywnego projektu — dodaj pierwszy poniżej.
-        <% elsif @main_project.repo_url.blank? %>
-          Projekt <%= @main_project.name %> nie ma adresu repo na GitHubie — bez niego nie ma czego pytać.
-        <% elsif @inbox_checked_at.nil? %>
+        <% elsif dashboard.main_project.repo_url.blank? %>
+          Projekt <%= dashboard.main_project.name %> nie ma adresu repo na GitHubie — bez niego nie ma czego pytać.
+        <% elsif dashboard.inbox_checked_at.nil? %>
           GitHub jeszcze nie odpytany. Odświeżenie chodzi w tle — wróć tu za chwilę.
         <% else %>
           Nikt nie czeka na Twoje review.
@@ -25,26 +28,26 @@
     <% end %>
     <p class="qfoot">
       <span class="muted">
-        <%= @inbox_checked_at ? "sprawdzone #{review_waiting_for(Review.new(updated_at: @inbox_checked_at))} temu" : "brak odczytu z GitHuba" %>
+        <%= dashboard.inbox_checked_at ? "sprawdzone #{review_waiting_for(Review.new(updated_at: dashboard.inbox_checked_at))} temu" : "brak odczytu z GitHuba" %>
         · odświeża się samo co <%= GithubInbox::STALE_AFTER.in_minutes.to_i %> min
       </span>
       <%= button_to "🔄 Sprawdź teraz", refresh_inbox_projects_path, class: "btn btn-small" %>
     </p>
   </section>
 
-  <% if @attention_reviews.any? %>
+  <% if dashboard.attention_reviews.any? %>
     <section id="dashboard_work" class="queue queue-quiet">
       <h2>Rozpoczęte w dashboardzie</h2>
-      <%= render partial: "reviews/queue_item", collection: @attention_reviews, as: :review,
-                 locals: { running_ids: @running_review_ids } %>
+      <%= render partial: "reviews/queue_item", collection: dashboard.attention_reviews, as: :review,
+                 locals: { dashboard: dashboard } %>
     </section>
   <% end %>
 
-  <% if @in_progress_reviews.any? %>
+  <% if dashboard.in_progress_reviews.any? %>
     <section id="in_progress" class="queue queue-quiet">
       <h2>W toku — nic tu nie klikasz</h2>
-      <%= render partial: "reviews/queue_item", collection: @in_progress_reviews, as: :review,
-                 locals: { running_ids: @running_review_ids } %>
+      <%= render partial: "reviews/queue_item", collection: dashboard.in_progress_reviews, as: :review,
+                 locals: { dashboard: dashboard } %>
     </section>
   <% end %>
 </div>
