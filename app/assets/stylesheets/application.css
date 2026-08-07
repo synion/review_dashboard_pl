@@ -277,6 +277,13 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 /* Zero znaczy „nic tu nie ma" — pełnym kontrastem ciągnęło wzrok tak samo jak
    liczba wymagająca akcji. */
 .count-zero, .count-zero b { color: var(--line); }
+/* Przełączniki automatu — ustawienie, nie akcja, więc siedzą nad rzędem akcji
+   i mówią ciszej niż „+ Nowy review". Zaznaczony świeci akcentem: włączony automat
+   sam odpala sesje, więc nie może wyglądać tak samo jak wyłączony. */
+.projauto { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 10px; }
+.projauto label { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.projauto label:has(input:checked) { color: var(--accent); }
+.projauto input { accent-color: var(--accent); margin: 0; cursor: pointer; }
 .projcard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .link-quiet { font-size: 13px; color: var(--muted); }
 .projmeta { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 12px; }

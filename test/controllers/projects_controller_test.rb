@@ -243,15 +243,37 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
   test "should link to the existing review when the PR is already in the dashboard" do
     item = inbox_items(:requested)
-    reviews(:pr_review).update!(pr_number: item.pr_number, status: "reviewing")
+    reviews(:pr_review).update!(pr_number: item.pr_number, status: "reviewed")
 
     get root_path
 
     # Kafel przejmuje stan i następny krok istniejącego review — inaczej ta sama robota
     # stałaby drugi raz niżej, w „Rozpoczęte w dashboardzie".
     assert_select "#inbox_pr_9001 a[href=?]", review_path(reviews(:pr_review))
-    assert_select "#inbox_pr_9001 .qgo", text: /Sesja review pracuje/
+    assert_select "#inbox_pr_9001 .qgo", text: /Przejrzyj znaleziska/
     assert_select "#inbox_pr_9001", text: /Zleć review/, count: 0
+  end
+
+  # „Czeka na Twoje review" to lista rzeczy do kliknięcia. PR z pracującą sesją nie
+  # jest jedną z nich — stał tam obok siebie samego z sekcji „W toku" i pierwsza
+  # kopia kłamała, że czeka na człowieka.
+  test "PR z pracującą sesją znika z kolejki i zostaje tylko w W toku" do
+    item = inbox_items(:requested)
+    reviews(:pr_review).update!(pr_number: item.pr_number, status: "reviewing")
+
+    get root_path
+
+    assert_select "#attention #inbox_pr_9001", count: 0
+    assert_select "#in_progress #review_queue_#{reviews(:pr_review).id}", count: 1
+  end
+
+  test "PR czekający na worker też wypada z kolejki" do
+    item = inbox_items(:requested)
+    reviews(:pr_review).update!(pr_number: item.pr_number, status: "describing")
+
+    get root_path
+
+    assert_select "#attention #inbox_pr_9001", count: 0
   end
 
   # GitHub trzyma „prosi o review" po decyzji comment/reject — bez dopisku kafel
@@ -320,6 +342,66 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_enqueued_jobs Project.active.with_repo.count, only: RefreshInboxJob do
       post refresh_inbox_projects_path
     end
+    assert_redirected_to projects_path
+  end
+
+  # Tytuł karty jest jedynym licznikiem widocznym, gdy dashboard leży w tle.
+  test "tytuł strony liczy czekające, do dokończenia i w toku" do
+    reviews(:pr_review).update!(status: "reviewed")
+    reviews(:task_only).update!(status: "reviewing")
+
+    get root_path
+
+    # 2 kafle z GitHuba (fixtures) / 1 do dokończenia / 1 w toku.
+    assert_select "title", text: "(2/1/1) Review Dashboard"
+    assert_select "#queues[data-page-title-waiting-value=?]", "2"
+    assert_select "#queues[data-page-title-unfinished-value=?]", "1"
+    assert_select "#queues[data-page-title-running-value=?]", "1"
+  end
+
+  # Same zera to „nie ma nic do roboty" — prefiks (0/0/0) byłby wtedy szumem.
+  test "pusty dashboard zostaje przy gołej nazwie w tytule" do
+    InboxItem.delete_all
+    Review.delete_all
+
+    get root_path
+
+    assert_select "title", text: "Review Dashboard"
+  end
+
+  test "kafel projektu ma oba przełączniki automatu w stanie z bazy" do
+    projects(:webapp).update!(auto_review_requested: true)
+
+    get root_path
+
+    assert_select "#project_row_#{projects(:webapp).id} .projauto input[type=checkbox][checked]", count: 1
+    assert_select "#project_row_#{projects(:webapp).id} .projauto input[type=checkbox]", count: 2
+  end
+
+  test "przełącznik automatu zapisuje się bez opuszczania strony wejściowej" do
+    patch automation_project_path(projects(:webapp)),
+          params: { project: { auto_review_requested: "1", auto_review_returned: "0" } },
+          as: :turbo_stream
+
+    assert_response :no_content
+    assert projects(:webapp).reload.auto_review_requested?
+    assert_not projects(:webapp).auto_review_returned?
+  end
+
+  # Hidden „0" przed checkboxem to jedyny sposób, w jaki odznaczenie w ogóle dojeżdża
+  # na serwer — bez tego przełącznika nie dałoby się wyłączyć.
+  test "odznaczony przełącznik wyłącza automat" do
+    projects(:webapp).update!(auto_review_returned: true)
+
+    patch automation_project_path(projects(:webapp)),
+          params: { project: { auto_review_returned: "0" } }, as: :turbo_stream
+
+    assert_not projects(:webapp).reload.auto_review_returned?
+  end
+
+  test "przełącznik bez JS wraca na stronę wejściową" do
+    patch automation_project_path(projects(:webapp)), params: { project: { auto_review_requested: "1" } }
+
     assert_redirected_to projects_path
   end
 

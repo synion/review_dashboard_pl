@@ -20,7 +20,7 @@
 default: &default
   refresh_review_inbox:
     class: RefreshAllInboxesJob
-    schedule: every 60 minutes
+    schedule: every 30 minutes
 
 development:
   <<: *default
