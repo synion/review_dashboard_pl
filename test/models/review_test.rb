@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ReviewTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   test "effective_task_comment_instructions: zamrożona na review wygrywa z projektem" do
     review = reviews(:task_only)
     review.project.update!(task_comment_instructions: "Z PROJEKTU")
@@ -60,6 +62,28 @@ class ReviewTest < ActiveSupport::TestCase
     end
     assert_includes targets, "review_row_#{review.id}"
     assert_includes streams, [ review.project, :reviews ]
+  end
+
+  # Kolejki strony wejściowej zmieniają skład same — job zmienia status, a kafel
+  # ma przeskoczyć sekcję bez F5.
+  test "zmiana statusu odświeża kolejki strony wejściowej" do
+    assert_enqueued_with job: BroadcastDashboardJob do
+      reviews(:pr_review).update!(status: "reviewed")
+    end
+  end
+
+  # Postęp sesji i cache reviewerów zapisują się co kilka sekund — przerysowywanie
+  # na nich całej listy byłoby czystym hałasem.
+  test "zapis nieruszający statusu ani PR-a nie odświeża kolejek" do
+    assert_no_enqueued_jobs only: BroadcastDashboardJob do
+      reviews(:pr_review).update!(summary: "nowe podsumowanie")
+    end
+  end
+
+  test "usunięcie review odświeża kolejki strony wejściowej" do
+    assert_enqueued_with job: BroadcastDashboardJob do
+      reviews(:task_only).destroy!
+    end
   end
 
   test "zmiana bez statusu nie rozgłasza wiersza" do

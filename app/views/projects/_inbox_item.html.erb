@@ -2,16 +2,17 @@
     jest robota do zrobienia — do dashboardu w prawym panelu. Wyjście na GitHuba
     zostaje, ale jako osobna pigułka „↗": jedyny link w kaflu, który wychodzi
     poza stronę, musi być jedynym, który tak wygląda. %>
-<% review = @inbox_reviews[[ item.project_id, item.pr_number ]] %>
-<article class="qitem qitem-open q-inbox q-<%= item.reason %>" id="inbox_pr_<%= item.pr_number %>">
+<% review = dashboard.inbox_reviews[[ item.project_id, item.pr_number ]] %>
+<article class="qitem qitem-open q-inbox q-<%= item.reason %>" id="inbox_pr_<%= item.pr_number %>"
+         data-state="<%= inbox_item_state(item, review, dashboard) %>">
   <div class="qtop">
     <span class="status-badge status-<%= item.reason %>"><%= item.label %></span>
     <%= link_to item.project.name, project_reviews_path(item.project), class: "qproj",
-                data: { turbo_frame: "detail" } %>
+                data: { turbo_frame: detail_frame } %>
     <span class="qwait">czeka <%= inbox_waiting_for(item) %></span>
     <%# Cykl poboczny nie zmienia statusu review — bez dopisku kafel wygląda,
         jakby puszczona weryfikacja uwag nic nie robiła. %>
-    <% if review && @verifying_review_ids.include?(review.id) %>
+    <% if review && dashboard.verifying_review_ids.include?(review.id) %>
       <span class="queued-hint">⚖️ weryfikacja uwag w toku</span>
     <% end %>
     <%# GitHub trzyma „prosi o review", dopóki autor nie zdejmie prośby — comment/reject
@@ -29,14 +30,14 @@
     <%# Review na ten PR już istnieje — kafel przejmuje jego stan i następny krok,
         żeby ta sama robota nie stała drugi raz w sekcji „Rozpoczęte w dashboardzie". %>
     <%= link_to (item.title.presence || "PR ##{item.pr_number}"), review_path(review),
-                class: "qttl qttl-open", data: { turbo_frame: "detail" },
-                title: "Otwiera review w prawym panelu" %>
+                class: "qttl qttl-open", data: { turbo_frame: detail_frame },
+                title: opens_hint("review") %>
     <div class="qact"><span class="qgo"><%= review_next_step(review) || "Otwórz review w dashboardzie" %></span></div>
   <% else %>
     <%= link_to (item.title.presence || "PR ##{item.pr_number}"),
                 new_project_review_path(item.project, pr_url: item.url, task_url: item.task_url),
-                class: "qttl qttl-open", data: { turbo_frame: "detail" },
-                title: "Otwiera formularz nowego review w prawym panelu" %>
+                class: "qttl qttl-open", data: { turbo_frame: detail_frame },
+                title: opens_hint("formularz nowego review") %>
     <div class="qact"><span class="qgo">Zleć review</span></div>
   <% end %>
   <div class="qmeta">

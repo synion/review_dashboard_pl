@@ -54,6 +54,17 @@ class ClaudeRun < ApplicationRecord
                          partial: "reviews/context", locals: { review: review.reload }
   }, if: -> { saved_change_to_context_tokens? || saved_change_to_context_window? || saved_change_to_status? }
 
+  # Kafel kolejki czyta stan runów, a nie tylko review: „⏳ czeka w kolejce workera"
+  # i „⚖️ weryfikacja uwag w toku" to sygnały, których status review w ogóle nie widzi.
+  # Tylko start i koniec runa — postęp w środku niczego w kolejce nie zmienia.
+  # Jeden callback na trzy zdarzenia: ta sama metoda zarejestrowana w after_commit
+  # kilka razy zostaje w łańcuchu tylko raz — patrz Review.
+  after_commit :broadcast_dashboard!, if: :dashboard_hints_changed?
+
+  def broadcast_dashboard! = BroadcastDashboardJob.perform_later
+
+  def dashboard_hints_changed? = destroyed? || previously_new_record? || saved_change_to_status?
+
   # „lifecycle" = describe/review/followup (+compact, który pożycza panel review),
   # „side" = kroki poboczne z własnym cyklem życia i własną kartą w panelu.
   def progress_scope = LIFECYCLE_KINDS.include?(kind) || kind == "compact" ? "review" : "side"

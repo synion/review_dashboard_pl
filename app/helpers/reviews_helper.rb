@@ -30,6 +30,22 @@ module ReviewsHelper
 
   def review_next_step(review) = NEXT_STEPS[review.status]
 
+  # Odcisk stanu kafla dla podświetlenia „zmieniło się samo": porównujemy TO, co
+  # w kaflu znaczy robotę do zrobienia, a nie cały HTML. Inaczej „czeka 14 min"
+  # tykające przy każdym broadcaście oznaczałoby całą kolejkę jako zmienioną.
+  def queue_item_state(review, dashboard)
+    [ review.status,
+      dashboard.running_review_ids.include?(review.id) ? "run" : nil,
+      dashboard.verifying_review_ids.include?(review.id) ? "verify" : nil ].compact.join("|")
+  end
+
+  # To samo dla kafla z GitHuba: piłka po czyjej stronie plus stan review, jeśli
+  # w dashboardzie już istnieje.
+  def inbox_item_state(item, review, dashboard)
+    [ item.reason, review&.status, ("sent" if review&.decision_sent?),
+      ("verify" if review && dashboard.verifying_review_ids.include?(review.id)) ].compact.join("|")
+  end
+
   # „czeka 3 dni" zamiast daty: przy wejściu liczy się, czy coś stoi od rana, czy od
   # tygodnia. Formy polskie odmieniamy ręcznie — apka stoi na locale `en`.
   def review_waiting_for(review)

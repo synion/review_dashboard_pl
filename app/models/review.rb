@@ -184,6 +184,12 @@ class Review < ApplicationRecord
   # Live update panelu na show i wiersza listy — joby zmieniają status, przeglądarka widzi od razu.
   after_update_commit :broadcast_panel!, :broadcast_row!
 
+  # Kolejki strony wejściowej: review pojawia się w nich i znika z nich sam (job
+  # zmienia status, ktoś kasuje review w drugiej karcie). Jeden callback na trzy
+  # zdarzenia, bo ta sama metoda zarejestrowana w after_commit kilka razy zostaje
+  # w łańcuchu tylko raz — trzy osobne linijki cicho gubiłyby dwie z nich.
+  after_commit :broadcast_dashboard!, if: :dashboard_queues_changed?
+
   def artifacts_dir
     Rails.root.join("storage", "reviews", id.to_s)
   end
@@ -348,6 +354,19 @@ class Review < ApplicationRecord
                            locals: { review: self, running_ids: claude_runs.where(status: "running").exists? ? [ id ] : [],
                                      verifying_ids: findings_verification_in_progress? ? [ id ] : [] }
     end
+  end
+
+  # Kolejki są wspólne dla całej strony wejściowej (projekt główny to ustawienie
+  # globalne), więc przeliczamy je w jobie raz, zamiast renderować kafel po kaflu
+  # w wątku, który akurat zapisał review.
+  def broadcast_dashboard!
+    BroadcastDashboardJob.perform_later
+  end
+
+  # Tylko te zdarzenia zmieniają SKŁAD kolejek. Zwykły zapis (postęp sesji, cache
+  # reviewerów) leci co kilka sekund i przerysowywałby całą listę bez powodu.
+  def dashboard_queues_changed?
+    destroyed? || previously_new_record? || saved_change_to_status? || saved_change_to_pr_number?
   end
 
   def fail!(message)

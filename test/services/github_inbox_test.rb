@@ -1,6 +1,8 @@
 require "test_helper"
 
 class GithubInboxTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   # Fake GithubClient: oddaje przygotowane wyniki `gh search` i szczegóły PR-ów,
   # zapisując o co pytaliśmy (liczba zapytań o szczegóły jest częścią kontraktu).
   class FakeGithub
@@ -157,6 +159,15 @@ class GithubInboxTest < ActiveSupport::TestCase
     refresh(FakeGithub.new(requested: [ pr(41, author: "kolega") ]))
 
     assert_equal [ 41 ], @project.inbox_items.map(&:pr_number)
+  end
+
+  # Kolejkę przepisuje delete_all + upserty, więc callbacki InboxItem nie zobaczyłyby
+  # usunięć — bez tego broadcastu PR obsłużony na GitHubie znikałby z kafli dopiero
+  # po F5.
+  test "should refresh the dashboard queues after rewriting the inbox" do
+    assert_enqueued_with job: BroadcastDashboardJob do
+      refresh(FakeGithub.new(requested: [ pr(45, author: "kolega") ]))
+    end
   end
 
   test "should stamp the check time so the page knows how fresh the queue is" do

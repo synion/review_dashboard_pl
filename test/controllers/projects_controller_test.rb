@@ -369,7 +369,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal projects(:dashboard), Project.main
     %w[summary queues projects].each do |target|
-      assert_match %(turbo-stream action="replace" target="#{target}"), response.body
+      assert_match %r{<turbo-stream[^>]*action="replace" target="#{target}"}, response.body
     end
   end
 

@@ -1,10 +1,13 @@
 <%# Grid też, bo wybór ma dwa uchwyty (switcher u góry i radio na karcie) —
-    kliknięty aktualizuje się sam, ten drugi dopiero po re-renderze. %>
-<%= turbo_stream.replace "summary" do %>
-  <%= render "projects/summary" %>
+    kliknięty aktualizuje się sam, ten drugi dopiero po re-renderze.
+    method: :morph jak w broadcastach kolejek: po przełączeniu projektu kafle
+    i tak są inne, ale morph nie każe przeglądarce animować od nowa tych,
+    które zostały. %>
+<%= turbo_stream.replace "summary", method: :morph do %>
+  <%= render "projects/summary", dashboard: @dashboard %>
 <% end %>
-<%= turbo_stream.replace "queues" do %>
-  <%= render "projects/queues" %>
+<%= turbo_stream.replace "queues", method: :morph do %>
+  <%= render "projects/queues", dashboard: @dashboard %>
 <% end %>
 <%= turbo_stream.replace "projects" do %>
   <%= render "projects/grid" %>

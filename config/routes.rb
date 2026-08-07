@@ -1,6 +1,10 @@
 Rails.application.routes.draw do
   root "projects#index"
 
+  # Układ strony wejściowej (dwie kolumny vs pełne podstrony) — ustawienie
+  # przeglądarki, nie zasób w bazie, stąd singular resource bez modelu.
+  resource :view_mode, only: :update
+
   # Zagnieżdżamy tylko to, co bez projektu nie ma sensu. Review należy do jednego
   # projektu na stałe, więc :project_id w adresie pokazu byłby redundantny — a jego
   # brak zostawia wszystkie akcje pojedynczego review nietknięte.
