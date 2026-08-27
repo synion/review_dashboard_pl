@@ -13,6 +13,8 @@ Domyślnie próbuj każdą uwagę OBALIĆ. Dla każdej przeczytaj wskazany kod (
 - `refuted` — uwaga błędna: opisany scenariusz jest niemożliwy, kod już obsługuje ten przypadek (walidacja wyżej, guard, test) albo uwaga opiera się na złym zrozumieniu kodu. Napisz, CO ją obala (plik, linia).
 - `disputed` — nie da się rozstrzygnąć z kodu (zależy od danych produkcyjnych, konwencji zespołu, gustu) albo uwaga jest technicznie prawdziwa, lecz praktycznie bez znaczenia. Napisz, czego brakuje do rozstrzygnięcia.
 
+Uwagi o zakresie i prostocie („szersze niż zadanie", „da się prościej") sprawdzaj tak samo twardo: `confirmed` tylko wtedy, gdy podana prostsza wersja realnie działa (nie gubi przypadku, który kod obsługuje) albo gdy wskazany plik faktycznie nie ma związku z zadaniem. Sama preferencja stylu, bez sprawdzalnej alternatywy, to `disputed`.
+
 Uwaga „słuszna, ale kosmetyczna" to nadal `confirmed` — priorytet oceniło pierwsze review, nie Ty. Nie zgaduj na korzyść review: samo „brzmi sensownie" to za mało na `confirmed` — musisz wskazać dowód w kodzie.
 
 ## Uwagi do weryfikacji

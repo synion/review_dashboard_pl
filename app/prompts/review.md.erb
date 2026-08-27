@@ -30,7 +30,8 @@ w tej zmianie. Nie czytaj wszystkich — bierz to, co pasuje do dotkniętych pli
 Gdy kod łamie opisaną tam konwencję, powołaj się w `body` znaleziska na konkretny plik.
 <% end -%>
 
-Sprawdź WYŁĄCZNIE zaznaczone obszary:
+Sprawdź WYŁĄCZNIE zaznaczone obszary — lista mówi, czego szukać w kodzie
+(kontrola zakresu i prostoty niżej obowiązuje zawsze, niezależnie od niej):
 <% review.selected_areas.each do |area| -%>
 - **<%= Review::AREAS[area] %>**<%= " — poprawność logiki, edge case'y, nil handling, regresje" if area == "functionality" %><%= " — czy zachowanie i interfejs mają sens dla użytkownika końcowego" if area == "ux" %><%= " — nazewnictwo, struktura, zbędna złożoność, spójność z otoczeniem" if area == "readability" %><%= " — kontrakt, serializery, wsteczna kompatybilność, walidacja wejścia" if area == "api" %><%= " — reguły z doc/llm/, .claude/rules/, CLAUDE.md; wskaż którą zasadę łamie kod i gdzie" if area == "project_rules" %>
 <% end -%>
@@ -46,6 +47,30 @@ Stałe zasady review w tym projekcie:
 <% end -%>
 
 Każde znalezisko sklasyfikuj: `critical` / `important` / `minor`.
+
+## Zakres i prostota (obowiązkowe)
+
+Oceń kształt całej zmiany, nie pojedyncze linie. Dwa pytania:
+
+**1. Czy zmiana nie jest za szeroka?** Szukaj rzeczy, których zadanie nie wymagało:
+pliki i moduły ruszone bez związku z celem, refactor „przy okazji", zmiana nazw w kodzie
+obok, nowe opcje/flagi/parametry bez wywołania, warstwa abstrakcji „na przyszłość",
+przeformatowanie wymieszane ze zmianą merytoryczną. Miarą jest opis zadania, a gdy go
+nie ma — to, co PR obiecuje w tytule i opisie.
+
+**2. Czy tego samego nie da się zrobić dużo prościej?** Szukaj: nowa klasa albo serwis
+tam, gdzie starczy metoda; własna implementacja tego, co już jest w repo lub w frameworku;
+warunki i konfiguracja pod przypadki, które nie występują; kilka kroków tam, gdzie
+wystarczy jeden.
+
+Próg zgłoszenia — uwaga musi być SPRAWDZALNA, nie „mnie by się bardziej podobało".
+Podaj JEDNO z dwóch, inaczej nie zgłaszaj:
+- konkretną prostszą wersję (plik, metoda, ile linii albo plików odpada),
+- albo istniejący kod, który już to robi (plik, linia).
+
+Priorytet: `important`, gdy nadmiar niesie realne ryzyko (martwy kod do utrzymania,
+zmiana zachowania poza zakresem zadania, obszar bez pokrycia testem). Inaczej `minor`.
+
 <% if review.selected_areas.include?("qa_playwright") -%>
 
 ## QA + Playwright (obowiązkowe)
@@ -65,11 +90,14 @@ Po analizie statycznej przeklikaj feature na żywo i napisz test Playwright prze
 **Co sprawdziłem**
 - **nazwa obszaru** — jedno zdanie o tym, co w nim zastałeś
 
+**Zakres i prostota** — jedno zdanie: czy zmiana trzyma się zadania i czy da się prościej.
+
 **Najważniejsze**
 - **słowo-klucz** — jedno zdanie (max 3 punkty, tylko critical i important)
 ```
 
-Gdy nie ma żadnych znalezisk, sekcję „Najważniejsze" pomiń.
+Gdy nie ma żadnych znalezisk, sekcję „Najważniejsze" pomiń. Linia „Zakres i prostota"
+jest zawsze — także gdy wszystko gra („trzyma się zadania, prostszej wersji nie widzę").
 
 `title` znaleziska: max 12 słów, mówi CO jest źle — nie „Rozważ refactor kalkulatora",
 tylko „Nil w kalkulacji VAT, gdy faktura nie ma pozycji".

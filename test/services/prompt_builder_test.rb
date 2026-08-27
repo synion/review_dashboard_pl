@@ -69,6 +69,23 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes prompt, "**Jak naprawić:**"
   end
 
+  # Kontrola zakresu i prostoty ma iść w każdym review, także takim, w którym reviewer
+  # odklikał obszary — inaczej „autor zrobił za dużo" wypada z review razem z Czytelnością.
+  test "review zawsze każe sprawdzić zakres zmiany i prostszą wersję" do
+    review = reviews(:pr_review)
+    review.update!(scope: { "areas" => [ "functionality" ] })
+    prompt = PromptBuilder.review(review)
+    assert_includes prompt, "## Zakres i prostota (obowiązkowe)"
+    assert_includes prompt, "Czy zmiana nie jest za szeroka?"
+    assert_includes prompt, "Czy tego samego nie da się zrobić dużo prościej?"
+    assert_includes prompt, "**Zakres i prostota** — jedno zdanie"
+  end
+
+  test "weryfikacja uwag wie, jak oceniać uwagi o zakresie i prostocie" do
+    prompt = PromptBuilder.verify_findings(reviews(:pr_review))
+    assert_includes prompt, "Uwagi o zakresie i prostocie"
+  end
+
   test "describe_task z linkiem każe czytać zadanie i komentarze" do
     prompt = PromptBuilder.describe_task(reviews(:task_only))
     assert_includes prompt, "https://tasks.example.com/555"
