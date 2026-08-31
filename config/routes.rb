@@ -25,6 +25,10 @@ Rails.application.routes.draw do
       get :directory, to: "directories#show"
       post :refresh_directory, to: "directories#refresh"
       post :test_intum
+      # Przełączniki automatu z kafla projektu — osobno od #update, bo ten redirectuje
+      # na listę review projektu, a checkbox na stronie wejściowej nie może z niej
+      # wyrzucać. Patch: to zmiana dwóch pól, nie pełny zapis formularza.
+      patch :automation
     end
     resources :reviews, only: %i[index new create] do
       collection do

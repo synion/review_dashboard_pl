@@ -24,7 +24,11 @@ class CheckReviewRequestJob < ApplicationJob
     if (final_status = FINAL_STATES[info["state"]])
       review.update!(status: final_status, **stamps)
     elsif review.status == "decided" && rerequested?(info, github, review)
+      # waiting_review zapisujemy ZAWSZE, także gdy automat zaraz przestawi status na
+      # „reviewing": bez tego zapisu nigdzie nie zostaje ślad, że autor wrócił po
+      # poprawkach — a to jedyny sygnał, po którym poznaje się, skąd wzięła się sesja.
       review.update!(status: "waiting_review", **stamps)
+      AutoReview.followup_for_returned(review)
     else
       # Sam stempel przez update_columns — rutynowe „nic się nie zmieniło" nie ma
       # co odpalać walidacji ani broadcastów panelu.

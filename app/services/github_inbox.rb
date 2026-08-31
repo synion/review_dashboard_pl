@@ -8,9 +8,9 @@
 class GithubInbox
   # Po tym czasie kolejka jest uznana za nieświeżą i wejście na stronę zleca
   # odświeżenie w tle. `gh search` to ~2 s — na render tego nie wpuszczamy.
-  # Godzina zamiast minut: GitHub nie jest tu źródłem pilnych sygnałów, a każde
+  # Pół godziny zamiast minut: GitHub nie jest tu źródłem pilnych sygnałów, a każde
   # odpytanie to seria spawnów `gh`; kto chce świeżej, ma przycisk „Sprawdź teraz".
-  STALE_AFTER = 1.hour
+  STALE_AFTER = 30.minutes
   # Luz dla harmonogramu, który tika równo co STALE_AFTER: odpytanie GitHuba kończy się
   # kilka sekund PO tiku, więc bez marginesu następny tik wypadałby o te sekundy za
   # wcześnie, uznawał kolejkę za świeżą i cadencja rozjeżdżałaby się na dwa interwały.

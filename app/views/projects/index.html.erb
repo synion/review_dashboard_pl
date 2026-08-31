@@ -6,6 +6,9 @@
     bez tego każdy klik w kafel gubił listę i wracało się do niej „wstecz".
     „classic" to jedna kolumna i pełne podstrony, dla kogoś, kto woli stary układ. %>
 <% content_for :container_class, "container-wide" if split_view? %>
+<%# Tytuł karty = licznik pracy (czeka / do dokończenia / w toku). Tu dla pierwszego
+    renderu, dalej pilnuje go page_title_controller — patrz dashboard_title. %>
+<% content_for :title, dashboard_title(@dashboard) %>
 <%# Kolejki zmieniają się bez udziału tej karty: PR-y wpadają z odświeżenia GitHuba
     w tle, review przechodzą do „W toku" z jobów. Strumień dowozi jedno i drugie —
     patrz BroadcastDashboardJob. %>

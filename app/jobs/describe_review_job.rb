@@ -27,6 +27,9 @@ class DescribeReviewJob < ApplicationJob
     run = review.claude_runs.create!(kind: "describe", claude_config: review.effective_claude_config)
     description = session_factory.call(run).call(PromptBuilder.describe(review))
     review.update!(description: description, status: "ready")
+    # Review założone przez automat idzie dalej samo — poza tym jednym wywołaniem
+    # nic w tym jobie nie odróżnia go od założonego z formularza.
+    AutoReview.start_if_autostart(review)
   rescue StandardError => e
     # Review mógł zostać usunięty z dashboardu w trakcie działania joba.
     review.fail!(e.message) if Review.exists?(review.id)
