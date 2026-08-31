@@ -66,7 +66,7 @@ class DiffPresenter
 
   def build_file(file)
     filename = file["filename"]
-    renderable = skip_reason(file).nil?
+    renderable = skip_reasons.fetch(filename).nil?
     hunks = renderable ? hunks_for(file) : []
     # Plik bez wyrenderowanych wierszy nie ma do czego przypiąć wątku, więc wszystkie
     # jego wątki idą pod nagłówek — inaczej znikałyby z ekranu bez śladu.
@@ -78,14 +78,22 @@ class DiffPresenter
                  deletions: file["deletions"].to_i, hunks: hunks, file_threads: file_threads,
                  thread_count: anchored + file_threads.size,
                  finding_count: pinned_findings.fetch(filename, []).size,
-                 skip_reason: skip_reason(file))
+                 skip_reason: skip_reasons.fetch(filename))
+  end
+
+  # Raz na plik, nie przy każdym pytaniu: liczenie linii patcha na trzech ścieżkach
+  # (renderowalność, parsowanie, widok) mieliło ten sam megabajtowy string kilka razy.
+  # `count("\n")` zamiast `lines.size` — nie alokuje tablicy linii tylko po to, żeby
+  # sprawdzić, ile ich jest.
+  def skip_reasons
+    @skip_reasons ||= @snapshot.files.to_h { |file| [ file["filename"], skip_reason(file) ] }
   end
 
   def skip_reason(file)
     return :no_patch if file["patch"].blank?
     return nil if @expanded.include?(file["filename"])
 
-    :too_large if file["patch"].lines.size > MAX_PATCH_LINES
+    :too_large if file["patch"].count("\n") + 1 > MAX_PATCH_LINES
   end
 
   def hunks_for(file)
@@ -148,7 +156,16 @@ class DiffPresenter
   def findings_at(filename, line)
     return [] unless line.right
 
-    pinned_findings.fetch(filename, []).select { |finding| finding.location_lines&.last == line.right }
+    findings_index.fetch([ filename, line.right ], [])
+  end
+
+  # Indeks zamiast skanu listy przy każdym wierszu: bez niego każda z tysięcy linii
+  # przepytywała wszystkie znaleziska pliku, a `location_lines` to regex liczony
+  # od nowa za każdym razem.
+  def findings_index
+    @findings_index ||= pinned_findings.each_with_object({}) do |(path, findings), index|
+      findings.each { |finding| (index[[ path, finding.location_lines.last ]] ||= []) << finding }
+    end
   end
 
   # Plik, którego nie renderujemy, zostaje w mapie z pustą listą linii: ścieżka ma się
@@ -156,7 +173,7 @@ class DiffPresenter
   # same lądują na liście „bez pinezki", zamiast celować w nieistniejące wiersze.
   def parsed_patches
     @parsed_patches ||= @snapshot.files.to_h do |file|
-      [ file["filename"], skip_reason(file).nil? ? DiffParser.parse_patch(file["patch"]) : [] ]
+      [ file["filename"], skip_reasons.fetch(file["filename"]).nil? ? DiffParser.parse_patch(file["patch"]) : [] ]
     end
   end
 

@@ -40,7 +40,7 @@
   <% end %>
 
   <% if @presenter.nil? %>
-    <% unless @error.present? %>
+    <% if @error.blank? %>
       <div class="card"><p>⏳ Pobieram zmiany z GitHuba — strona odświeży się sama.</p></div>
     <% end %>
   <% else %>
@@ -71,7 +71,7 @@
         <summary>⚠️ Znaleziska bez pinezki (<%= unpinned.size %>)</summary>
         <p class="muted">Bez linii w tej wersji zmian — plik spoza PR-a, linia sprzed poprawek albo uwaga ogólna.</p>
         <% unpinned.each do |finding| %>
-          <%= render "pr_diffs/finding", finding: finding %>
+          <%= render "reviews/finding", finding: finding, with_priority: true %>
         <% end %>
       </details>
     <% end %>

@@ -1,6 +1,4 @@
-<%# Plik z komentarzami albo znaleziskami rozwinięty od razu — po to się tu wchodzi.
-    Reszta zwinięta, żeby PR z trzydziestoma plikami dało się przewinąć. %>
-<details class="card diff-file" <%= "open" if file.thread_count.positive? || file.finding_count.positive? || file.hunks.size <= 3 %>>
+<details class="card diff-file" <%= "open" if diff_file_open?(file) %>>
   <summary class="diff-file-head">
     <code class="inline"><%= diff_file_label(file) %></code>
     <% if (status = diff_status_label(file.status)) %><span class="pill"><%= status %></span><% end %>

@@ -26,6 +26,15 @@ module DiffViewHelper
 
   def diff_skip_message(reason) = SKIP_REASONS[reason]
 
+  # Plik z komentarzem albo znaleziskiem rozwinięty od razu — po to się tu wchodzi.
+  # Krótki też, bo jego zwijanie nic nie oszczędza. Reszta czeka na kliknięcie, żeby
+  # PR z trzydziestoma plikami dało się przewinąć.
+  SHORT_FILE_HUNKS = 3
+
+  def diff_file_open?(file)
+    file.thread_count.positive? || file.finding_count.positive? || file.hunks.size <= SHORT_FILE_HUNKS
+  end
+
   MODE_LABELS = { "unified" => "Unified", "split" => "Split" }.freeze
 
   def diff_mode_label(mode) = MODE_LABELS.fetch(mode, mode)

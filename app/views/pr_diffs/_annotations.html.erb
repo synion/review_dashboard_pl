@@ -1,7 +1,7 @@
 <%# Wątki i pinezki pod wierszem, na całą szerokość tabeli — tak jak na GitHubie. %>
 <% row.findings.each do |finding| %>
   <tr class="diff-finding-row"><td class="diff-annotation" colspan="<%= colspan %>">
-    <%= render "pr_diffs/finding", finding: finding %>
+    <%= render "reviews/finding", finding: finding, with_priority: true %>
   </td></tr>
 <% end %>
 <% row.threads.each do |thread| %>

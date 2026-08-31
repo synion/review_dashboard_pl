@@ -33,19 +33,7 @@
     <% next if findings.blank? %>
     <h3><%= label %> (<%= findings.size %>)</h3>
     <% findings.each do |f| %>
-      <%# Obalone tylko wyszarzamy, bez chowania — werdykt to opinia drugiej
-          sesji, ostateczna decyzja należy do człowieka. %>
-      <div class="finding finding-<%= f.priority %><%= " finding-refuted" if f.refuted? %>">
-        <strong><%= f.title %></strong>
-        <% if f.verdict.present? %>
-          <span class="status-badge verdict-<%= f.verdict %>" title="<%= f.verdict_note %>"><%= f.verdict_label %></span>
-        <% end %>
-        <% if f.fix_status.present? %>
-          <span class="status-badge fix-<%= f.fix_status %>" title="<%= f.fix_note %>"><%= f.fix_label %></span>
-        <% end %>
-        <% if f.file_location.present? %><code class="inline"><%= f.file_location %></code><% end %>
-        <details><summary>szczegóły</summary><%= markdown f.body %></details>
-      </div>
+      <%= render "reviews/finding", finding: f %>
     <% end %>
   <% end %>
   <% if findings_by_priority.empty? %><p>Brak znalezisk 🎉</p><% end %>
