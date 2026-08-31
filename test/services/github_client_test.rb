@@ -188,4 +188,45 @@ class GithubClientTest < ActiveSupport::TestCase
     end
     assert_includes error.message, "not a collaborator"
   end
+
+  # --paginate + --jq '.[] | {...}' daje JSONL: jeden obiekt na linię niezależnie od
+  # stron, a przy okazji obcina odpowiedź do pól, których naprawdę używamy.
+  test "pr_files zwraca pliki PR-a z paginacją i obciętymi polami" do
+    jsonl = [ { filename: "app/x.rb", status: "modified", additions: 2, deletions: 1,
+                patch: "@@ -1,1 +1,2 @@\n-a\n+b\n+c", previous_filename: nil } ].map(&:to_json).join("\n")
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: jsonl, stderr: "", timed_out: false) ])
+
+    files = GithubClient.new(runner: fake).pr_files(PR_URL, repo_dir: "/repo")
+
+    assert_equal 1, files.size
+    assert_equal "app/x.rb", files.sole["filename"]
+    assert_equal "@@ -1,1 +1,2 @@\n-a\n+b\n+c", files.sole["patch"]
+    assert_equal [ "gh", "api", "repos/acme/webapp/pulls/1234/files", "--paginate", "--jq",
+                   ".[] | {filename, status, additions, deletions, patch, previous_filename}" ],
+                 fake.calls.sole[:cmd]
+  end
+
+  test "pr_review_comments pyta o pinezki przy liniach" do
+    jsonl = { id: 1, path: "app/x.rb", line: 5, side: "RIGHT", user: "kolega" }.to_json
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: jsonl, stderr: "", timed_out: false) ])
+
+    comments = GithubClient.new(runner: fake).pr_review_comments(PR_URL, repo_dir: "/repo")
+
+    assert_equal 5, comments.sole["line"]
+    assert_equal "repos/acme/webapp/pulls/1234/comments", fake.calls.sole[:cmd][2]
+    assert_includes fake.calls.sole[:cmd].last, "in_reply_to_id"
+  end
+
+  # Komentarze ogólne wiszą pod zasobem issue — PR-y dzielą z issues numerację.
+  test "pr_issue_comments pyta pod adresem issue, nie pulls" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "", stderr: "", timed_out: false) ])
+
+    assert_empty GithubClient.new(runner: fake).pr_issue_comments(PR_URL, repo_dir: "/repo")
+    assert_equal "repos/acme/webapp/issues/1234/comments", fake.calls.sole[:cmd][2]
+  end
+
+  test "puste linie w JSONL nie wywracają parsowania" do
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "\n{\"id\":1}\n\n", stderr: "", timed_out: false) ])
+    assert_equal [ { "id" => 1 } ], GithubClient.new(runner: fake).pr_issue_comments(PR_URL, repo_dir: "/repo")
+  end
 end

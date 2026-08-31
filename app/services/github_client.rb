@@ -85,6 +85,30 @@ class GithubClient
     run!([ "gh", "pr", "diff", pr_url ], label: "gh pr diff", chdir: repo_dir).stdout
   end
 
+  # Zmienione pliki z metadanymi, których surowy diff nie niesie: status (dodany /
+  # usunięty / przeniesiony), liczby +/− i poprzednia nazwa po zmianie ścieżki.
+  # `patch` bywa pusty — dla plików binarnych i takich, które GitHub uznał za za duże.
+  def pr_files(pr_url, repo_dir:)
+    paginated(pr_endpoint(pr_url, "pulls", "files"), label: "gh api pulls files", repo_dir: repo_dir,
+              fields: "{filename, status, additions, deletions, patch, previous_filename}")
+  end
+
+  # Komentarze przypięte do linii. `line` puste znaczy komentarz nieaktualny (linia
+  # wypadła z diffu) — wtedy kotwicą jest `original_line`. `position: null` to ten sam
+  # sygnał widziany od strony diffu, stąd oba pola.
+  def pr_review_comments(pr_url, repo_dir:)
+    paginated(pr_endpoint(pr_url, "pulls", "comments"), label: "gh api pulls comments", repo_dir: repo_dir,
+              fields: "{id, path, line, original_line, start_line, side, position, in_reply_to_id, " \
+                      "subject_type, diff_hunk, body, html_url, created_at, user: .user.login}")
+  end
+
+  # Komentarze ogólne z konwersacji PR-a — wiszą pod zasobem issue, bo PR-y dzielą
+  # z issues numerację (tak samo jak labelki, patrz add_label).
+  def pr_issue_comments(pr_url, repo_dir:)
+    paginated(pr_endpoint(pr_url, "issues", "comments"), label: "gh api issue comments", repo_dir: repo_dir,
+              fields: "{id, body, html_url, created_at, user: .user.login}")
+  end
+
   # Bez komentarzy zostajemy przy `gh pr review` — prostszej komendy, która nie
   # potrzebuje rozbierania URL-a na owner/repo/numer. Komentarze przy liniach umie
   # dopiero REST API, i to jednym requestem: werdykt, treść i wszystkie pinezki naraz.
@@ -146,6 +170,15 @@ class GithubClient
     raise Error, "Nie rozpoznaję linku do PR-a: #{pr_url}" unless match
 
     "repos/#{match[:owner]}/#{match[:repo]}/#{kind}/#{match[:number]}/#{path}"
+  end
+
+  # Endpointy listowe czytamy jako JSONL: `--jq '.[] | {…}'` wypisuje jeden obiekt
+  # na linię, więc paginacja przestaje być problemem (sklejone strony nie tworzą
+  # poprawnej tablicy JSON), a przy okazji odpowiedź obcina się do pól, których
+  # naprawdę używamy — komentarz z GitHuba ma ich kilkadziesiąt.
+  def paginated(endpoint, label:, repo_dir:, fields:)
+    result = run!([ "gh", "api", endpoint, "--paginate", "--jq", ".[] | #{fields}" ], label: label, chdir: repo_dir)
+    result.stdout.each_line.filter_map { |line| JSON.parse(line) if line.strip.present? }
   end
 
   def pr_view(pr_url, fields:, repo_dir:)
