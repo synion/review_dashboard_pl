@@ -28,6 +28,14 @@
   /* Tekst na wypełnionych przyciskach (accent/danger/ok). W dark mode te tła
      jaśnieją, więc białe napisy spadałyby poniżej kontrastu AA. */
   --on-accent: light-dark(#ffffff, #0b1220);
+  /* Tła linii diffu w wartościach GitHub Primer — widok zmian ma być rozpoznawalny
+     dla kogoś, kto właśnie przyszedł z zakładki Files changed. */
+  --diff-add-bg: light-dark(#e6ffec, #12261e);
+  --diff-del-bg: light-dark(#ffebe9, #3a1d1d);
+  --diff-add-num: light-dark(#ccffd8, #1b4721);
+  --diff-del-num: light-dark(#ffd7d5, #58201f);
+  --diff-gutter: light-dark(#f6f8fa, #191c23);
+  --diff-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 /* Przełącznik w topbarze zapisuje wybór w localStorage; inline skrypt w <head>
    ustawia data-theme przed pierwszym malowaniem. Brak atrybutu = motyw systemowy. */
@@ -412,6 +420,60 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 }
 .combobox-option:hover { background: light-dark(#eef2ff, #2a3050); }
 
+/* ===================== podgląd zmian w PR ===================== */
+.diff-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
+.diff-toolbar form.button_to { margin: 0; }
+.diff-toolbar .muted { margin-left: auto; font-size: 13px; }
+.diff-modes { display: inline-flex; gap: 4px; }
+.pill-on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+.diff-file { padding: 0; overflow: hidden; }
+.diff-file-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px; background: var(--diff-gutter); border-bottom: 1px solid var(--line);
+}
+.diff-file[open] .diff-file-head { position: sticky; top: 0; z-index: 1; }
+.diff-adds { color: var(--ok); font-weight: 600; font-size: 13px; }
+.diff-dels { color: var(--danger); font-weight: 600; font-size: 13px; }
+.diff-file-thread { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.diff-file > p.muted, .diff-file > .btn { margin: 12px 14px; display: inline-block; }
+.diff-hunk-quote {
+  font-family: var(--diff-mono); font-size: 12px; background: var(--diff-gutter);
+  padding: 8px 10px; border-radius: 6px; overflow-x: auto; color: var(--muted);
+}
+
+/* Tabela, nie grid: numer linii i kod muszą trzymać wspólną linię bazową także
+   wtedy, gdy kod się zawinie — a zawijanie wybieramy świadomie zamiast poziomego
+   scrolla, bo diff czyta się w pionie. */
+.diff { width: 100%; border-collapse: collapse; font-family: var(--diff-mono); font-size: 12.5px; }
+.diff td { vertical-align: top; padding: 0 8px; line-height: 1.55; }
+.diff-num {
+  width: 1%; min-width: 44px; text-align: right; color: var(--muted);
+  background: var(--diff-gutter); border-right: 1px solid var(--line);
+  user-select: none; white-space: nowrap;
+}
+.diff-code { white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; }
+.diff-hunk-head td { background: var(--diff-gutter); color: var(--muted); border-top: 1px solid var(--line); }
+.diff-add { background: var(--diff-add-bg); }
+.diff-del { background: var(--diff-del-bg); }
+.diff-unified .diff-add .diff-num { background: var(--diff-add-num); }
+.diff-unified .diff-del .diff-num { background: var(--diff-del-num); }
+/* Split: puste pole po stronie, w której linii nie ma — szare, żeby było widać,
+   że tam nic nie było, a nie że coś się nie wczytało. */
+.diff-split .diff-empty { background: var(--diff-gutter); }
+.diff-split .diff-code { width: 50%; }
+
+.diff-annotation { background: var(--surface); padding: 10px 14px !important; border-top: 1px solid var(--line); }
+.diff-comment-row .diff-annotation { border-left: 3px solid var(--accent); }
+.diff-finding-row .diff-annotation { border-left: 3px solid var(--warn); }
+.diff-thread { font-family: -apple-system, system-ui, sans-serif; font-size: 14px; }
+.diff-comment + .diff-reply, .diff-reply + .diff-reply { margin-top: 8px; }
+.diff-reply { margin-left: 20px; border-left: 2px solid var(--line); padding-left: 10px; }
+.diff-comment-meta { margin: 0 0 4px; font-size: 13px; display: flex; gap: 8px; align-items: baseline; }
+.diff-comment-body > *:first-child { margin-top: 0; }
+.diff-comment-body > *:last-child { margin-bottom: 0; }
+.diff-annotation .finding { margin: 0; }
+
 /* ===================== wąskie ekrany ===================== */
 /* Tabela review ma 7 kolumn — na telefonie chowamy to, co da się odczytać z karty
    review (data utworzenia, worktree), zamiast pozwolić jej rozpychać stronę. */
@@ -425,4 +487,9 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
   table#reviews td.worktree-cell, table#reviews th:nth-child(7) { display: none; }
   .projgrid { grid-template-columns: 1fr; }
   .qtop { row-gap: 4px; }
+  /* Dwie kolumny kodu na telefonie dają cztery znaki na kolumnę — pokazujemy
+     wtedy tylko nową wersję pliku, czyli tę, o którą chodzi w review. */
+  .diff-split .diff-num:first-child, .diff-split td:nth-child(2) { display: none; }
+  .diff { font-size: 11.5px; }
+  .diff-num { min-width: 32px; }
 }

@@ -46,6 +46,11 @@ Rails.application.routes.draw do
       post :verify_fixes
       post :verify_findings
       patch :override_status
+      # Podgląd zmian ma własny kontroler (wzorzec `directory` na projekcie):
+      # ReviewsController jest już duży, a renderowanie diffu nie dzieli z nim nic
+      # poza samym rekordem.
+      get :diff, to: "pr_diffs#show"
+      post :refresh_diff, to: "pr_diffs#refresh"
     end
     resources :playwright_runs, only: :create
     resource :decision, only: :create

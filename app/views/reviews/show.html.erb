@@ -17,7 +17,13 @@
   </p>
 </div>
 <p class="review-links">
-  <% if @review.pr_url.present? %><%= link_to "PR na GitHubie ↗", @review.pr_url, target: "_blank" %><% end %>
+  <% if @review.pr_url.present? %>
+    <%# Podgląd zmian przed linkiem na GitHuba: sens dashboardu jest taki, żeby po
+        kod nie trzeba było z niego wychodzić. data-turbo-frame="_top", bo diff
+        jest pełnoekranowy i nie mieści się w panelu detalu. %>
+    <%= link_to "📄 Podgląd zmian", diff_review_path(@review), data: { turbo_frame: "_top" } %>
+    <%= link_to "PR na GitHubie ↗", @review.pr_url, target: "_blank" %>
+  <% end %>
   <% if @review.task_url.present? %><%= link_to "zadanie ↗", @review.task_url, target: "_blank" %><% end %>
   <%= link_to "wszystkie review projektu", project_reviews_path(@review.project) %>
 </p>

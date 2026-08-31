@@ -1,0 +1,10 @@
+<div class="diff-comment">
+  <p class="diff-comment-meta">
+    <strong><%= comment["user"] %></strong>
+    <% if comment["created_at"].present? %>
+      <span class="muted"><%= l Time.zone.parse(comment["created_at"]), format: :short %></span>
+    <% end %>
+    <% if comment["html_url"].present? %><%= link_to "↗", comment["html_url"], target: "_blank" %><% end %>
+  </p>
+  <div class="diff-comment-body"><%= markdown comment["body"] %></div>
+</div>

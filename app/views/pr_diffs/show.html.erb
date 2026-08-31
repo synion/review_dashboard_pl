@@ -1,0 +1,87 @@
+<% content_for :container_class, "container-wide" %>
+<%# Osobny strumień niż panel review: pobranie diffu przeładowuje TĘ stronę,
+    a nie otwartą obok stronę review. %>
+<%= turbo_stream_from @review, :diff %>
+<div id="review_<%= @review.id %>_diff">
+  <div class="nav-back">
+    <%= link_to "← wróć do review", review_path(@review) %>
+    <%= link_to "PR na GitHubie ↗", @review.pr_url, target: "_blank" %>
+  </div>
+
+  <div class="pagehead">
+    <h1>Zmiany<%= " w PR ##{@review.pr_number}" if @review.pr_number %></h1>
+    <p class="summary">
+      <% if @presenter %>
+        <span class="pill"><%= diff_stats_label(@presenter.stats) %></span>
+      <% end %>
+      <span class="muted"><%= @review.pr_title %></span>
+    </p>
+  </div>
+
+  <% if @presenter %>
+    <div class="diff-toolbar">
+      <span class="diff-modes">
+        <% DiffPresenter::MODES.each do |mode| %>
+          <%= link_to diff_mode_label(mode), diff_review_path(@review, view: mode),
+                class: "pill #{"pill-on" if diff_view == mode}" %>
+        <% end %>
+      </span>
+      <span class="muted">stan na <%= l @snapshot.fetched_at, format: :short %></span>
+      <%= button_to "↻ odśwież", refresh_diff_review_path(@review), class: "btn" %>
+    </div>
+  <% end %>
+
+  <% if @error.present? %>
+    <div class="card error-box">
+      <h2>GitHub nie odpowiedział</h2>
+      <p><%= @error %></p>
+      <%= button_to "↻ Spróbuj ponownie", refresh_diff_review_path(@review), class: "btn" %>
+    </div>
+  <% end %>
+
+  <% if @presenter.nil? %>
+    <% unless @error.present? %>
+      <div class="card"><p>⏳ Pobieram zmiany z GitHuba — strona odświeży się sama.</p></div>
+    <% end %>
+  <% else %>
+    <% if (orphans = @presenter.orphan_threads).any? %>
+      <details class="card">
+        <summary>💬 Komentarze do plików spoza tej wersji zmian (<%= orphans.size %>)</summary>
+        <p class="muted">Plik wypadł ze zmiany albo autor przepisał historię — komentarz został.</p>
+        <% orphans.each do |thread| %>
+          <p class="muted"><code class="inline"><%= thread.path %></code></p>
+          <%= render "pr_diffs/thread", thread: thread %>
+        <% end %>
+      </details>
+    <% end %>
+
+    <% if @presenter.issue_comments.any? %>
+      <details class="card" open>
+        <summary>💬 Komentarze do PR-a (<%= @presenter.issue_comments.size %>)</summary>
+        <% @presenter.issue_comments.each do |comment| %>
+          <%= render "pr_diffs/comment", comment: comment %>
+        <% end %>
+      </details>
+    <% end %>
+
+    <%# Znaleziska bez pinezki nad listą plików, nie na jej końcu: to jedyne miejsce,
+        w którym w ogóle się pokażą, więc nie mogą wylądować pod kilometrem diffu. %>
+    <% if (unpinned = @presenter.unpinned_findings).any? %>
+      <details class="card" open>
+        <summary>⚠️ Znaleziska bez pinezki (<%= unpinned.size %>)</summary>
+        <p class="muted">Bez linii w tej wersji zmian — plik spoza PR-a, linia sprzed poprawek albo uwaga ogólna.</p>
+        <% unpinned.each do |finding| %>
+          <%= render "pr_diffs/finding", finding: finding %>
+        <% end %>
+      </details>
+    <% end %>
+
+    <% @presenter.files.each do |file| %>
+      <%= render "pr_diffs/file", file: file, review: @review %>
+    <% end %>
+
+    <% if @presenter.files.empty? %>
+      <div class="card"><p>Ten PR nie ma zmienionych plików.</p></div>
+    <% end %>
+  <% end %>
+</div>

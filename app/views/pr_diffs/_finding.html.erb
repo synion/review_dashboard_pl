@@ -1,0 +1,11 @@
+<div class="finding finding-<%= finding.priority %><%= " finding-refuted" if finding.refuted? %>">
+  <strong><%= Finding::PRIORITY_LABELS[finding.priority] %> — <%= finding.title %></strong>
+  <% if finding.verdict.present? %>
+    <span class="status-badge verdict-<%= finding.verdict %>" title="<%= finding.verdict_note %>"><%= finding.verdict_label %></span>
+  <% end %>
+  <% if finding.fix_status.present? %>
+    <span class="status-badge fix-<%= finding.fix_status %>" title="<%= finding.fix_note %>"><%= finding.fix_label %></span>
+  <% end %>
+  <% if finding.file_location.present? %><code class="inline"><%= finding.file_location %></code><% end %>
+  <details><summary>szczegóły</summary><%= markdown finding.body %></details>
+</div>

@@ -1,0 +1,13 @@
+<table class="diff diff-unified">
+  <tbody>
+    <tr class="diff-hunk-head"><td class="diff-num" colspan="2"></td><td class="diff-code"><%= hunk.header %></td></tr>
+    <% hunk.rows.each do |row| %>
+      <tr class="diff-line diff-<%= row.kind %>">
+        <td class="diff-num"><%= row.left %></td>
+        <td class="diff-num"><%= row.right %></td>
+        <td class="diff-code"><%= diff_marker(row.kind) %><%= row.text %></td>
+      </tr>
+      <%= render "pr_diffs/annotations", row: row, colspan: 3 %>
+    <% end %>
+  </tbody>
+</table>

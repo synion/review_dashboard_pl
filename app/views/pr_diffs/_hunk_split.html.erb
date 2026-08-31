@@ -1,0 +1,15 @@
+<table class="diff diff-split">
+  <tbody>
+    <tr class="diff-hunk-head"><td class="diff-num"></td><td class="diff-code"><%= hunk.header %></td>
+        <td class="diff-num"></td><td class="diff-code"></td></tr>
+    <% hunk.rows.each do |row| %>
+      <tr class="diff-line">
+        <td class="diff-num"><%= row.left&.left %></td>
+        <td class="diff-code diff-<%= row.left&.kind || "empty" %>"><%= row.left&.text %></td>
+        <td class="diff-num"><%= row.right&.right %></td>
+        <td class="diff-code diff-<%= row.right&.kind || "empty" %>"><%= row.right&.text %></td>
+      </tr>
+      <%= render "pr_diffs/annotations", row: row, colspan: 4 %>
+    <% end %>
+  </tbody>
+</table>

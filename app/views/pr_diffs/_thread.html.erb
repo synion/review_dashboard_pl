@@ -1,0 +1,6 @@
+<div class="diff-thread">
+  <%= render "pr_diffs/comment", comment: thread.root %>
+  <% thread.replies.each do |reply| %>
+    <div class="diff-reply"><%= render "pr_diffs/comment", comment: reply %></div>
+  <% end %>
+</div>

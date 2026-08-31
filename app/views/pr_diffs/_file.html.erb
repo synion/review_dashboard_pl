@@ -1,0 +1,35 @@
+<%# Plik z komentarzami albo znaleziskami rozwinięty od razu — po to się tu wchodzi.
+    Reszta zwinięta, żeby PR z trzydziestoma plikami dało się przewinąć. %>
+<details class="card diff-file" <%= "open" if file.thread_count.positive? || file.finding_count.positive? || file.hunks.size <= 3 %>>
+  <summary class="diff-file-head">
+    <code class="inline"><%= diff_file_label(file) %></code>
+    <% if (status = diff_status_label(file.status)) %><span class="pill"><%= status %></span><% end %>
+    <span class="diff-adds">+<%= file.additions %></span>
+    <span class="diff-dels">−<%= file.deletions %></span>
+    <% if file.thread_count.positive? %><span class="pill">💬 <%= file.thread_count %></span><% end %>
+    <% if file.finding_count.positive? %><span class="pill">🔎 <%= file.finding_count %></span><% end %>
+  </summary>
+
+  <% file.file_threads.each do |thread| %>
+    <div class="diff-file-thread">
+      <p class="muted">
+        <%= thread.outdated? ? "komentarz nieaktualny — linia wypadła z tej wersji zmian" : "komentarz do całego pliku" %>
+      </p>
+      <% if thread.outdated? && thread.root["diff_hunk"].present? %>
+        <pre class="diff-hunk-quote"><%= thread.root["diff_hunk"] %></pre>
+      <% end %>
+      <%= render "pr_diffs/thread", thread: thread %>
+    </div>
+  <% end %>
+
+  <% if file.renderable? %>
+    <% file.hunks.each do |hunk| %>
+      <%= render split_diff? ? "pr_diffs/hunk_split" : "pr_diffs/hunk_unified", hunk: hunk %>
+    <% end %>
+  <% else %>
+    <p class="muted"><%= diff_skip_message(file.skip_reason) %></p>
+    <% if file.skip_reason == :too_large %>
+      <%= link_to "Pokaż mimo to", diff_review_path(review, expand: file.filename), class: "btn" %>
+    <% end %>
+  <% end %>
+</details>
