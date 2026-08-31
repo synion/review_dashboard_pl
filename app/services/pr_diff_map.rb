@@ -3,10 +3,13 @@
 # Linie usunięte mają tylko numer po lewej — komentarz do nich wymagałby `side: LEFT`,
 # a review z choćby jedną złą linią GitHub odrzuca w całości (422).
 class PrDiffMap
-  HUNK = /\A@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/
-
+  # Struktura diffu przychodzi z DiffParser; tutaj zostaje z niej tylko to, o co
+  # pyta publikacja: zbiór numerów linii po prawej stronie. Linie usunięte mają
+  # `right` puste, więc odpadają same.
   def self.parse(diff)
-    new(scan(diff.to_s.lines))
+    new(DiffParser.parse(diff).transform_values { |hunks|
+      hunks.flat_map { |hunk| hunk.lines.filter_map(&:right) }.to_set
+    })
   end
 
   def initialize(files)
@@ -29,53 +32,4 @@ class PrDiffMap
     resolved = resolve(path)
     resolved.present? && @files.fetch(resolved).include?(line)
   end
-
-  # Hunk kończymy po wyczerpaniu licznika z jego nagłówka, nie po napotkaniu linii
-  # wyglądającej na nagłówek. Treść pliku bywa myląca: usunięta linia „-- foo" ma
-  # w diffie postać „--- foo". Wszystko, co zostaje za licznikiem, to linie usunięte
-  # („-") — a te nie zaczynają się od „+++ " ani „@@ ", więc nie mylą pętli wyżej.
-  def self.scan(lines)
-    files = {}
-    path = nil
-    index = 0
-
-    while index < lines.size
-      line = lines[index].chomp
-      index += 1
-
-      if line.start_with?("+++ ")
-        target = line.delete_prefix("+++ ").strip
-        # `+++ /dev/null` to plik usunięty w tym PR — nie ma go w nowej wersji,
-        # więc nie ma czego komentować.
-        path = target == "/dev/null" ? nil : target.sub(%r{\Ab/}, "")
-        files[path] ||= Set.new if path
-      elsif (hunk = HUNK.match(line))
-        index = scan_hunk(lines, index, files[path], first_line: hunk[1].to_i, count: (hunk[2] || 1).to_i)
-      end
-    end
-
-    files
-  end
-  private_class_method :scan
-
-  # Zwraca indeks pierwszej linii za hunkiem. `numbers` jest nil dla pliku usuniętego —
-  # linie i tak trzeba przejść, żeby nie wziąć ich treści za nagłówki kolejnego pliku.
-  def self.scan_hunk(lines, index, numbers, first_line:, count:)
-    number = first_line
-    remaining = count
-
-    while remaining.positive? && index < lines.size
-      marker = lines[index][0]
-      index += 1
-      next if marker == "\\" # „\ No newline at end of file" nie jest linią pliku
-      next if marker == "-"  # usunięta — nie istnieje po prawej stronie
-
-      numbers&.add(number)
-      number += 1
-      remaining -= 1
-    end
-
-    index
-  end
-  private_class_method :scan_hunk
 end
