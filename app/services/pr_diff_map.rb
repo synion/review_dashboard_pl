@@ -7,7 +7,13 @@ class PrDiffMap
   # pyta publikacja: zbiór numerów linii po prawej stronie. Linie usunięte mają
   # `right` puste, więc odpadają same.
   def self.parse(diff)
-    new(DiffParser.parse(diff).transform_values { |hunks|
+    from_hunks(DiffParser.parse(diff))
+  end
+
+  # Wejście dla tego, kto ma już sparsowane hunki — widok zmian dostaje `patch`
+  # per plik z REST API i nie ma z czego złożyć pełnego diffu.
+  def self.from_hunks(files)
+    new(files.transform_values { |hunks|
       hunks.flat_map { |hunk| hunk.lines.filter_map(&:right) }.to_set
     })
   end
