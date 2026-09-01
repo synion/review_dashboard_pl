@@ -46,11 +46,42 @@ class PrDiscussionTest < ActiveSupport::TestCase
     assert_equal 3, PrDiscussion.new(snapshot(review_comments: comments)).threads.sole.size
   end
 
-  test "wątek bez odpowiedzi nie jest dyskusją" do
-    discussion = PrDiscussion.new(snapshot(review_comments: [ comment ]))
+  # Moja pinezka, na którą nikt nie odpisał, jest echem — jej treść sesja ma w znaleziskach.
+  test "moja pinezka bez odpowiedzi nie jest dyskusją" do
+    discussion = PrDiscussion.new(snapshot(review_comments: [ comment(user: VIEWER) ]))
 
-    assert_empty discussion.answered_threads
+    assert_empty discussion.relevant_threads
     assert_not discussion.any?
+  end
+
+  # Sedno poprawki: PR-a ogląda kilka osób. Autor bywa, że wyjaśnia rzecz sam z siebie
+  # albo pod uwagą innego reviewera — taki wątek nie ma ŻADNEJ odpowiedzi, a jest
+  # jedynym śladem, że sprawa była już poruszona, zanim usiadłem do review.
+  test "cudzy komentarz bez odpowiedzi zostaje — także wtedy nikt mu nie odpisał" do
+    comments = [ comment(id: 1, user: AUTHOR, body: "wiem, że wygląda dziwnie — to świadome"),
+                 comment(id: 2, user: "drugi-reviewer", body: "a tu nie ma race condition?") ]
+    discussion = PrDiscussion.new(snapshot(review_comments: comments))
+
+    assert_equal 2, discussion.relevant_threads.size
+    assert discussion.any?
+  end
+
+  # Snapshot sprzed tej zmiany nie wie, który głos jest mój — wtedy nie wycinamy nic.
+  test "bez loginu reviewera nie wycinamy żadnego wątku" do
+    discussion = PrDiscussion.new(snapshot(review_comments: [ comment(user: VIEWER) ], viewer: nil))
+
+    assert_equal 1, discussion.relevant_threads.size
+  end
+
+  test "reszta rozmowy to wątki spoza moich pinezek" do
+    mine = finding
+    comments = [ pin(mine, id: 1), comment(id: 2, in_reply_to_id: 1, user: AUTHOR, body: "ok"),
+                 comment(id: 3, user: AUTHOR, body: "to samo tłumaczyłem wyżej") ]
+    discussion = PrDiscussion.new(snapshot(review_comments: comments))
+
+    assert_equal [ "to samo tłumaczyłem wyżej" ],
+                 discussion.other_threads([ mine ]).map { |thread| thread.root["body"] }
+    assert_equal 2, discussion.other_threads([]).size
   end
 
   test "sam komentarz ogólny wystarczy, żeby było o czym pisać w prompcie" do

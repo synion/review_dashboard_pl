@@ -19,7 +19,7 @@ Dla KAŻDEGO znaleziska z listy niżej ustal jedno z czterech:
 
 - `implemented` — zmiana w diffie faktycznie usuwa przyczynę, którą opisałem. Nie wystarcza, że autor dotknął tego pliku ani że dopisał komentarz.
 - `answered` — kodu nie ruszył, ALE odpowiedział na PR-ze i jego uzasadnienie się broni (świadoma decyzja, dług odziedziczony z mastera, poprawka zaplanowana w innym PR-ze). W `note` streść jego argument jednym zdaniem.
-- `ignored` — kod bez zmian i albo autor się w ogóle nie odezwał, albo jego uzasadnienie się NIE broni. W drugim przypadku `note` musi mówić, dlaczego argument nie wystarcza.
+- `ignored` — kod bez zmian i albo NIGDZIE na PR-ze nikt tej sprawy nie tknął, albo uzasadnienie się NIE broni. W drugim przypadku `note` musi mówić, dlaczego argument nie wystarcza. Zanim wybierzesz `ignored`, przejrzyj wszystkie sekcje z komentarzami niżej — odpowiedź autora bywa pod uwagą innego reviewera albo w komentarzu ogólnym, nie pod moją pinezką.
 - `unclear` — z diffu nie wynika, czy problem zniknął (np. poprawka jest w kodzie, którego diff nie pokazuje, albo zależy od danych produkcyjnych).
 
 Nie zgaduj na korzyść autora: przy wątpliwościach `unclear`, nie `implemented`. Ale nie działa to też w drugą stronę — `ignored` przy uwadze, którą autor na PR-ze uzasadnił, jest błędem: wraca do niego jako zarzut „nie zrobiłeś", choć się wypowiedział.
@@ -53,6 +53,18 @@ Miejsce: `<%= finding.file_location %>`
 <% end -%>
 <% end -%>
 
+<% end -%>
+<% if (rest = discussion&.other_threads(review.findings)).present? -%>
+## Pozostała dyskusja na PR-ze
+
+Wątki, których nie da się przypiąć do żadnej z moich uwag — autor mógł odnieść się
+do sprawy tutaj, a nie pod moją pinezką. Przeczytaj je, zanim orzekniesz `ignored`.
+
+<% rest.each do |thread| -%>
+### <%= thread.path %><%= ":#{thread.line}" if thread.line %>
+<%= discussion.transcript(thread) %>
+
+<% end -%>
 <% end -%>
 ## Czego oczekuję
 

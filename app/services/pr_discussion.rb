@@ -59,12 +59,32 @@ class PrDiscussion
     end
   end
 
-  # Do promptu idą tylko wątki, w których ktoś ODPOWIEDZIAŁ. Moja własna pinezka bez
-  # odpowiedzi nie wnosi nic — jej treść sesja i tak ma w liście znalezisk.
-  def answered_threads = threads.select(&:answered?)
+  # Do promptu idzie każdy wątek POZA moją własną pinezką, na którą nikt nie odpowiedział
+  # — jej treść sesja i tak ma w liście znalezisk, więc byłaby echem.
+  #
+  # Świadomie NIE filtrujemy po „ma odpowiedź": PR-a ogląda kilka osób i autor bywa,
+  # że wyjaśnia sprawę SAM z siebie albo pod uwagą drugiego reviewera, zanim w ogóle
+  # siadam do swojego review. Taki wątek nie ma żadnej odpowiedzi, a jest jedynym
+  # śladem, że rzecz była już wyjaśniona — wycięcie go odtwarza dokładnie ten błąd,
+  # dla którego cała ta klasa powstała.
+  def relevant_threads
+    @relevant_threads ||= threads.reject { |thread| mine?(thread.root) && !thread.answered? }
+  end
 
-  # Czy jest o czym pisać w prompcie. Sama pinezka bez odpowiedzi się nie liczy.
-  def any? = answered_threads.any? || issue_comments.any?
+  # Wątki, których nie da się przypiąć do żadnego z podanych znalezisk — reszta
+  # rozmowy, w której autor mógł się odnieść do sprawy nie tam, gdzie ją zgłosiłem.
+  def other_threads(findings)
+    taken = findings.to_a.map { |finding| InlineComments.header_for(finding) }.to_set
+    relevant_threads.reject { |thread| taken.include?(header_of(thread)) }
+  end
+
+  # Czy jest o czym pisać w prompcie.
+  def any? = relevant_threads.any? || issue_comments.any?
+
+  # Mój własny głos na PR-ze. Snapshot bez loginu (artefakt sprzed tej zmiany) nie
+  # pozwala tego rozstrzygnąć — wtedy nie wycinamy nic, bo nadmiar jest tańszy
+  # niż zgubiona odpowiedź autora.
+  def mine?(comment) = @snapshot.viewer.present? && comment["user"] == @snapshot.viewer
 
   # Odpowiedzi pod MOJĄ pinezką do tego znaleziska — bez komentarza zakładającego,
   # którego treść sesja i tak ma w liście znalezisk. To ten materiał, którego brak
@@ -108,8 +128,10 @@ class PrDiscussion
   private
 
   def by_header
-    @by_header ||= threads.group_by { |thread| thread.root["body"].to_s.lines.first.to_s.strip }
+    @by_header ||= threads.group_by { |thread| header_of(thread) }
   end
+
+  def header_of(thread) = thread.root["body"].to_s.lines.first.to_s.strip
 
   def body_of(comment)
     text = comment["body"].to_s.strip

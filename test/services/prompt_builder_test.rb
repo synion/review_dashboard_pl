@@ -313,7 +313,7 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes prompt, "Dyskusja na PR-ze"
     assert_includes prompt, "autor PR-a (autorka)"
     assert_includes prompt, "Zostawiam świadomie — dług z mastera."
-    assert_includes prompt, "Nigdy nie powtarzaj uwagi"
+    assert_includes prompt, "Nigdy nie pisz, że autor się nie odniósł"
   end
 
   test "review bez rozmowy nie niesie pustej sekcji o niej" do
@@ -342,6 +342,36 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes body, "Odpowiedzi na PR-ze pod tą uwagą"
     assert_includes body, "Zostawiam świadomie — dług z mastera."
     assert_includes prompt, "`answered`"
+  end
+
+  # Kilka osób ogląda PR-a: autor bywa, że wyjaśnia rzecz sam z siebie, zanim usiądę
+  # do review. Taki komentarz nie ma odpowiedzi, a musi trafić do promptu.
+  test "komentarz autora bez odpowiedzi też trafia do sekcji dyskusji" do
+    solo = { "id" => 9, "path" => "app/models/invoice.rb", "line" => 12, "position" => 3,
+             "subject_type" => "line", "user" => "autorka", "created_at" => "2026-08-28T10:00:00Z",
+             "body" => "Wiem, że wygląda dziwnie — to świadome, guard leci w innym PR-ze." }
+    prompt = PromptBuilder.review(reviews(:pr_review), discussion: discussion(review_comments: [ solo ]))
+
+    assert_includes prompt, "guard leci w innym PR-ze"
+    assert_includes prompt, "Liczy się KAŻDY głos"
+    assert_includes prompt, "Nigdy nie pisz, że autor się nie odniósł"
+  end
+
+  # Odpowiedź bywa nie pod moją pinezką, tylko pod uwagą drugiego reviewera.
+  test "verify_fixes pokazuje też wątki spoza moich pinezek" do
+    review = reviews(:pr_review)
+    review.update!(decision_head_sha: "aaa1111", branch: "sl-fix")
+    finding = review.findings.create!(priority: "critical", title: "Nil w kalkulacji VAT", body: "Problem: nil")
+    obcy = { "id" => 9, "path" => "app/models/order.rb", "line" => 5, "position" => 2,
+             "subject_type" => "line", "user" => "autorka", "created_at" => "2026-08-28T10:00:00Z",
+             "body" => "To samo tłumaczyłem drugiemu reviewerowi wyżej." }
+    talk = discussion(review_comments: [ pin(finding, id: 1), reply(to: 1), obcy ])
+
+    prompt = PromptBuilder.verify_fixes(review, discussion: talk)
+
+    assert_includes prompt, "Pozostała dyskusja na PR-ze"
+    assert_includes prompt, "To samo tłumaczyłem drugiemu reviewerowi wyżej."
+    assert_includes prompt, "app/models/order.rb:5"
   end
 
   def finding_for_pin

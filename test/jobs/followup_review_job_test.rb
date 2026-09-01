@@ -156,7 +156,7 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
 
     assert_includes prompts.sole, "Świadome — nie przywracam."
     assert_includes prompts.sole, "autor PR-a (autorka)"
-    assert_includes prompts.sole, "Nigdy nie powtarzaj uwagi"
+    assert_includes prompts.sole, "Nigdy nie pisz, że autor się nie odniósł"
   end
 
   # Padnięty `gh` nie może wywrócić followupu — sesja leci bez sekcji dyskusji.
