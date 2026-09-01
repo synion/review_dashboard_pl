@@ -46,7 +46,7 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
   test "wznawia sesję bazową, przekazuje uwagi i importuje zaktualizowany wynik" do
     prompts = []
     FollowupReviewJob.perform_now(@review, "Znalezisko o teście to false positive",
-                                  session_factory: session_writing_result({ summary: "Nowe. **Po dyskusji:** usunięto", findings: [], playwright: nil }, prompts))
+                                  github: FakeGithubClient.new, session_factory: session_writing_result({ summary: "Nowe. **Po dyskusji:** usunięto", findings: [], playwright: nil }, prompts))
     @review.reload
     followup = @review.claude_runs.where(kind: "followup").sole
     assert_equal(
@@ -63,7 +63,7 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
     succeeded_run("followup", "sess-f1")
     prompts = []
     FollowupReviewJob.perform_now(@review, "jeszcze jedno",
-                                  session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
+                                  github: FakeGithubClient.new, session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
     assert_equal "sess-f1", @review.claude_runs.where(kind: "followup").order(:id).last.resume_session_id
   end
 
@@ -74,7 +74,7 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
     @review.claude_runs.create!(kind: "followup", claude_config: @config, status: "succeeded", session_id: "sess-newer-bez-pliku")
     prompts = []
     FollowupReviewJob.perform_now(@review, "y",
-                                  session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
+                                  github: FakeGithubClient.new, session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
     assert_equal "sess-base", @review.claude_runs.where(kind: "followup").order(:id).last.resume_session_id
   end
 
@@ -85,7 +85,7 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
     @review.update_column(:claude_config, "/inne-konto")
     prompts = []
     FollowupReviewJob.perform_now(@review, "sprawdź poprawki",
-                                  session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
+                                  github: FakeGithubClient.new, session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
     followup = @review.claude_runs.where(kind: "followup").sole
     assert_nil followup.resume_session_id
     assert_equal "reviewed", @review.reload.status
@@ -110,7 +110,7 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
   # run nie może ruszać review, który poszedł dalej — ani statusem, ani wynikiem.
   test "spóźniony run nie nadpisuje statusu ani wyniku po wysłanej decyzji" do
     FollowupReviewJob.perform_now(@review, "sprawdź poprawki",
-                                  session_factory: session_deciding_midway { raise ClaudeSessionRunner::Failed, "Timeout po 1800s" })
+                                  github: FakeGithubClient.new, session_factory: session_deciding_midway { raise ClaudeSessionRunner::Failed, "Timeout po 1800s" })
     assert_equal [ "decided", nil ], [ @review.reload.status, @review.error_message ]
   end
 
@@ -118,7 +118,7 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
     path = @review.artifacts_dir.join("result.json")
     write_late_result = -> { File.write(path, { summary: "Spóźniony wynik", findings: [], playwright: nil }.to_json); "done" }
     FollowupReviewJob.perform_now(@review, "sprawdź poprawki",
-                                  session_factory: session_deciding_midway(&write_late_result))
+                                  github: FakeGithubClient.new, session_factory: session_deciding_midway(&write_late_result))
     assert_equal [ "decided", "Stare podsumowanie" ], [ @review.reload.status, @review.summary ]
   end
 
@@ -129,11 +129,46 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
     @base_run.update!(session_id: nil)
     prompts = []
     FollowupReviewJob.perform_now(@review, "x",
-                                  session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
+                                  github: FakeGithubClient.new, session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
     assert_nil @review.claude_runs.where(kind: "followup").sole.resume_session_id
     assert_equal "reviewed", @review.reload.status
     assert_includes prompts.sole, "Kontekst poprzedniego review"
     assert_includes prompts.sole, "Stare podsumowanie"
     assert_not_includes prompts.sole, "masz pełny kontekst poprzedniej sesji"
+  end
+
+
+  # Wątek na PR-ze: moja pinezka i odpowiedź autora pod nią.
+  def answered_thread
+    [ { "id" => 1, "path" => "app/x.rb", "line" => 3, "position" => 2, "subject_type" => "line",
+        "user" => "reviewerka", "body" => "moja uwaga", "created_at" => "2026-08-29T10:00:00Z" },
+      { "id" => 2, "in_reply_to_id" => 1, "user" => "autorka", "created_at" => "2026-08-30T10:00:00Z",
+        "body" => "Świadome — nie przywracam." } ]
+  end
+
+  # Sedno zmiany: ponowne review musi zobaczyć, co autor odpisał na wysłane pinezki —
+  # inaczej wraca do niego z uwagą, którą już na PR-ze uzasadnił.
+  test "prompt followupu niesie odpowiedź autora z PR-a i zakaz powtarzania uwagi" do
+    prompts = []
+    FollowupReviewJob.perform_now(@review, "sprawdź ponownie",
+                                  github: FakeGithubClient.new(review_comments: answered_thread),
+                                  session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
+
+    assert_includes prompts.sole, "Świadome — nie przywracam."
+    assert_includes prompts.sole, "autor PR-a (autorka)"
+    assert_includes prompts.sole, "Nigdy nie powtarzaj uwagi"
+  end
+
+  # Padnięty `gh` nie może wywrócić followupu — sesja leci bez sekcji dyskusji.
+  test "niedostępny GitHub nie przerywa followupu" do
+    github = Object.new
+    def github.pr_files(*, **) = raise(GithubClient::Error, "gh padł")
+
+    prompts = []
+    FollowupReviewJob.perform_now(@review, "sprawdź ponownie", github: github,
+                                  session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, prompts))
+
+    assert_equal "reviewed", @review.reload.status
+    assert_not_includes prompts.sole, "Dyskusja na PR-ze"
   end
 end

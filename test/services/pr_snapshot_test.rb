@@ -4,14 +4,17 @@ class PrSnapshotTest < ActiveSupport::TestCase
   class FakeClient
     attr_reader :calls
 
-    def initialize(files: [], review_comments: [], issue_comments: [])
-      @data = { files: files, review_comments: review_comments, issue_comments: issue_comments }
+    def initialize(files: [], review_comments: [], issue_comments: [], author: "autor", viewer: "ja")
+      @data = { files: files, review_comments: review_comments, issue_comments: issue_comments,
+                author: author, viewer: viewer }
       @calls = []
     end
 
     def pr_files(url, repo_dir:) = record(:files, url, repo_dir)
     def pr_review_comments(url, repo_dir:) = record(:review_comments, url, repo_dir)
     def pr_issue_comments(url, repo_dir:) = record(:issue_comments, url, repo_dir)
+    def pr_author(url, repo_dir:) = record(:author, url, repo_dir)
+    def viewer_login(repo_dir:) = record(:viewer, nil, repo_dir)
 
     private
 
@@ -46,9 +49,9 @@ class PrSnapshotTest < ActiveSupport::TestCase
     client = FakeClient.new
     PrSnapshot.fetch!(@review, client: client)
 
-    assert_equal %i[files review_comments issue_comments], client.calls.map { |c| c[:kind] }
+    assert_equal %i[files review_comments issue_comments author viewer], client.calls.map { |c| c[:kind] }
     assert_equal [ @review.workdir ], client.calls.map { |c| c[:repo_dir] }.uniq
-    assert_equal [ @review.pr_url ], client.calls.map { |c| c[:url] }.uniq
+    assert_equal [ @review.pr_url ], client.calls.filter_map { |c| c[:url] }.uniq
   end
 
   test "load czyta zapisany artefakt" do

@@ -4,13 +4,17 @@ class RunReviewJob < ApplicationJob
   # z rzędu, to problem jest w zadaniu albo w środowisku, a nie w chwilowym zacięciu.
   MAX_ATTEMPTS = 2
 
-  def perform(review, session_factory: default_session_factory)
+  def perform(review, session_factory: default_session_factory, github: GithubClient.new)
     review.update!(status: "reviewing")
+    # Rozmowa z PR-a jedzie do promptu: na PR-ze potrafią już wisieć cudze uwagi
+    # i odpowiedzi autora, a review, które ich nie widzi, zgłasza rzecz świeżo
+    # wyjaśnioną. Pobranie jest odporne na padnięty `gh` (patrz PrSnapshot.refresh).
+    discussion = PrDiscussion.for(review, client: github)
     attempt = 0
     begin
       attempt += 1
       run = review.claude_runs.create!(kind: "review", claude_config: review.effective_claude_config)
-      session_factory.call(run).call(PromptBuilder.review(review))
+      session_factory.call(run).call(PromptBuilder.review(review, discussion: discussion))
     rescue ClaudeSessionRunner::Stalled
       # Timeoutu całkowitego nie ponawiamy — praca się od tego nie skróci.
       raise if attempt >= MAX_ATTEMPTS

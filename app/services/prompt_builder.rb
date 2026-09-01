@@ -18,15 +18,19 @@ class PromptBuilder
     render("comment_task", review)
   end
 
-  def self.review(review)
-    render("review", review)
+  # `discussion` (PrDiscussion albo nil) przynosi rozmowę z PR-a: moje wcześniejsze
+  # pinezki i odpowiedzi na nie. Job ją pobiera, bo to ruch po sieci — PromptBuilder
+  # ma tylko renderować. nil znaczy „nie ma PR-a albo gh nie odpowiedział": prompt
+  # idzie wtedy bez sekcji dyskusji, zamiast wywracać sesję.
+  def self.review(review, discussion: nil)
+    render("review", review, discussion: discussion)
   end
 
   # Weryfikacja poprawek idzie ZAWSZE świeżą sesją (nie ma czego wznawiać: pytanie
   # dotyczy kodu wypchniętego po decyzji), więc kontekst po przełączeniu konta
   # wymuszamy tak samo jak w followupie bez `--resume`.
-  def self.verify_fixes(review)
-    render("verify_fixes", review, force_context: true)
+  def self.verify_fixes(review, discussion: nil)
+    render("verify_fixes", review, force_context: true, discussion: discussion)
   end
 
   # Świeża sesja Z ZAŁOŻENIA (nie przez przypadek): cała wartość weryfikacji
@@ -41,19 +45,36 @@ class PromptBuilder
   # po prostu zniknął (sprzątanie Claude CLI po ~30 dniach, usunięty worktree →
   # inny slug katalogu). Bez tego prompt obiecywałby sesji kontekst, którego nie ma,
   # a kazał nadpisać cały result.json — czyli skasować poprzednie znaleziska.
-  def self.followup(review, message, resumed:)
-    render("followup", review, force_context: !resumed, message: message, resumed: resumed)
+  def self.followup(review, message, resumed:, discussion: nil)
+    render("followup", review, force_context: !resumed, message: message, resumed: resumed,
+                               discussion: discussion)
   end
 
   # Bez cache'owania _style.md: prompt renderujemy kilka razy na review, a edycja
   # zasad ma działać bez restartu apki.
-  def self.render(name, review, force_context: false, **extra)
+  #
+  # Dwie zmienne z jednej dyskusji, bo szablony potrzebują jej w dwóch postaciach:
+  # `discussion_section` to gotowa sekcja dla review i followupu, `discussion` to sam
+  # obiekt — verify_fixes wypisuje odpowiedzi PRZY konkretnym znalezisku, nie hurtem.
+  def self.render(name, review, force_context: false, discussion: nil, **extra)
     template = File.read(TEMPLATES_DIR.join("#{name}.md.erb"))
     ERB.new(template, trim_mode: "-")
        .result_with_hash(review: review, style: File.read(STYLE_PATH),
-                         switched_context: switched_context(review, force: force_context), **extra)
+                         switched_context: switched_context(review, force: force_context),
+                         discussion: discussion, discussion_section: discussion_section(discussion),
+                         **extra)
   end
   private_class_method :render
+
+  # Pusty string, gdy nie ma czego cytować — sama moja pinezka bez odpowiedzi nie jest
+  # dyskusją (patrz PrDiscussion#any?), a pusty nagłówek w prompcie tylko myli sesję.
+  def self.discussion_section(discussion)
+    return "" unless discussion&.any?
+
+    ERB.new(File.read(TEMPLATES_DIR.join("_discussion.md.erb")), trim_mode: "-")
+       .result_with_hash(discussion: discussion)
+  end
+  private_class_method :discussion_section
 
   # Pusty string, dopóki review siedzi na tym samym koncie, a sesja niesie własną
   # historię. Po przełączeniu sekcja idzie do promptu nawet wtedy, gdy sesję udało

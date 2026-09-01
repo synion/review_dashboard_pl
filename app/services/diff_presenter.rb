@@ -1,29 +1,15 @@
 # Trzy warstwy widoku zmian w jednej strukturze: linie diffu, komentarze ludzi
 # z GitHuba i znaleziska Claude'a. Kotwiczenie żyje tutaj, żeby widok tylko rysował
 # to, co dostał, a testy mogły sprawdzić „co przy której linii" bez HTML-a.
+#
+# Same wątki składa PrDiscussion — ta sama struktura jedzie do promptów sesji,
+# więc „co jest odpowiedzią na co" nie może się rozjechać między widokiem a promptem.
 class DiffPresenter
   MODES = %w[unified split].freeze
   DEFAULT_MODE = "unified".freeze
   # Powyżej tego progu plik czeka na kliknięcie: kilka tysięcy wierszy tabeli na
   # plik potrafi zamulić przeglądarkę, a przy takim diffie i tak ogląda się fragmenty.
   MAX_PATCH_LINES = 1000
-
-  # Wątek dyskusji: komentarz zakładający + odpowiedzi. Kotwica należy do korzenia —
-  # odpowiedzi na GitHubie nie niosą własnej pozycji w diffie.
-  CommentThread = Data.define(:root, :replies) do
-    def id = root["id"]
-    def size = replies.size + 1
-    def path = root["path"]
-    def side = root["side"].presence || "RIGHT"
-    def line = root["line"] || root["original_line"]
-    def file_level? = root["subject_type"] == "file"
-
-    # `position: null` znaczy, że linia wypadła z bieżącego diffu. Taki komentarz
-    # ma numer linii sprzed zmian i przypięty do wiersza kłamałby o tym, czego dotyczy.
-    def outdated? = !file_level? && root["position"].nil?
-
-    def anchored? = !file_level? && !outdated? && line.present?
-  end
 
   UnifiedRow = Data.define(:kind, :left, :right, :text, :threads, :findings)
   SplitRow = Data.define(:left, :right, :threads, :findings)
@@ -41,6 +27,7 @@ class DiffPresenter
     @findings = findings.to_a
     @mode = MODES.include?(mode.to_s) ? mode.to_s : DEFAULT_MODE
     @expanded = Array(expanded)
+    @discussion = PrDiscussion.new(snapshot)
   end
 
   def files = @files ||= @snapshot.files.map { |file| build_file(file) }
@@ -192,35 +179,9 @@ class DiffPresenter
     end
   end
 
-  def threads
-    @threads ||= begin
-      by_id = @snapshot.review_comments.index_by { |comment| comment["id"] }
-      grouped = @snapshot.review_comments.group_by { |comment| root_id(comment, by_id) }
-
-      grouped.filter_map do |id, comments|
-        root = by_id[id] || comments.min_by { |comment| comment["created_at"].to_s }
-        replies = (comments - [ root ]).sort_by { |comment| comment["created_at"].to_s }
-        CommentThread.new(root: root, replies: replies)
-      end
-    end
-  end
+  def threads = @discussion.threads
 
   def anchored_threads
     @anchored_threads ||= threads.select(&:anchored?).group_by { |thread| [ thread.path, thread.side, thread.line ] }
-  end
-
-  # GitHub wskazuje korzeniem wątku pierwszy komentarz, ale odpowiedź na odpowiedź
-  # potrafi wskazywać ogniwo pośrednie — idziemy w górę, z zabezpieczeniem przed
-  # zapętleniem na uszkodzonych danych.
-  def root_id(comment, by_id)
-    id = comment["id"]
-    seen = Set.new
-
-    while (parent = by_id[comment["in_reply_to_id"]]) && seen.add?(id)
-      comment = parent
-      id = comment["id"]
-    end
-
-    id
   end
 end

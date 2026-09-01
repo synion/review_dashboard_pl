@@ -3,6 +3,10 @@ require_relative "../config/environment"
 require "rails/test_help"
 require "minitest/mock"
 
+# Zaślepki dzielone przez kilka testów (np. FakeGithubClient) — Rails nie autoloaduje
+# katalogu testowego, więc wciągamy je raz tutaj.
+Dir[Rails.root.join("test/support/**/*.rb")].each { |path| require path }
+
 module ActiveSupport
   class TestCase
     # Bez równoległości: testy piszą do wspólnego storage/reviews/<fixture_id>

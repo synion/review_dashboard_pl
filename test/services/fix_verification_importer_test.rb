@@ -62,4 +62,13 @@ class FixVerificationImporterTest < ActiveSupport::TestCase
 
     assert_equal "implemented", @first.reload.fix_status
   end
+
+  # `answered` to świadoma decyzja autora uzasadniona na PR-ze — bez tego statusu
+  # lądowała jako „zignorowane" i wracała do niego jako zarzut „nie zrobiłeś".
+  test "przyjmuje werdykt answered" do
+    FixVerificationImporter.import(@review, { "fixes" => [ { "id" => @first.id, "status" => "answered",
+                                                             "note" => "dług z mastera, nie regresja" } ] })
+
+    assert_equal [ "answered", "dług z mastera, nie regresja" ], [ @first.reload.fix_status, @first.fix_note ]
+  end
 end

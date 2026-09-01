@@ -126,6 +126,7 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 /* Werdykt weryfikacji poprawek na znalezisku — te same kolory co statusy review,
    bo znaczą to samo: zielone = zrobione, czerwone = zostało, szare = nie wiadomo. */
 .fix-implemented { background: var(--done-bg); color: var(--ok); }
+.fix-answered { background: var(--badge-bg); color: var(--accent); }
 .fix-ignored { background: var(--err-bg); color: var(--danger); }
 .fix-unclear { background: var(--badge-bg); color: var(--muted); }
 .verdict-confirmed { background: var(--done-bg); color: var(--ok); }

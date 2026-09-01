@@ -81,6 +81,13 @@ class GithubClient
     pr_view(pr_url, fields: "headRefOid", repo_dir: repo_dir)["headRefOid"]
   end
 
+  # Login autora PR-a. Prompty sesji muszą odróżnić argument AUTORA („zostawiam
+  # świadomie, bo…") od uwagi kogoś trzeciego — bez tego odpowiedź w wątku waży tyle
+  # samo co przypadkowy komentarz.
+  def pr_author(pr_url, repo_dir:)
+    pr_view(pr_url, fields: "author", repo_dir: repo_dir).dig("author", "login")
+  end
+
   def pr_diff(pr_url, repo_dir:)
     run!([ "gh", "pr", "diff", pr_url ], label: "gh pr diff", chdir: repo_dir).stdout
   end

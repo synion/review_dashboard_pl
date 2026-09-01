@@ -10,9 +10,15 @@ class Finding < ApplicationRecord
   # Wynik weryfikacji poprawek autora. `unclear` jest osobnym stanem, nie brakiem
   # odpowiedzi: „z diffu nie wynika, czy to zaadresowane" to informacja dla człowieka.
   # nil znaczy „jeszcze nie sprawdzaliśmy".
-  FIX_STATUSES = %w[implemented ignored unclear].freeze
-  FIX_LABELS = { "implemented" => "✓ wdrożone", "ignored" => "✗ zignorowane",
-                 "unclear" => "? niejasne" }.freeze
+  #
+  # `answered` to NIE poprawka: autor zostawił kod, ale na PR-ze uzasadnił dlaczego,
+  # a uzasadnienie się broni. Bez tego stanu świadoma decyzja autora lądowała jako
+  # „✗ zignorowane" — czerwony badge, który przy ponownym review wracał do niego
+  # jako zarzut „nie zrobiłeś". Uzasadnienie, które się NIE broni, zostaje `ignored`
+  # z kontrargumentem w `fix_note`.
+  FIX_STATUSES = %w[implemented answered ignored unclear].freeze
+  FIX_LABELS = { "implemented" => "✓ wdrożone", "answered" => "💬 autor uzasadnił",
+                 "ignored" => "✗ zignorowane", "unclear" => "? niejasne" }.freeze
 
   # Werdykt świeżej sesji o zasadności SAMEJ UWAGI — osobno od fix_status, który
   # mówi o losie poprawki autora. `disputed` to nie brak odpowiedzi: „kwestia

@@ -285,4 +285,67 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes prompt, "verdicts.json"
     assert_includes prompt, "`sl-fix-vat`"
   end
+
+  # --- rozmowa z PR-a w prompcie ---
+
+  def discussion(review_comments:, issue_comments: [])
+    snapshot = PrSnapshot.new("fetched_at" => "2026-09-01T10:00:00Z", "files" => [],
+                              "review_comments" => review_comments, "issue_comments" => issue_comments,
+                              "author" => "autorka", "viewer" => "reviewerka")
+    PrDiscussion.new(snapshot)
+  end
+
+  def pin(finding, id:)
+    { "id" => id, "path" => "app/models/invoice.rb", "line" => 12, "position" => 3,
+      "subject_type" => "line", "user" => "reviewerka", "created_at" => "2026-08-29T10:00:00Z",
+      "body" => "#{InlineComments.header_for(finding)}\n\n#{finding.body}" }
+  end
+
+  def reply(to:, body: "Zostawiam świadomie — dług z mastera.")
+    { "id" => to + 1, "in_reply_to_id" => to, "user" => "autorka",
+      "created_at" => "2026-08-30T10:00:00Z", "body" => body }
+  end
+
+  test "review z rozmową z PR-a cytuje autora i zakazuje powtarzania wyjaśnionej uwagi" do
+    prompt = PromptBuilder.review(reviews(:pr_review),
+                                  discussion: discussion(review_comments: [ pin(finding_for_pin, id: 1), reply(to: 1) ]))
+
+    assert_includes prompt, "Dyskusja na PR-ze"
+    assert_includes prompt, "autor PR-a (autorka)"
+    assert_includes prompt, "Zostawiam świadomie — dług z mastera."
+    assert_includes prompt, "Nigdy nie powtarzaj uwagi"
+  end
+
+  test "review bez rozmowy nie niesie pustej sekcji o niej" do
+    assert_not_includes PromptBuilder.review(reviews(:pr_review)), "Dyskusja na PR-ze"
+  end
+
+  # Sama moja pinezka nie jest rozmową — jej treść sesja ma w liście znalezisk.
+  test "pinezka bez odpowiedzi nie otwiera sekcji dyskusji" do
+    prompt = PromptBuilder.review(reviews(:pr_review),
+                                  discussion: discussion(review_comments: [ pin(finding_for_pin, id: 1) ]))
+
+    assert_not_includes prompt, "Dyskusja na PR-ze"
+  end
+
+  # Weryfikacja poprawek orzeka per znalezisko, więc odpowiedź musi stać PRZY nim,
+  # nie w zbiorczej sekcji na końcu.
+  test "verify_fixes stawia odpowiedź autora przy znalezisku i zna status answered" do
+    review = reviews(:pr_review)
+    review.update!(decision_head_sha: "aaa1111", branch: "sl-fix")
+    finding = review.findings.create!(priority: "critical", title: "Nil w kalkulacji VAT", body: "Problem: nil")
+    talk = discussion(review_comments: [ pin(finding, id: 1), reply(to: 1) ])
+
+    prompt = PromptBuilder.verify_fixes(review, discussion: talk)
+    body, = prompt.split("## Czego oczekuję")
+
+    assert_includes body, "Odpowiedzi na PR-ze pod tą uwagą"
+    assert_includes body, "Zostawiam świadomie — dług z mastera."
+    assert_includes prompt, "`answered`"
+  end
+
+  def finding_for_pin
+    Finding.new(priority: "critical", title: "Nil w kalkulacji VAT", body: "Problem: nil",
+                file_location: "app/models/invoice.rb:12")
+  end
 end

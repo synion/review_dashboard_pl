@@ -30,8 +30,16 @@ class InlineComments
   end
   private_class_method :range_for
 
+  # Pierwsza linia komentarza — priorytet i tytuł znaleziska. Publiczna, bo po niej
+  # PrDiscussion poznaje na PR-ze WŁASNE pinezki i wiąże wątek ze znaleziskiem:
+  # GitHub przy publikacji review nie zwraca id utworzonych komentarzy, więc treść
+  # jest jedynym kluczem — i jedynym, który działa też wstecz.
+  def self.header_for(finding)
+    "#{MARKS[finding.priority]} **#{Finding::PRIORITY_LABELS[finding.priority]} — #{finding.title}**"
+  end
+
   def self.body_for(finding)
-    "#{MARKS[finding.priority]} **#{Finding::PRIORITY_LABELS[finding.priority]} — #{finding.title}**\n\n#{finding.body}"
+    "#{header_for(finding)}\n\n#{finding.body}"
   end
   private_class_method :body_for
 end

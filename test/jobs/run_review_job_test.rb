@@ -23,14 +23,14 @@ class RunReviewJobTest < ActiveSupport::TestCase
   end
 
   test "sukces: importuje wynik i ustawia reviewed" do
-    RunReviewJob.perform_now(@review, session_factory: session_writing_result(summary: "OK", findings: [], playwright: nil))
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: session_writing_result(summary: "OK", findings: [], playwright: nil))
     assert_equal "reviewed", @review.reload.status
     assert_equal "OK", @review.summary
   end
 
   test "sesja nie zapisała result.json → failed z czytelnym komunikatem" do
     factory = ->(_run) { Object.new.tap { |s| s.define_singleton_method(:call) { |_p| "gadanie bez pliku" } } }
-    RunReviewJob.perform_now(@review, session_factory: factory)
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: factory)
     @review.reload
     assert_equal "failed", @review.status
     assert_includes @review.error_message, "result.json"
@@ -38,7 +38,7 @@ class RunReviewJobTest < ActiveSupport::TestCase
 
   test "sesja rzuca Failed → failed" do
     factory = ->(_run) { Object.new.tap { |s| s.define_singleton_method(:call) { |_p| raise ClaudeSessionRunner::Failed, "timeout" } } }
-    RunReviewJob.perform_now(@review, session_factory: factory)
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: factory)
     assert_equal "failed", @review.reload.status
   end
 
@@ -58,7 +58,7 @@ class RunReviewJobTest < ActiveSupport::TestCase
         end
       end
     end
-    RunReviewJob.perform_now(@review, session_factory: factory)
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: factory)
     assert_equal({ calls: 2, status: "reviewed", runs: 2 },
                  { calls: calls, status: @review.reload.status, runs: @review.claude_runs.where(kind: "review").count })
   end
@@ -70,7 +70,7 @@ class RunReviewJobTest < ActiveSupport::TestCase
         s.define_singleton_method(:call) { |_p| calls += 1; raise ClaudeSessionRunner::Stalled, "cisza" }
       end
     end
-    RunReviewJob.perform_now(@review, session_factory: factory)
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: factory)
     assert_equal({ calls: RunReviewJob::MAX_ATTEMPTS, status: "failed" }, { calls: calls, status: @review.reload.status })
   end
 
@@ -86,7 +86,7 @@ class RunReviewJobTest < ActiveSupport::TestCase
         end
       end
     end
-    RunReviewJob.perform_now(@review, session_factory: factory)
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: factory)
     assert_equal [ "decided", nil ], [ @review.reload.status, @review.error_message ]
   end
 
@@ -97,7 +97,37 @@ class RunReviewJobTest < ActiveSupport::TestCase
         s.define_singleton_method(:call) { |_p| calls += 1; raise ClaudeSessionRunner::Failed, "exit 1" }
       end
     end
-    RunReviewJob.perform_now(@review, session_factory: factory)
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: factory)
     assert_equal({ calls: 1, status: "failed" }, { calls: calls, status: @review.reload.status })
+  end
+
+
+  # Wątek na PR-ze: moja pinezka i odpowiedź autora pod nią.
+  def answered_thread
+    [ { "id" => 1, "path" => "app/x.rb", "line" => 3, "position" => 2, "subject_type" => "line",
+        "user" => "reviewerka", "body" => "moja uwaga", "created_at" => "2026-08-29T10:00:00Z" },
+      { "id" => 2, "in_reply_to_id" => 1, "user" => "autorka", "created_at" => "2026-08-30T10:00:00Z",
+        "body" => "Świadome — nie przywracam." } ]
+  end
+
+  # Świeże review też nie może zgłaszać rzeczy już wyjaśnionej na PR-ze.
+  test "prompt review niesie rozmowę z PR-a" do
+    prompts = []
+    factory = lambda do |_run|
+      path = @review.artifacts_dir.join("result.json")
+      Object.new.tap do |s|
+        s.define_singleton_method(:call) do |prompt|
+          prompts << prompt
+          File.write(path, { summary: "OK", findings: [], playwright: nil }.to_json)
+          "done"
+        end
+      end
+    end
+
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new(review_comments: answered_thread),
+                                      session_factory: factory)
+
+    assert_includes prompts.sole, "Dyskusja na PR-ze"
+    assert_includes prompts.sole, "Świadome — nie przywracam."
   end
 end
