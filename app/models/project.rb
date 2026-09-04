@@ -53,12 +53,17 @@ class Project < ApplicationRecord
   validates :default_effort, inclusion: { in: Review::EFFORTS }, allow_blank: true
   validates :repo_url, format: { with: GITHUB_REPO_URL, message: "musi być adresem repozytorium na GitHubie" },
                        allow_blank: true
-  # Komendy trafiają do `format(cmd, branch: ...)` w WorktreeManager. Zła literówka
+  # Wszystkie trzy wzorce trafiają do `format(..., branch: ...)`. Zła literówka
   # w kluczu (%{brnach}) albo goły procent (KeyError/TypeError) nie są łapane przez
   # WorktreeManager::Error — bez tej walidacji ujawniają się dopiero przy próbie
   # usunięcia review, już po skasowaniu jego artefaktów (remove_artifacts idzie przed
   # remove_worktree w before_destroy).
-  validate :worktree_commands_are_formattable
+  validate :worktree_patterns_are_formattable
+  # Adres środowiska dev jest linkiem w widoku review — bez schematu przeglądarka
+  # potraktowałaby go jako ścieżkę względną dashboardu i klik prowadziłby donikąd.
+  validates :worktree_url_template, format: { with: %r{\Ahttps?://},
+                                              message: "musi zaczynać się od http:// albo https://" },
+                                    allow_blank: true
   # Komenda skopiowana z innego projektu (bin/worktree-docker vs bin/worktree)
   # wybuchała dopiero przy pierwszym review — jako failed z "no such file or
   # directory". Sprawdzamy istnienie skryptu już przy zapisie projektu.
@@ -101,6 +106,15 @@ class Project < ApplicationRecord
     "#{match[:owner]}/#{match[:repo]}" if match
   end
 
+  # Adres środowiska dev, które skrypt worktree stawia dla brancha (np.
+  # https://%{branch}.dev.example.test/). Składany, a nie trzymany per review:
+  # wzorzec jest cechą projektu, a branch i tak siedzi już w bazie.
+  def worktree_url(branch)
+    return if worktree_url_template.blank? || branch.blank?
+
+    format_branch(worktree_url_template, branch)
+  end
+
   # Host API trackera wycinany z prefiksu zadań (np. https://tracker.example.com/organize/tasks/
   # → https://tracker.example.com) — osobne pole byłoby drugim miejscem na tę samą prawdę.
   def intum_base_url
@@ -124,14 +138,24 @@ class Project < ApplicationRecord
 
   private
 
-  def worktree_commands_are_formattable
-    %i[worktree_command worktree_delete_command].each do |attr|
-      next if self[attr].blank?
+  # Wspólna jest sama formatowalność wzorca, nie znaczenie podstawianej wartości:
+  # w komendzie shellowej branch jest argumentem, w adresie — fragmentem hosta.
+  def worktree_patterns_are_formattable
+    %i[worktree_command worktree_delete_command worktree_url_template].each do |attr|
+      next if self[attr].blank? || format_branch(self[attr], "example-branch")
 
-      format(self[attr], branch: "example-branch")
-    rescue ArgumentError, KeyError, TypeError
       errors.add(attr, "ma zły wzorzec — użyj %{branch}, a znak procenta zapisz jako %%")
     end
+  end
+
+  # Jedyne miejsce podstawiające branch do wzorca. nil = wzorzec jest zepsuty
+  # (literówka w %{branch}, goły procent); walidacja robi z tego błąd formularza,
+  # a widok — brak linku. Walidacja nie chroni wierszy zapisanych `update_column`
+  # ani wprost SQL-em, więc 500 na widoku review byłoby realne.
+  def format_branch(pattern, branch)
+    format(pattern, branch: branch)
+  rescue ArgumentError, KeyError, TypeError
+    nil
   end
 
   def worktree_setup_changed?

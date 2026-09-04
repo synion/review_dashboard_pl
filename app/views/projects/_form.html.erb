@@ -106,6 +106,15 @@
       <%= f.text_field :worktree_delete_command, placeholder: "bin/worktree-docker -d %{branch} --force" %>
       <span class="hint">Bez niej dashboard nie pokaże przycisku „Usuń worktree".</span>
     </div>
+    <div class="field">
+      <%= f.label :worktree_url_template, "Adres środowiska dev worktree" %>
+      <%= f.text_field :worktree_url_template, placeholder: "https://%{branch}.dev.example.test/" %>
+      <span class="hint">Po co: w review i w podglądzie zmian pojawi się link „Apka z tego brancha"
+        — wejście do działającej wersji bez szukania adresu. <code>%{branch}</code> podmieniamy
+        na nazwę brancha (dosłownie, tak jak w komendach wyżej) — branch z ukośnikiem
+        (<code>feature/x</code>) rozjedzie adres, bo trafi do niego bez zmian.
+        Puste = brak linku.</span>
+    </div>
     <%= f.submit class: "btn btn-primary btn-big" %>
   <% end %>
 </div>

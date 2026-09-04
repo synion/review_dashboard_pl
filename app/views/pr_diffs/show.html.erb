@@ -5,7 +5,6 @@
 <div id="review_<%= @review.id %>_diff">
   <div class="nav-back">
     <%= link_to "← wróć do review", review_path(@review) %>
-    <%= link_to "PR na GitHubie ↗", @review.pr_url, target: "_blank" %>
   </div>
 
   <div class="pagehead">
@@ -17,6 +16,17 @@
       <span class="muted"><%= @review.pr_title %></span>
     </p>
   </div>
+
+  <%# Ten sam pasek wyjść co na widoku review i w tym samym miejscu (pod nagłówkiem):
+      z diffu równie często wychodzi się na GitHuba i do działającej apki. Warunek na
+      całość, bo pusty <p> dokłada sam margines — selfreview bywa bez PR-a i bez worktree. %>
+  <% env_url = @review.worktree_url %>
+  <% if @review.pr_url.present? || env_url %>
+    <p class="review-links">
+      <%= external_link_to "PR na GitHubie", @review.pr_url %>
+      <%= external_link_to "🖥 Apka z tego brancha", env_url %>
+    </p>
+  <% end %>
 
   <% if @presenter %>
     <div class="diff-toolbar">

@@ -100,6 +100,15 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", remove_worktree_review_path(review)
   end
 
+  test "show linkuje do środowiska dev worktree" do
+    review = reviews(:pr_review)
+    review.project.update!(worktree_url_template: "https://%{branch}.dev.example.test/")
+    review.update!(branch: "sl-fix-vat", worktree_path: Dir.tmpdir)
+
+    get review_path(review)
+    assert_select "p.review-links a[href=?]", "https://sl-fix-vat.dev.example.test/"
+  end
+
   test "lista odróżnia review czekające w kolejce od pracującego" do
     reviews(:pr_review).update!(status: "reviewing")
     get project_reviews_path(@project)

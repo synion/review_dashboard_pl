@@ -49,6 +49,15 @@ class PrDiffsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".diff-file-head", text: /app\/models\/invoice\.rb/
   end
 
+  test "podgląd zmian linkuje do środowiska dev worktree" do
+    write_snapshot
+    @review.project.update!(worktree_url_template: "https://%{branch}.dev.example.test/")
+    @review.update!(branch: "sl-fix-vat", worktree_path: Dir.tmpdir)
+
+    get diff_review_path(@review)
+    assert_select "p.review-links a[href=?]", "https://sl-fix-vat.dev.example.test/"
+  end
+
   test "komentarz z GitHuba ląduje przy swojej linii" do
     write_snapshot(review_comments: [ { "id" => 1, "path" => "app/models/invoice.rb", "line" => 12,
                                         "side" => "RIGHT", "position" => 3, "subject_type" => "line",

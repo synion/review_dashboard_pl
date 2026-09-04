@@ -7,6 +7,9 @@
      tekstem na tintowanych badge'ach (info/done/err-bg) — z -600 kontrast spadał
      do 3.0–4.2, poniżej AA 4.5. */
   --accent: light-dark(#1d4ed8, #60a5fa);
+  /* Hover linku: w jasnym motywie ciemniej, w ciemnym jaśniej — obie strony
+     „mocniej", bo to ten sam sygnał, a nie ten sam kierunek jasności. */
+  --accent-strong: light-dark(#1e3a8a, #93c5fd);
   --danger: light-dark(#b91c1c, #f87171);
   --ok: light-dark(#15803d, #4ade80);
   --warn: light-dark(#a16207, #fbbf24);
@@ -45,8 +48,10 @@ body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background:
 /* Bez tej reguły linki bez klasy dostają domyślny granat przeglądarki, nieczytelny
    na ciemnym tle. Celowo bez a:visited — fiolet UA i tak przegrywa z regułą autora
    (kaskada wg originu), a a:visited (0,1,1) wygrywałby z klasami typu .btn-primary
-   (0,1,0) i malował tekst odwiedzonych linków-przycisków kolorem tła. */
-a { color: var(--accent); }
+   (0,1,0) i malował tekst odwiedzonych linków-przycisków kolorem tła.
+   Offset podkreślenia globalnie: domyślne przecina ogonki liter (y, g, ą, ę),
+   przez co linki w tekście czytają się jak przekreślone. */
+a { color: var(--accent); text-underline-offset: 3px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 700; color: var(--fg); text-decoration: none; font-size: 18px; }
 .topbar nav { font-size: 14px; }
@@ -79,8 +84,11 @@ a { color: var(--accent); }
 .flash { padding: 10px 24px; }
 .flash-error, .flash-alert { background: var(--err-bg); color: var(--danger); }
 .flash-notice { background: var(--done-bg); color: var(--ok); }
-.nav-back { font-size: 13px; margin: 0 0 4px; }
-.nav-back a { color: var(--muted); }
+/* Linki dzieli w HTML-u tylko biały znak, więc bez flexa i gapa zlewały się
+   w jeden ciąg. Kolor akcentu zamiast muted: to jedyna droga powrotu ze strony,
+   a w szarości wyglądała jak podpis pod nagłówkiem. */
+.nav-back { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; margin: 0 0 8px; }
+.nav-back a { color: var(--accent); font-weight: 500; }
 /* Pasek akcji: button_to renderuje blokowy <form>, więc bez flexa każdy przycisk
    zjeżdżał do osobnej linii. Filtr odpychamy na prawo — jest częściej czytany niż
    klikany. */
@@ -287,7 +295,9 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
    liczba wymagająca akcji. */
 .count-zero, .count-zero b { color: var(--line); }
 .projcard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.link-quiet { font-size: 13px; color: var(--muted); }
+/* Cichy rozmiarem, nie kolorem: obok wypełnionego „+ Nowy review" szary tekst
+   przestawał wyglądać na klikalny. */
+.link-quiet { font-size: 13px; color: var(--accent); }
 .projmeta { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 12px; }
 /* min-width: 0 dopuszcza skrócenie flex-itemu poniżej jego treści — bez tego
    ellipsis nigdy nie zadziała i ścieżka rozpycha kafelek. */
@@ -314,12 +324,16 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 /* Ruch na PR-ze po wysłanej decyzji — jedyna komórka daty, która ma krzyczeć. */
 table#reviews td.pr-activity-cell .pr-activity-fresh { color: var(--warn); font-weight: 600; }
 .done-hint { margin-left: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-/* Strona jednego review: tytuł, stan i meta w jednym bloku, linki wychodzące osobno
-   i ściszone — to nawigacja, nie treść. */
+/* Strona jednego review: tytuł, stan i meta w jednym bloku, linki wychodzące osobno. */
 .pagehead .status-badge { font-size: 13px; }
-.review-links { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 16px; font-size: 13px; }
-.review-links a { color: var(--muted); }
-.review-links a:hover { color: var(--accent); }
+.review-links { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 10px 0 18px; font-size: 14px; }
+/* 600 na stałe, nie pogrubienie dopiero na hover: zmiana grubości w rzędzie flex
+   przesuwa sąsiednie linki spod kursora. Sygnał hovera niosą kolor i grubsza linia.
+   Szary kolor odpadł — to pasek akcji („Podgląd zmian", wejście do apki), a nie
+   przypis, więc ma być widoczny bez szukania. */
+.review-links a { color: var(--accent); font-weight: 600; padding: 2px 0; }
+/* Jeden sygnał hovera dla obu pasków linków — zmieniają się razem, więc i reguła jedna. */
+.nav-back a:hover, .review-links a:hover { color: var(--accent-strong); text-decoration-thickness: 2px; }
 /* Postęp sesji: monospace, bo to surowe linie z modelu, i bez rozpychania karty przy
    długim komunikacie. */
 .progress-line { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; }
@@ -425,7 +439,7 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .diff-toolbar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
 .diff-toolbar form.button_to { margin: 0; }
 .diff-toolbar .muted { margin-left: auto; font-size: 13px; }
-.diff-modes { display: inline-flex; gap: 4px; }
+.diff-modes { display: inline-flex; gap: 8px; }
 .pill-on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
 .diff-file { padding: 0; overflow: hidden; }
@@ -471,6 +485,10 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .diff-comment + .diff-reply, .diff-reply + .diff-reply { margin-top: 8px; }
 .diff-reply { margin-left: 20px; border-left: 2px solid var(--line); padding-left: 10px; }
 .diff-comment-meta { margin: 0 0 4px; font-size: 13px; display: flex; gap: 8px; align-items: baseline; }
+/* Chip „↗" (klasa .pill w widoku) dostaje tylko to, czego .pill nie ma: brak
+   podkreślenia linku i hover taki jak przy kaflach kolejki (.qext). */
+.diff-comment-meta .pill { text-decoration: none; }
+.diff-comment-meta .pill:hover { border-color: var(--accent); color: var(--accent); background: var(--info-bg); }
 .diff-comment-body > *:first-child { margin-top: 0; }
 .diff-comment-body > *:last-child { margin-bottom: 0; }
 .diff-annotation .finding { margin: 0; }

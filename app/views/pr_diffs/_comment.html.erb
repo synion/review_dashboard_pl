@@ -4,7 +4,10 @@
     <% if comment["created_at"].present? %>
       <span class="muted"><%= l Time.zone.parse(comment["created_at"]), format: :short %></span>
     <% end %>
-    <% if comment["html_url"].present? %><%= link_to "↗", comment["html_url"], target: "_blank" %><% end %>
+    <%# .pill, a nie własna reguła: to ten sam obramowany chip co przy kaflach kolejki,
+        a sam znak „↗" bez tła był celem wielkości kilku pikseli. %>
+    <%= link_to "↗", comment["html_url"], class: "pill", target: "_blank", rel: "noopener",
+          title: "Otwórz komentarz na GitHubie" if comment["html_url"].present? %>
   </p>
   <div class="diff-comment-body"><%= markdown comment["body"] %></div>
 </div>

@@ -106,6 +106,7 @@ Wszystko klika się w UI (**Nowy projekt**). Pola:
 | Ścieżka repo (`repo_path`) | tak | absolutna ścieżka do repo na dysku |
 | Komenda worktree | tak | np. `bin/worktree-docker %{branch}` — `%{branch}` to placeholder, literalny procent zapisz jako `%%` |
 | Komenda usuwania worktree | nie | np. `bin/worktree-docker -d %{branch}` — bez niej dashboard nie posprząta worktree po usunięciu review |
+| Adres środowiska dev (`worktree_url_template`) | nie | np. `https://%{branch}.dev.example.test/` — w review i w podglądzie zmian pojawia się link „Apka z tego brancha", czyli wejście do działającej wersji kodu. Puste = brak linku |
 | Adres repo na GitHubie | nie | pilnuje, żeby wklejony PR należał do tego projektu |
 | Domyślny config / model / effort | config: tak | wartości startowe formularza nowego review |
 | Prefiks adresu zadania (`task_url_prefix`) | nie | link do zadania jest wyłuskiwany z opisu PR-a i wpisywany w formularz review; puste = wyłączone |
@@ -118,7 +119,9 @@ Wszystko klika się w UI (**Nowy projekt**). Pola:
 **Kontrakt na skrypt worktree:** dostaje nazwę brancha, tworzy działający worktree
 (z configami i bazą — surowy `git worktree add` nie wystarcza) i wypisuje go tak,
 żeby był widoczny w `git worktree list`. Dashboard waliduje przy zapisie, czy
-skrypt istnieje i czy wzorzec `%{branch}` jest poprawny.
+skrypt istnieje i czy wzorzec `%{branch}` jest poprawny. Jeśli skrypt stawia też
+środowisko dev pod adresem wyprowadzonym z nazwy brancha, wpisz ten adres jako
+wzorzec — dashboard złoży z niego link i pokaże go, dopóki katalog worktree stoi.
 
 ---
 

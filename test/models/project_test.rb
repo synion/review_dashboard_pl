@@ -56,6 +56,49 @@ class ProjectTest < ActiveSupport::TestCase
     assert project.valid?, project.errors.full_messages.to_sentence
   end
 
+  # Link „Apka z tego brancha" prowadzi do środowiska dev postawionego przez skrypt
+  # worktree — adres składamy z wzorca projektu, a nie trzymamy per review.
+  test "worktree_url podmienia %{branch} we wzorcu adresu środowiska" do
+    project = projects(:webapp)
+    project.worktree_url_template = "https://%{branch}.dev.example.test/"
+
+    assert_equal "https://sl-123-vat.dev.example.test/", project.worktree_url("sl-123-vat")
+  end
+
+  test "worktree_url jest nil bez wzorca albo bez brancha" do
+    project = projects(:webapp)
+
+    assert_nil project.worktree_url("sl-123-vat")
+
+    project.worktree_url_template = "https://%{branch}.dev.example.test/"
+    assert_nil project.worktree_url(nil)
+    assert_nil project.worktree_url("")
+  end
+
+  # Wzorce zapisane przed walidacją (albo przez update_column) dalej siedzą w bazie —
+  # brak linku jest lepszy niż 500 na widoku review.
+  test "worktree_url zwraca nil zamiast wybuchać na zepsutym wzorcu" do
+    project = projects(:webapp)
+    project.update_column(:worktree_url_template, "https://%{brnach}.dev.example.test/")
+
+    assert_nil project.reload.worktree_url("sl-123-vat")
+  end
+
+  test "odrzuca adres środowiska bez schematu i z literówką w %{branch}" do
+    project = projects(:webapp)
+
+    project.worktree_url_template = "%{branch}.dev.example.test"
+    assert_not project.valid?
+    assert_includes project.errors[:worktree_url_template], "musi zaczynać się od http:// albo https://"
+
+    project.worktree_url_template = "https://%{brnach}.dev.example.test/"
+    assert_not project.valid?
+    assert_match(/zły wzorzec/, project.errors[:worktree_url_template].to_sentence)
+
+    project.worktree_url_template = ""
+    assert project.valid?, project.errors.full_messages.to_sentence
+  end
+
   test "github_slug wyciąga owner i repo z adresu repozytorium" do
     project = projects(:webapp)
 

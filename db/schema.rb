@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_05_090001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_090001) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -114,6 +114,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_090001) do
     t.datetime "updated_at", null: false
     t.string "worktree_command"
     t.string "worktree_delete_command"
+    t.string "worktree_url_template"
   end
 
   create_table "reviews", force: :cascade do |t|

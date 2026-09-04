@@ -513,6 +513,16 @@ class Review < ApplicationRecord
     own_worktree_path.present? && Dir.exist?(own_worktree_path)
   end
 
+  # Adres środowiska dev postawionego przez skrypt worktree (wzorzec z projektu,
+  # host z nazwy brancha) — po to, żeby z review dało się wejść w działającą apkę
+  # i sprawdzić coś samemu. Warunek na istnienie katalogu jest celowy: skasowany
+  # worktree zabiera ze sobą środowisko, a martwy link myli bardziej niż jego brak.
+  def worktree_url
+    return unless worktree_exists?
+
+    project.worktree_url(branch)
+  end
+
   # Własne worktree review — katalog inny niż główne repo projektu, który da się usunąć
   # komendą projektu. Warunek na worktree_delete_command jest twardy: bez niego
   # format(nil, branch:) sypie NoMethodError zamiast czytelnego błędu.

@@ -135,6 +135,24 @@ class ReviewTest < ActiveSupport::TestCase
     assert_not review.worktree_exists?
   end
 
+  test "worktree_url daje adres tylko wtedy, gdy katalog worktree stoi" do
+    review = reviews(:pr_review)
+    review.project.update!(worktree_url_template: "https://%{branch}.dev.example.test/")
+    review.update!(branch: "sl-123-vat", worktree_path: Dir.tmpdir)
+
+    assert_equal "https://sl-123-vat.dev.example.test/", review.worktree_url
+
+    review.update!(worktree_path: File.join(Dir.tmpdir, "nie-ma-mnie-#{review.id}"))
+    assert_nil review.worktree_url
+  end
+
+  test "worktree_url jest nil, gdy projekt nie zna adresu środowiska" do
+    review = reviews(:pr_review)
+    review.update!(branch: "sl-123-vat", worktree_path: Dir.tmpdir)
+
+    assert_nil review.worktree_url
+  end
+
   test "artifacts_dir wskazuje na storage/reviews/<id>" do
     review = reviews(:pr_review)
     assert_equal Rails.root.join("storage", "reviews", review.id.to_s), review.artifacts_dir

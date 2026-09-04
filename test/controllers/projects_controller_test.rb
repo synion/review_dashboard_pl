@@ -118,9 +118,13 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "aktualizuje projekt" do
-    patch project_path(projects(:webapp)), params: { project: { default_effort: "max" } }
+    patch project_path(projects(:webapp)),
+          params: { project: { default_effort: "max",
+                               worktree_url_template: "https://%{branch}.dev.example.test/" } }
+
     assert_redirected_to project_reviews_path(projects(:webapp))
     assert_equal "max", projects(:webapp).reload.default_effort
+    assert_equal "https://%{branch}.dev.example.test/", projects(:webapp).worktree_url_template
   end
 
   test "aktualizacja z błędnymi danymi renderuje edit i zwraca 422" do
