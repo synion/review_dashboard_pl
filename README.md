@@ -123,6 +123,16 @@ skrypt istnieje i czy wzorzec `%{branch}` jest poprawny. Jeśli skrypt stawia te
 środowisko dev pod adresem wyprowadzonym z nazwy brancha, wpisz ten adres jako
 wzorzec — dashboard złoży z niego link i pokaże go, dopóki katalog worktree stoi.
 
+**Dwie kontrole wokół tworzenia worktree.** Przed odpaleniem komendy dashboard sprawdza
+wolne miejsce na dysku z repo i odmawia startu poniżej 5 GB — skrypt worktree na pełnym
+dysku nie wywala się, tylko kopiuje część plików, urywa import bazy i wychodzi z zerem.
+Po utworzeniu worktree (i po `gh pr checkout`) dashboard puka po HTTP w adres środowiska
+i przy 5xx pokazuje w panelu review ostrzeżenie „Środowisko tego brancha nie wstaje"
+z przyciskiem ponownego sprawdzenia. Kontrola miejsca patrzy na dysk HOSTA — baza devowa
+bywa w kontenerze, na osobnym wolumenie, i jego zapełnienia nie widać inaczej niż tym
+żądaniem HTTP. Review działa normalnie mimo ostrzeżenia: sesja pracuje na kodzie
+w worktree, nie na uruchomionej apce.
+
 ---
 
 ## Akcje po decyzji i integracja z trackerem

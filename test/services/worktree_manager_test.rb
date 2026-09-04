@@ -23,6 +23,11 @@ class WorktreeManagerTest < ActiveSupport::TestCase
     branch refs/heads/sl-fix-vat
   OUT
 
+  # df sprzed tworzenia worktree — domyślnie dużo wolnego miejsca, żeby testy
+  # o czym innym nie musiały o nim pamiętać w treści.
+  DF_FREE = "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk1 100 10 900000000 10% /\n"
+  DF_FULL = "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk1 100 100 0 100% /\n"
+
   def ok(stdout = "")
     CommandRunner::Result.new(exit_code: 0, stdout: stdout, stderr: "", timed_out: false)
   end
@@ -35,19 +40,41 @@ class WorktreeManagerTest < ActiveSupport::TestCase
   end
 
   test "ensure_for_branch tworzy worktree komendą projektu gdy brak" do
-    fake = FakeRunner.new([ ok(""), ok(""), ok(WORKTREE_LIST) ])
+    fake = FakeRunner.new([ ok(""), ok(DF_FREE), ok(""), ok(WORKTREE_LIST) ])
     path = WorktreeManager.new(projects(:webapp), runner: fake).ensure_for_branch("sl-fix-vat")
     assert_equal "/Users/dev/projects/webapp-sl-fix-vat", path
-    create_call = fake.calls[1]
+    create_call = fake.calls[2]
     assert_equal [ "/bin/zsh", "-c", "bin/worktree-docker sl-fix-vat" ], create_call[:cmd]
     assert_equal "/Users/dev/projects/webapp", create_call[:chdir]
     assert_equal 1800, create_call[:timeout]
   end
 
   test "ensure_for_branch rzuca Error gdy tworzenie padło" do
-    fake = FakeRunner.new([ ok(""), CommandRunner::Result.new(exit_code: 1, stdout: "", stderr: "brak dysku", timed_out: false) ])
+    fake = FakeRunner.new([ ok(""), ok(DF_FREE), CommandRunner::Result.new(exit_code: 1, stdout: "", stderr: "brak dysku", timed_out: false) ])
     error = assert_raises(WorktreeManager::Error) { WorktreeManager.new(projects(:webapp), runner: fake).ensure_for_branch("sl-fix-vat") }
     assert_includes error.message, "brak dysku"
+  end
+
+  # Skrypt worktree na pełnym dysku nie wywala się — kopiuje część plików, urywa
+  # import bazy i wychodzi z zerem. Zostaje worktree, który wygląda na gotowy.
+  test "ensure_for_branch odmawia tworzenia, gdy na dysku brakuje miejsca" do
+    fake = FakeRunner.new([ ok(""), ok(DF_FULL) ])
+
+    error = assert_raises(WorktreeManager::Error) do
+      WorktreeManager.new(projects(:webapp), runner: fake).ensure_for_branch("sl-fix-vat")
+    end
+
+    assert_match(/0\.0 GB/, error.message)
+    # Komenda tworząca nie poleciała — to cały sens tej kontroli.
+    assert_equal 2, fake.calls.size
+  end
+
+  test "nieczytelny df nie blokuje tworzenia worktree" do
+    fake = FakeRunner.new([ ok(""), ok("cokolwiek"), ok(""), ok(WORKTREE_LIST) ])
+
+    path = WorktreeManager.new(projects(:webapp), runner: fake).ensure_for_branch("sl-fix-vat")
+
+    assert_equal "/Users/dev/projects/webapp-sl-fix-vat", path
   end
 
   test "remove odpala komendę usuwania worktree projektu" do

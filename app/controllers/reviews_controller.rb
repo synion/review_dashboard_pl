@@ -6,7 +6,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree reimport switch_config compact verify_fixes verify_findings override_status]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings override_status]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -264,6 +264,13 @@ class ReviewsController < ApplicationController
     @review.update!(status: "reviewing")
     CompactReviewJob.perform_later(@review, previous_status)
     redirect_to review_path(@review), notice: "Kompaktuję sesję — rozmiar kontekstu zmierzy się przy następnej sesji"
+  end
+
+  # Ręczne powtórzenie health-checku — po naprawieniu środowiska ostrzeżenie musi
+  # dać się zdjąć, inaczej straszy do końca życia review.
+  def check_worktree_health
+    CheckWorktreeHealthJob.perform_later(@review)
+    redirect_to review_path(@review), notice: "Sprawdzam środowisko — wynik pojawi się tutaj"
   end
 
   def remove_worktree

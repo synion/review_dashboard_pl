@@ -204,6 +204,23 @@
   </p>
 <% end %>
 
+<%# Skrypt worktree potrafi wyjść z zerem i zostawić niedziałające środowisko
+    (przerwany seed bazy, pełny dysk w kontenerze). Bez tego ostrzeżenia dowiadujesz
+    się o tym dopiero po kliknięciu w „Apka z tego brancha" i zobaczeniu 500. %>
+<% if review.worktree_health_failed? %>
+  <div class="card error-box">
+    <p><strong>⚠ Środowisko tego brancha nie wstaje.</strong> <%= review.worktree_health_error %></p>
+    <p class="muted">Sam kod w worktree jest w porządku — review działa normalnie. Nie zadziała tylko
+      wejście w działającą apkę. Najczęstsza przyczyna: zabrakło miejsca i seed bazy urwał się w połowie.</p>
+    <%= button_to "↻ Sprawdź ponownie", check_worktree_health_review_path(review), class: "btn" %>
+    <%# Wzorzec z „Sprawdź, czy uwagi wdrożone": bez daty nie wiadomo, czy ostrzeżenie
+        dotyczy stanu sprzed naprawy, czy sprzed chwili. %>
+    <% if review.worktree_health_checked_at %>
+      <p class="muted">sprawdzone <%= l review.worktree_health_checked_at, format: :short %></p>
+    <% end %>
+  </div>
+<% end %>
+
 <% if review.worktree_removable? %>
   <%= button_to "🗑 Usuń worktree (#{review.branch})", remove_worktree_review_path(review), class: "btn",
         form: { data: { turbo_confirm: "Usunąć worktree i jego bazy? Niezacommitowane zmiany przepadną." } } %>

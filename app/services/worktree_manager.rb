@@ -4,6 +4,10 @@ class WorktreeManager
   Error = Class.new(StandardError)
 
   CREATE_TIMEOUT = 1800 # bin/worktree-docker stawia bazę — bywa długie
+  # Poniżej tego progu skrypt worktree i tak nie da rady (checkout repo + baza devowa),
+  # a padnie w połowie: skopiuje część plików, urwie import bazy i wyjdzie z zerem.
+  # Lepiej odmówić z powodem, niż zostawić worktree, który wygląda na gotowy.
+  MIN_FREE_DISK_GB = 5
 
   def initialize(project, runner: CommandRunner)
     @project = project
@@ -55,6 +59,29 @@ class WorktreeManager
     result
   end
 
+  # Uwaga na zakres: to dysk HOSTA, ten z repo. Baza devowa bywa w kontenerze,
+  # na osobnym wolumenie — jego zapełnienia ta kontrola nie zobaczy i dlatego
+  # istnieje jeszcze CheckWorktreeHealthJob, który puka do gotowego środowiska.
+  def ensure_disk_space!
+    free = free_disk_gb
+    return if free.nil? || free >= MIN_FREE_DISK_GB
+
+    raise Error, "Na dysku z repo zostało #{free} GB (mniej niż #{MIN_FREE_DISK_GB} GB) — " \
+                 "zwolnij miejsce albo usuń nieużywane worktree, zanim postawisz kolejny"
+  end
+
+  # nil zamiast wyjątku, gdy df nie odpowiedział albo wypisał coś nieznanego:
+  # brak odczytu nie może blokować tworzenia worktree, bo to tylko ostrzeżenie.
+  def free_disk_gb
+    result = @runner.run([ "df", "-Pk", @project.repo_path ], chdir: @project.repo_path)
+    return unless result.success?
+
+    available_kb = result.stdout.lines.last.to_s.split[3]
+    return if available_kb.blank? || !available_kb.match?(/\A\d+\z/)
+
+    (available_kb.to_i / 1024.0 / 1024).round(1)
+  end
+
   def find_existing(branch)
     result = run!([ "git", "worktree", "list", "--porcelain" ], label: "git worktree list")
 
@@ -64,6 +91,7 @@ class WorktreeManager
   end
 
   def create(branch)
+    ensure_disk_space!
     command = format(@project.worktree_command, branch: branch)
     run!(CommandRunner.zsh(command), label: command, timeout: CREATE_TIMEOUT)
 

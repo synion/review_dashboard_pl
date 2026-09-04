@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_090001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_03_100001) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -160,6 +160,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_090001) do
     t.string "task_description_status", default: "skipped", null: false
     t.string "task_url"
     t.datetime "updated_at", null: false
+    t.datetime "worktree_health_checked_at"
+    t.string "worktree_health_error"
+    t.string "worktree_health_status"
     t.string "worktree_path"
     t.index ["project_id"], name: "index_reviews_on_project_id"
   end

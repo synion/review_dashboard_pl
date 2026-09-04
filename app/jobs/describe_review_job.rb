@@ -20,6 +20,8 @@ class DescribeReviewJob < ApplicationJob
       path = worktrees.ensure_for_branch(review.branch)
       review.update!(worktree_path: path)
       worktrees.checkout_pr(path, review.pr_url) if review.pr_url.present?
+      # Dopiero po checkoucie: apka wstaje z kodu, który realnie leży w worktree.
+      CheckWorktreeHealthJob.perform_later(review)
     else
       review.update!(worktree_path: review.project.repo_path)
     end

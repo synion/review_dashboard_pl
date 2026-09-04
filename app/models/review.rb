@@ -523,6 +523,18 @@ class Review < ApplicationRecord
     project.worktree_url(branch)
   end
 
+  # Wynik health-checku środowiska (CheckWorktreeHealthJob). nil w `error` = wstaje.
+  def record_worktree_health(error)
+    update!(worktree_health_status: error ? "failed" : "ok",
+            worktree_health_error: error, worktree_health_checked_at: Time.current)
+  end
+
+  # Ostrzeżenie pokazujemy tylko wtedy, gdy jest co naprawiać i gdzie kliknąć —
+  # po usunięciu worktree stary wynik przestaje cokolwiek znaczyć.
+  def worktree_health_failed?
+    worktree_health_status == "failed" && worktree_exists?
+  end
+
   # Własne worktree review — katalog inny niż główne repo projektu, który da się usunąć
   # komendą projektu. Warunek na worktree_delete_command jest twardy: bez niego
   # format(nil, branch:) sypie NoMethodError zamiast czytelnego błędu.

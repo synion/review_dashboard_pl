@@ -109,6 +109,39 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "p.review-links a[href=?]", "https://sl-fix-vat.dev.example.test/"
   end
 
+  # Skrypt worktree potrafi wyjść z zerem i zostawić niedziałające środowisko —
+  # bez tego ostrzeżenia dowiadujesz się o tym dopiero po kliknięciu w link i 500.
+  test "panel ostrzega, gdy środowisko brancha nie wstaje, i daje je przesprawdzić" do
+    review = reviews(:pr_review)
+    review.project.update!(worktree_url_template: "https://%{branch}.dev.example.test/")
+    review.update!(status: "reviewed", branch: "sl-fix-vat", worktree_path: Dir.tmpdir)
+    review.record_worktree_health("HTTP 500")
+
+    get review_path(review)
+    assert_select ".error-box", text: /nie wstaje/
+    assert_select "form[action=?]", check_worktree_health_review_path(review)
+  end
+
+  test "działające środowisko nie pokazuje żadnego ostrzeżenia" do
+    review = reviews(:pr_review)
+    review.project.update!(worktree_url_template: "https://%{branch}.dev.example.test/")
+    review.update!(status: "reviewed", branch: "sl-fix-vat", worktree_path: Dir.tmpdir)
+    review.record_worktree_health(nil)
+
+    get review_path(review)
+    assert_select "form[action=?]", check_worktree_health_review_path(review), count: 0
+  end
+
+  test "check_worktree_health kolejkuje ponowne sprawdzenie" do
+    review = reviews(:pr_review)
+
+    assert_enqueued_with(job: CheckWorktreeHealthJob) do
+      post check_worktree_health_review_path(review)
+    end
+
+    assert_redirected_to review_path(review)
+  end
+
   test "lista odróżnia review czekające w kolejce od pracującego" do
     reviews(:pr_review).update!(status: "reviewing")
     get project_reviews_path(@project)
