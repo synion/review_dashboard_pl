@@ -426,7 +426,17 @@ class Review < ApplicationRecord
   def task_criteria_list
     data = task_criteria || {}
     Array(data["criteria"]).map { |item| item.merge("kind" => "criterion") } +
-      Array(data["traps"]).map { |item| item.merge("kind" => "trap") }
+      Array(data["traps"]).map { |item| item.merge("kind" => "trap") } +
+      Array(data["process"]).map { |item| item.merge("kind" => "process") }
+  end
+
+  # Punkty, których agent nie rozstrzygnął z kodu - do banera „SPRAWDŹ RĘCZNIE”.
+  # Każdy niesie needed_evidence: co dokładnie człowiek ma zdobyć (log, panel, repro).
+  def task_fit_manual_checks
+    return [] unless task_fit_verdict
+
+    Array(task_fit["criteria"]).select { |c| c["status"] == "unverifiable" }
+                               .map { |c| c.slice("id", "text", "needed_evidence") }
   end
 
   # Bramka zgodności istnieje tylko wtedy, gdy opis zadania dał listę AC. Bez niej
