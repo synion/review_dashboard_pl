@@ -71,8 +71,10 @@ class GithubClient
   # `updatedAt` jedzie przy okazji — lista review pokazuje z niego, kiedy na PR-ze
   # ostatnio cokolwiek się działo (świadomie „cokolwiek": patrz komentarz przy
   # pr_activity, dokładniejsze liczenie wymagałoby ciągnięcia całej aktywności).
+  # `reviews` też przy okazji: cudzy CHANGES_REQUESTED po mojej decyzji to sygnał
+  # podważenia, a osobne `gh pr view` po to samo podwajałoby spawny na każdy check.
   def pr_review_state(pr_url, repo_dir:)
-    pr_view(pr_url, fields: "reviewRequests,state,updatedAt", repo_dir: repo_dir)
+    pr_view(pr_url, fields: "reviewRequests,state,updatedAt,reviews", repo_dir: repo_dir)
   end
 
   # SHA głowy PR-a — punkt odniesienia weryfikacji poprawek. Zapisujemy go przy

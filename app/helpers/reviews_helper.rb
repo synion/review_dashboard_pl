@@ -79,11 +79,16 @@ module ReviewsHelper
 
   # Polska liczba mnoga w trzech formach — apka stoi na locale `en`, więc
   # pluralizacja z i18n dałaby „3 znaleziskos".
-  def findings_noun(count)
-    return "znalezisko" if count == 1
-    return "znaleziska" if (2..4).cover?(count % 10) && !(12..14).cover?(count % 100)
+  def findings_noun(count) = pluralize_pl(count, "znalezisko", "znaleziska", "znalezisk")
 
-    "znalezisk"
+  def manual_checks_noun(count) = pluralize_pl(count, "punkt", "punkty", "punktów")
+
+  # 1 / 2-4 (poza 12-14) / reszta - jedna reguła dla każdego rzeczownika w tym helperze.
+  def pluralize_pl(count, one, few, many)
+    return one if count == 1
+    return few if (2..4).cover?(count % 10) && !(12..14).cover?(count % 100)
+
+    many
   end
 
   # Nagłówek sortujący listy review. Kierunek przełącza się tylko na kolumnie, po
@@ -230,14 +235,7 @@ module ReviewsHelper
   def task_fit_items(review)
     return review.task_criteria_list unless review.task_fit_verdict
 
-    %w[criteria traps process].flat_map { |key| Array(review.task_fit[key]) }
-  end
-
-  def manual_checks_noun(count)
-    return "punkt" if count == 1
-    return "punkty" if (2..4).cover?(count % 10) && !(12..14).cover?(count % 100)
-
-    "punktów"
+    Review::TASK_FIT_SECTIONS.keys.flat_map { |key| Array(review.task_fit[key]) }
   end
 
   # Badge na liście i kaflu - tylko czerwone i żółte. Zielone nie potrzebuje miejsca.

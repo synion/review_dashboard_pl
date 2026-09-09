@@ -1384,7 +1384,7 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     review.update!(decision: "approve", decided_at: 1.day.ago, challenge: { "source" => "pr", "by" => "tomek" })
     get review_path(review)
     assert_select ".challenge-banner", text: /tomek/
-    assert_operator response.body.index("challenge-banner"), :<, response.body.index("task-fit-banner")
+    assert_operator response.body.index("challenge-banner"), :<, response.body.index("task-fit-fits")
     assert_select "form[action='#{review_followup_path(review)}']"
   end
 end

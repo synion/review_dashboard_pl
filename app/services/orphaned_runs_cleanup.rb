@@ -36,7 +36,7 @@ class OrphanedRunsCleanup
     return false unless review.status == "reviewing" && review.result_on_disk?
 
     ReviewResultImporter.call(review)
-    review.update!(status: "reviewed")
+    review.mark_reviewed!
     true
   rescue StandardError
     false

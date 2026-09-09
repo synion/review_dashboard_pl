@@ -10,7 +10,12 @@ class TaskFitJob < ApplicationJob
 
     review.update!(task_fit_status: "running")
     run = review.claude_runs.create!(kind: "task_fit", claude_config: review.effective_claude_config)
-    discussion = PrDiscussion.for(review, client: github)
+    # Snapshot PR-a sprzed chwili (review/followup pobrały go tuż przed) wystarcza -
+    # pięć spawnów `gh` drugi raz w minutę nic nowego nie przyniesie. Stęchły albo
+    # brakujący pobieramy od nowa.
+    snapshot = PrSnapshot.load(review)
+    snapshot = PrSnapshot.refresh(review, client: github) if snapshot.nil? || snapshot.stale?(review)
+    discussion = snapshot && PrDiscussion.new(snapshot)
     session_factory.call(run).call(PromptBuilder.task_fit(review, discussion: discussion))
     TaskFitImporter.call(review)
   rescue StandardError => e

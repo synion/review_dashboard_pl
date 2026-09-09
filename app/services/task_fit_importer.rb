@@ -19,6 +19,22 @@ class TaskFitImporter
   BLOCKING = %w[unmet open missing].freeze
   NO_ANSWER = "sesja nie odpowiedziała na ten punkt".freeze
   TITLE_WORDS = 12
+  # Treść znaleziska per status czerwony/żółty. `fix` to fallback - gdy sesja podała
+  # needed_evidence, ono wygrywa (mówi, co konkretnie zdobyć).
+  TEMPLATES = {
+    "unmet" => { priority: "critical", title: "AC niespełnione",
+                 consequence: "Zadanie zostanie zamknięte, choć to kryterium nie jest zrealizowane.",
+                 fix: "Zrealizować to kryterium w tym PR-ze albo jawnie wyłączyć je z zakresu w zadaniu." },
+    "open" => { priority: "critical", title: "Pułapka z zadania otwarta",
+                consequence: "Ryzyko opisane w zadaniu przechodzi do produkcji bez sprawdzenia.",
+                fix: "Autor ma odnieść się do tej pułapki na PR-ze albo w zadaniu, z dowodem." },
+    "missing" => { priority: "critical", title: "Brak w procesie",
+                   consequence: "Zmiana powstaje bez elementu, którego proces zespołu wymaga przed implementacją.",
+                   fix: "Uzupełnić brakujący element procesu w zadaniu, zanim PR pójdzie dalej." },
+    "unverifiable" => { priority: "important", title: "Niesprawdzalne z kodu",
+                        consequence: "Nikt nie wie, czy to kryterium jest spełnione - kod tego nie rozstrzyga.",
+                        fix: "Poprosić autora o dowód spoza kodu (log, zrzut z panelu, repro) i dołączyć go do zadania." }
+  }.freeze
 
   def self.call(review)
     path = review.artifacts_dir.join(FILENAME)
@@ -58,13 +74,14 @@ class TaskFitImporter
   # Znane punkty (z task_criteria) łączymy z odpowiedziami sesji po id. Nieznane id
   # pomijamy (model wymyślił punkt), brak odpowiedzi = status domyślny, czyli czerwony.
   def merged_items
-    answers = %w[criteria traps process].flat_map { |key| Array(@data[key]) }.index_by { |a| a["id"].to_s }
+    answers = Review::TASK_FIT_SECTIONS.keys.flat_map { |key| Array(@data[key]) }.index_by { |a| a["id"].to_s }
     @review.task_criteria_list.map do |item|
       allowed, default = RULES.fetch(item["kind"])
       answer = answers[item["id"].to_s] || {}
-      status = allowed.include?(answer["status"]) ? answer["status"] : default
-      note = allowed.include?(answer["status"]) ? answer["note"].to_s : NO_ANSWER
-      item.merge("status" => status, "note" => note, "needed_evidence" => answer["needed_evidence"].presence).compact
+      answered = allowed.include?(answer["status"])
+      item.merge("status" => answered ? answer["status"] : default,
+                 "note" => answered ? answer["note"].to_s : NO_ANSWER,
+                 "needed_evidence" => answer["needed_evidence"].presence).compact
     end
   end
 
@@ -82,24 +99,11 @@ class TaskFitImporter
   end
 
   def finding_for(item)
-    case item["status"]
-    when "unmet"
-      build("critical", "AC niespełnione", item,
-            consequence: "Zadanie zostanie zamknięte, choć to kryterium nie jest zrealizowane.",
-            fix: item["needed_evidence"] || "Zrealizować to kryterium w tym PR-ze albo jawnie wyłączyć je z zakresu w zadaniu.")
-    when "open"
-      build("critical", "Pułapka z zadania otwarta", item,
-            consequence: "Ryzyko opisane w zadaniu przechodzi do produkcji bez sprawdzenia.",
-            fix: item["needed_evidence"] || "Autor ma odnieść się do tej pułapki na PR-ze albo w zadaniu, z dowodem.")
-    when "missing"
-      build("critical", "Brak w procesie", item,
-            consequence: "Zmiana powstaje bez elementu, którego proces zespołu wymaga przed implementacją.",
-            fix: item["needed_evidence"] || "Uzupełnić brakujący element procesu w zadaniu, zanim PR pójdzie dalej.")
-    when "unverifiable"
-      build("important", "Niesprawdzalne z kodu", item,
-            consequence: "Nikt nie wie, czy to kryterium jest spełnione - kod tego nie rozstrzyga.",
-            fix: item["needed_evidence"] || "Poprosić autora o dowód spoza kodu (log, zrzut z panelu, repro) i dołączyć go do zadania.")
-    end
+    template = TEMPLATES[item["status"]] or return
+
+    { priority: template[:priority],
+      title: "#{template[:title]}: #{item["text"].to_s.split.first(TITLE_WORDS).join(" ")}",
+      body: body(item["note"], template[:consequence], item["needed_evidence"] || template[:fix]) }
   end
 
   def premise_finding(result)
@@ -108,11 +112,6 @@ class TaskFitImporter
                  "ale w zadaniu ani na PR-ze nie ma dowodu, że to ta przyczyna.",
                  "Poprawka może być poprawna technicznie i nie zmienić nic dla zgłaszającego.",
                  result["evidence"].presence || "Autor ma dołączyć do zadania dowód na przyczynę (log, repro, odpowiedź systemu).") }
-  end
-
-  def build(priority, prefix, item, consequence:, fix:)
-    { priority: priority, title: "#{prefix}: #{item["text"].to_s.split.first(TITLE_WORDS).join(" ")}",
-      body: body(item["note"], consequence, fix) }
   end
 
   def body(problem, consequence, fix)

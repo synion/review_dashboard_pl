@@ -14,6 +14,9 @@ class Review < ApplicationRecord
   # Werdykt liczy TaskFitImporter, nie model - stąd stała z dozwolonymi wartościami.
   TASK_FIT_STATUSES = TASK_DESCRIPTION_STATUSES
   TASK_FIT_VERDICTS = %w[fits partial misses].freeze
+  # Sekcje listy punktów z opisu zadania (task_criteria.json) i wyniku task_fit -
+  # jedno źródło dla modelu, importera, joba opisu i helpera.
+  TASK_FIT_SECTIONS = { "criteria" => "criterion", "traps" => "trap", "process" => "process" }.freeze
   # Akcje na PR-ze po decyzji (reviewer/label): ten sam kształt cyklu pobocznego,
   # ale bez running/ready — pojedynczy strzał gh zamiast długiej sesji.
   FOLLOWUP_STATUSES = %w[queued sent failed].freeze
@@ -425,9 +428,7 @@ class Review < ApplicationRecord
   # i importer chodzą po tej samej kolejności. Pusto = brak listy = brak bramki.
   def task_criteria_list
     data = task_criteria || {}
-    Array(data["criteria"]).map { |item| item.merge("kind" => "criterion") } +
-      Array(data["traps"]).map { |item| item.merge("kind" => "trap") } +
-      Array(data["process"]).map { |item| item.merge("kind" => "process") }
+    TASK_FIT_SECTIONS.flat_map { |section, kind| Array(data[section]).map { |item| item.merge("kind" => kind) } }
   end
 
   # Punkty, których agent nie rozstrzygnął z kodu - do banera „SPRAWDŹ RĘCZNIE”.
@@ -469,6 +470,14 @@ class Review < ApplicationRecord
     task_fit_gate? && !task_fit_verdict.in?(%w[fits partial])
   end
 
+  # Jedyne przejście w „reviewed” po imporcie wyniku (review, followup, reimport
+  # z dysku, odzyskanie po restarcie). Bramka zgodności jedzie razem z nim, żeby
+  # żadna ścieżka nie mogła pokazać „można mergować” bez czerwonego światła.
+  def mark_reviewed!
+    update!(status: "reviewed", error_message: nil)
+    enqueue_task_fit!
+  end
+
   # Zakolejkowanie sesji zgodności. Status tu, nie w jobie - między kliknięciem
   # a startem workera panel ma już pokazywać „sprawdzam”, jak przy opisie zadania.
   def enqueue_task_fit!
@@ -477,6 +486,18 @@ class Review < ApplicationRecord
     update!(task_fit_status: "queued")
     TaskFitJob.perform_later(self)
     true
+  end
+
+  # Bieżąca liczba komentarzy w zadaniu z trackera - nil bez integracji, bez zadania
+  # albo gdy tracker padł (log warn). Jedno miejsce na guard i rescue: decyzja zapisuje
+  # ten licznik jako punkt odniesienia, CheckReviewRequestJob porównuje z nim później.
+  def task_comments_count_now
+    return unless task_url.present? && project.intum_enabled?
+
+    project.intum_client.task(task_scoped_id)["comments_count"]&.to_i
+  rescue IntumClient::Error => e
+    Rails.logger.warn("Review #{id}: tracker niedostępny (#{e.message})")
+    nil
   end
 
   # Wiadomość followupu po podważeniu decyzji. Z zadania nie da się pobrać treści

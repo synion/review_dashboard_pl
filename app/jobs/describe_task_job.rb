@@ -33,7 +33,7 @@ class DescribeTaskJob < ApplicationJob
     path = review.artifacts_dir.join(CRITERIA_FILE)
     return {} unless File.exist?(path)
 
-    criteria = JSON.parse(File.read(path)).slice("criteria", "traps", "process")
+    criteria = JSON.parse(File.read(path)).slice(*Review::TASK_FIT_SECTIONS.keys)
     attrs = { task_criteria: criteria }
     attrs.merge!(task_fit: nil, task_fit_status: "skipped") if criteria != review.task_criteria
     attrs

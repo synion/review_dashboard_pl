@@ -7,16 +7,13 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     attr_reader :calls
 
     def initialize(response = nil, error: nil, login: "synion", reviews: [])
-      @response = response
+      @response = response&.merge("reviews" => reviews)
       @error = error
       @login = login
-      @reviews = reviews
       @calls = []
     end
 
     def viewer_login(repo_dir:) = @login
-
-    def pr_reviews(_pr_url, repo_dir:) = @reviews
 
     def pr_review_state(pr_url, repo_dir:)
       @calls << { pr_url: pr_url, repo_dir: repo_dir }
@@ -190,6 +187,9 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     def task(_scoped_id) = { "id" => 1, "comments_count" => @count }
   end
 
+  # Tracker idzie przez Review#task_comments_count_now → project.intum_client → IntumClient.new.
+  def with_intum(fake, &block) = IntumClient.stub(:new, fake, &block)
+
   def approved!(at: 2.days.ago, comments: nil)
     @review.update!(decision: "approve", decided_at: at, decision_task_comments_count: comments)
   end
@@ -235,7 +235,7 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
     assert_enqueued_with(job: FollowupReviewJob) do
       assert_enqueued_with(job: DescribeTaskJob) do
-        CheckReviewRequestJob.perform_now(@review, github: github, intum: FakeIntum.new(5))
+        with_intum(FakeIntum.new(5)) { CheckReviewRequestJob.perform_now(@review, github: github) }
       end
     end
     @review.reload
@@ -249,11 +249,11 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     @review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
     @review.update!(task_url: "https://tracker.example.com/organize/tasks/34119")
     github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
-    CheckReviewRequestJob.perform_now(@review, github: github, intum: FakeIntum.new(5))
+    with_intum(FakeIntum.new(5)) { CheckReviewRequestJob.perform_now(@review, github: github) }
     assert_equal "decided", @review.reload.status
 
     approved!(comments: nil)
-    CheckReviewRequestJob.perform_now(@review, github: github, intum: FakeIntum.new(50))
+    with_intum(FakeIntum.new(50)) { CheckReviewRequestJob.perform_now(@review, github: github) }
     assert_equal "decided", @review.reload.status
   end
 
@@ -264,7 +264,7 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     broken = Object.new
     def broken.task(_id) = raise(IntumClient::Error, "502")
     github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
-    CheckReviewRequestJob.perform_now(@review, github: github, intum: broken)
+    with_intum(broken) { CheckReviewRequestJob.perform_now(@review, github: github) }
     assert_equal "decided", @review.reload.status
     assert_not_nil @review.github_checked_at
   end

@@ -216,7 +216,7 @@ class ReviewsController < ApplicationController
       return redirect_to(review_path(@review), alert: "Brak wyniku na dysku ani w bazie — nie ma czego wczytać")
     end
 
-    @review.update!(status: "reviewed", error_message: nil)
+    @review.mark_reviewed!
     redirect_to review_path(@review), notice: "Wynik wczytany"
   rescue StandardError => e
     redirect_to review_path(@review), alert: "Nie udało się wczytać wyniku: #{e.message}"

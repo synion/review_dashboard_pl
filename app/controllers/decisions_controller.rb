@@ -13,7 +13,7 @@ class DecisionsController < ApplicationController
     notice = DecisionPublisher.call(@review, verdict: verdict, body: body, inline: params[:inline_comments] == "1")
     attrs = { status: "decided", decision: verdict, decision_body: body, decided_at: Time.current,
               decision_head_sha: head_sha_at_decision, challenge: nil,
-              decision_task_comments_count: task_comments_count_at_decision }
+              decision_task_comments_count: @review.task_comments_count_now }
     attrs[:decision_checklist] = checklist_snapshot if @review.task_fit_gate?
     # Instrukcję mrozimy na review (nawet identyczną z projektową) — „Ponów" ma
     # użyć dokładnie tej, którą user widział przy decyzji, a nie późniejszego
@@ -71,18 +71,6 @@ class DecisionsController < ApplicationController
     GithubClient.new.pr_head_sha(@review.pr_url, repo_dir: @review.workdir)
   rescue GithubClient::Error => e
     Rails.logger.warn("DecisionsController review #{@review.id}: #{e.message}")
-    nil
-  end
-
-  # Liczba komentarzy w zadaniu w chwili decyzji - CheckReviewRequestJob porówna
-  # z bieżącą i wzrost potraktuje jako podważenie w trackerze. Best effort: bez
-  # integracji albo przy padniętym trackerze nil, decyzja i tak wychodzi.
-  def task_comments_count_at_decision
-    return unless @review.task_url.present? && @review.project.intum_enabled?
-
-    @review.project.intum_client.task(@review.task_scoped_id)["comments_count"]&.to_i
-  rescue IntumClient::Error => e
-    Rails.logger.warn("DecisionsController review #{@review.id}: tracker niedostępny (#{e.message})")
     nil
   end
 

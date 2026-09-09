@@ -36,7 +36,7 @@ class GithubClientTest < ActiveSupport::TestCase
     info = GithubClient.new(runner: fake).pr_review_state(PR_URL, repo_dir: "/repo")
     assert_equal({ "reviewRequests" => [ { "login" => "synion" } ], "state" => "OPEN",
                    "updatedAt" => "2026-08-04T10:00:00Z" }, info)
-    assert_equal [ { cmd: [ "gh", "pr", "view", PR_URL, "--json", "reviewRequests,state,updatedAt" ], chdir: "/repo", stdin_data: nil } ], fake.calls
+    assert_equal [ { cmd: [ "gh", "pr", "view", PR_URL, "--json", "reviewRequests,state,updatedAt,reviews" ], chdir: "/repo", stdin_data: nil } ], fake.calls
   end
 
   test "submit_review mapuje verdict na flagę gh i wysyła body przez stdin" do

@@ -518,15 +518,13 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .task-fit-banner { padding: 14px 16px; margin: 8px 0 12px; border-radius: 8px; border-left: 6px solid; font-size: 1.15rem; }
 .task-fit-banner > strong { font-size: 1.35rem; display: block; }
 .task-fit-banner .task-fit-sub { display: block; font-size: 0.9rem; opacity: 0.85; margin-top: 4px; }
-.task-fit-misses, .task-fit-failed, .challenge-banner { border-color: var(--danger); background: var(--err-bg); color: var(--danger); }
+.task-fit-misses, .task-fit-failed { border-color: var(--danger); background: var(--err-bg); color: var(--danger); }
 .task-fit-partial, .task-fit-none { border-color: var(--warn); background: var(--wait-bg); color: var(--warn); }
 .task-fit-fits { border-color: var(--ok); background: var(--done-bg); color: var(--ok); font-size: 0.95rem; }
 .task-fit-fits > strong { font-size: 1rem; display: inline; }
 .task-fit-pending { border-color: var(--muted, #888); background: var(--card-bg, transparent); }
 .task-fit-manual { margin: 8px 0 0 18px; font-size: 1rem; }
 .task-fit-manual li { margin: 4px 0; }
-.challenge-banner { padding: 14px 16px; margin: 8px 0 12px; border-radius: 8px; border-left: 6px solid; }
-.challenge-banner > strong { font-size: 1.35rem; display: block; }
 .task-fit-items { list-style: none; padding: 0; margin: 8px 0; }
 .task-fit-item { padding: 6px 0; border-bottom: 1px solid var(--border, #ddd); }
 .checklist-status-met, .checklist-status-addressed, .checklist-status-present { background: var(--done-bg); color: var(--ok); }

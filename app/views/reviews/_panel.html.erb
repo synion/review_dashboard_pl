@@ -3,7 +3,7 @@
 <%# Podważona decyzja i bramka zgodności PRZED wszystkim innym: jedyne dwie rzeczy,
     które mają prawo zmienić to, co user zrobi w następnej minucie. %>
 <% if review.status == "challenged" %>
-  <div class="challenge-banner">
+  <div class="task-fit-banner task-fit-misses challenge-banner">
     <strong>⛔ Ktoś podważył Twoją decyzję (<%= review.decision %>)</strong>
     <span class="task-fit-sub"><%= challenge_description(review) %>. Followup konfrontujący jest w kolejce albo już skończył - wynik niżej.</span>
   </div>
