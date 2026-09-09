@@ -1263,4 +1263,21 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     get review_path(review)
     assert_select "form[action=?]", override_status_review_path(review), count: 0
   end
+
+  test "refresh_task_fit kolejkuje sesję zgodności i nie dubluje pracującej" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "b", task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    assert_enqueued_with(job: TaskFitJob) { post refresh_task_fit_review_path(review) }
+    assert_equal "queued", review.reload.task_fit_status
+
+    assert_no_enqueued_jobs(only: TaskFitJob) { post refresh_task_fit_review_path(review) }
+    assert_redirected_to review_path(review)
+  end
+
+  test "refresh_task_fit bez listy AC odsyła z alertem" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "b")
+    assert_no_enqueued_jobs(only: TaskFitJob) { post refresh_task_fit_review_path(review) }
+    assert_equal "Brak listy AC z opisu zadania - najpierw wygeneruj opis zadania", flash[:alert]
+  end
 end

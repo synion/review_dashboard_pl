@@ -1,6 +1,8 @@
 require "test_helper"
 
 class FollowupReviewJobTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @config = Dir.mktmpdir
     @workdir = Dir.mktmpdir
@@ -170,5 +172,14 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
 
     assert_equal "reviewed", @review.reload.status
     assert_not_includes prompts.sole, "Dyskusja na PR-ze"
+  end
+
+  test "po udanym followupie kolejkuje sesję zgodności z zadaniem, gdy jest lista AC" do
+    @review.update!(branch: "b", task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    assert_enqueued_with(job: TaskFitJob) do
+      FollowupReviewJob.perform_now(@review, "sprawdź", github: FakeGithubClient.new,
+                                    session_factory: session_writing_result({ summary: "OK", findings: [], playwright: nil }, []))
+    end
+    assert_equal "queued", @review.reload.task_fit_status
   end
 end

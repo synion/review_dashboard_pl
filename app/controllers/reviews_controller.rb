@@ -6,7 +6,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings override_status]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description refresh_task_fit remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings override_status]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -182,6 +182,16 @@ class ReviewsController < ApplicationController
     @review.update!(task_description_status: "queued")
     DescribeTaskJob.perform_later(@review)
     redirect_to @review
+  end
+
+  # Ręczne odpalenie bramki zgodności z zadaniem - po odświeżeniu opisu zadania,
+  # po padniętej sesji albo gdy lista AC doszła później niż review.
+  def refresh_task_fit
+    return redirect_to(@review, alert: "Ocena zgodności już trwa") if %w[queued running].include?(@review.task_fit_status)
+    return redirect_to(@review, alert: "Brak listy AC z opisu zadania - najpierw wygeneruj opis zadania") unless @review.task_fit_gate?
+    return redirect_to(@review, alert: "Bez brancha nie ma czego czytać") unless @review.enqueue_task_fit!
+
+    redirect_to @review, notice: "Sprawdzam zgodność z zadaniem świeżą sesją…"
   end
 
   # Awaryjna naprawa statusu, gdy cykl skłamał (przypadkowy start review, fałszywy

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class RunReviewJobTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @review = reviews(:pr_review)
     @review.update!(status: "ready", worktree_path: Dir.tmpdir, scope: { "areas" => %w[functionality], "notes" => "" })
@@ -129,5 +131,22 @@ class RunReviewJobTest < ActiveSupport::TestCase
 
     assert_includes prompts.sole, "Dyskusja na PR-ze"
     assert_includes prompts.sole, "Świadome — nie przywracam."
+  end
+
+  # Bramka zgodności rusza sama po każdym review - to ona ma zaświecić czerwone,
+  # zanim ktokolwiek zobaczy „można mergować”.
+  test "po udanym review kolejkuje sesję zgodności z zadaniem, gdy jest lista AC" do
+    @review.update!(branch: "b", task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    assert_enqueued_with(job: TaskFitJob) do
+      RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: session_writing_result(summary: "OK", findings: [], playwright: nil))
+    end
+    assert_equal "queued", @review.reload.task_fit_status
+  end
+
+  test "bez listy AC nie kolejkuje sesji zgodności" do
+    assert_no_enqueued_jobs(only: TaskFitJob) do
+      RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: session_writing_result(summary: "OK", findings: [], playwright: nil))
+    end
+    assert_equal "skipped", @review.reload.task_fit_status
   end
 end

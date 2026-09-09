@@ -14,7 +14,7 @@ class PromptBuilderTest < ActiveSupport::TestCase
   test "każdy szablon promptu wstawia wspólne zasady pisania" do
     templates = Dir.glob(PromptBuilder::TEMPLATES_DIR.join("*.md.erb"))
                    .reject { |path| File.basename(path).start_with?("_") }
-    assert_equal 7, templates.size
+    assert_equal 8, templates.size
     templates.each do |path|
       assert_includes File.read(path), "<%= style %>", "#{File.basename(path)} nie wstawia zasad pisania"
     end
@@ -396,5 +396,38 @@ class PromptBuilderTest < ActiveSupport::TestCase
   def finding_for_pin
     Finding.new(priority: "critical", title: "Nil w kalkulacji VAT", body: "Problem: nil",
                 file_location: "app/models/invoice.rb:12")
+  end
+
+  test "task_fit: świeża sesja dostaje AC z id, regułę sprawdzalności i kontrakt task_fit.json" do
+    review = reviews(:pr_review)
+    review.update!(branch: "sl-2fa", task_description: "**Cel** — SMS ma dochodzić.",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "Kod dochodzi do klienta" } ],
+                                    "traps" => [ { "id" => "t1", "text" => "Czy autor odczytał log" } ],
+                                    "process" => [ { "id" => "p1", "text" => "Link do Figmy", "status" => "missing", "note" => "brak w zadaniu" } ] })
+    prompt = PromptBuilder.task_fit(review)
+    assert_includes prompt, "Nie oceniasz jakości kodu"
+    assert_includes prompt, "**Cel** — SMS ma dochodzić."
+    assert_includes prompt, "id ac1"
+    assert_includes prompt, "Kod dochodzi do klienta"
+    assert_includes prompt, "id t1"
+    assert_includes prompt, "id p1"
+    assert_includes prompt, "unverifiable"
+    assert_includes prompt, "needed_evidence"
+    assert_includes prompt, "evidence_found"
+    assert_includes prompt, "nie jest dowodem"
+    assert_includes prompt, review.artifacts_dir.join("task_fit.json").to_s
+    assert_includes prompt, "## Jak pisać"
+    assert_not_includes prompt, "## Dyskusja na PR-ze"
+  end
+
+  test "task_fit niesie dyskusję z PR-a, gdy jest" do
+    review = reviews(:pr_review)
+    review.update!(branch: "sl-2fa", task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    snapshot = PrSnapshot.new("fetched_at" => Time.current.iso8601, "files" => [], "review_comments" => [],
+                              "issue_comments" => [ { "id" => 1, "user" => "tomek", "body" => "To nie naprawia zgłoszenia", "created_at" => "2026-09-08T10:00:00Z" } ],
+                              "author" => "autorka", "viewer" => "ja")
+    prompt = PromptBuilder.task_fit(review, discussion: PrDiscussion.new(snapshot))
+    assert_includes prompt, "## Dyskusja na PR-ze"
+    assert_includes prompt, "To nie naprawia zgłoszenia"
   end
 end

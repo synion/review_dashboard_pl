@@ -1,0 +1,72 @@
+Oceń, czy ta zmiana ROZWIĄZUJE ZGŁOSZONE ZADANIE. Nie oceniasz jakości kodu - od tego było osobne review, którego wyniku celowo nie widzisz. Jesteś świeżą sesją i Twoja wartość bierze się z tego, że nie masz nic do obronienia.
+
+<% if review.pr_url.present? -%>
+PR: <%= review.pr_url %> (branch jest wycheckoutowany w bieżącym katalogu)
+<% end -%>
+Branch: `<%= review.branch %>`
+
+<%= switched_context %>
+
+<%= discussion_section %>
+## Dlaczego to robisz
+
+Review kodu potrafi zaakceptować PR, który jest poprawny technicznie i nie naprawia tego, co zgłosił klient: autor przyjął hipotezę o przyczynie, nikt jej nie sprawdził, a reviewer ocenił spójność diffu. Twoje zadanie to złapać dokładnie ten przypadek. Domyślnie zakładaj, że PR NIE rozwiązuje zadania, dopóki nie wskażesz dowodu, że rozwiązuje.
+
+## Cztery pytania, po kolei
+
+1. **Objaw.** Co zgłoszono - dosłownie z zadania i jego komentarzy, nie z opisu PR-a. Kto, kiedy, co widział.
+2. **Przyczyna zakładana przez PR.** Jaką przyczynę objawu naprawia ten diff. Wyczytaj to z kodu i opisu PR-a.
+3. **Dowód na przyczynę.** Co w zadaniu albo na PR-ze POTWIERDZA, że to ta przyczyna: log, odpowiedź systemu, reprodukcja, ustalenie w komentarzu. Zdanie „autor przeanalizował kod” nie jest dowodem. Komentarz „nie wdrażać przed potwierdzeniem” bez późniejszego potwierdzenia to dowód PRZECIW. Brak dowodu = `"evidence_found": false`.
+4. **Punkt po punkcie.** Dla każdego AC, każdej pułapki i każdego wymogu procesu z listy niżej ustal status. Punkt pominięty dashboard policzy jako czerwony.
+
+## Reguła sprawdzalności (najważniejsza)
+
+AC uznajesz za `met` tylko wtedy, gdy wskażesz linię kodu albo test, który je realizuje, i to realizuje dla ZGŁOSZONEGO przypadku. Jeśli AC mówi o zachowaniu na produkcji („kod dochodzi do klienta”, „raport się wysyła”), a w zadaniu ani na PR-ze nie ma dowodu z produkcji, status to `unverifiable`, NIE `met` - i wtedy w `needed_evidence` wpisz konkretny artefakt, który autor ma dołączyć do zadania (jaki log, z jakiego systemu, z jakiego panelu, jaka reprodukcja). Człowiek zrobi z tym listę do ręcznego sprawdzenia, więc „sprawdzić na produkcji” to za mało - napisz CO i GDZIE.
+
+## Punkty do rozliczenia
+
+<% review.task_criteria_list.each do |item| -%>
+### id <%= item["id"] %> — <%= { "criterion" => "AC", "trap" => "pułapka z zadania", "process" => "wymóg procesu" }[item["kind"]] %>
+<%= item["text"] %>
+<% if item["kind"] == "process" && item["status"].present? -%>
+Ocena z opisu zadania: `<%= item["status"] %>`<%= " (#{item["note"]})" if item["note"].present? %> - potwierdź albo popraw, patrząc też na PR.
+<% end -%>
+
+<% end -%>
+Statusy: AC → `met` / `unmet` / `unverifiable`; pułapka → `addressed` (autor odniósł się z dowodem: kod, test, komentarz) / `open`; wymóg procesu → `present` / `missing` / `n/a` (nie dotyczy tego typu zadania - napisz czemu).
+<% if review.task_description.present? -%>
+
+## Opis zadania (zebrany z zadania i jego komentarzy)
+
+<%= review.task_description %>
+<% end -%>
+<% if review.description.present? -%>
+
+## Opis zmian (z wcześniejszej analizy, zweryfikuj z diffem)
+
+<%= review.description %>
+<% end -%>
+
+## Wynik (OBOWIĄZKOWE)
+
+Zapisz plik `<%= review.artifacts_dir.join("task_fit.json") %>` (utwórz katalog, jeśli trzeba):
+
+```json
+{
+  "symptom": "co zgłoszono, jedno-dwa zdania",
+  "assumed_cause": "jaką przyczynę naprawia PR",
+  "evidence": "co potwierdza tę przyczynę (plik/komentarz/log) albo czego brakuje",
+  "evidence_found": false,
+  "criteria": [{"id": "ac1", "status": "unverifiable", "note": "dowód: plik:linia / test, albo czego brakuje", "needed_evidence": "konkretny artefakt do dołączenia do zadania"}],
+  "traps": [{"id": "t1", "status": "open", "note": "co autor zrobił albo czego nie zrobił z tą pułapką"}],
+  "process": [{"id": "p1", "status": "missing", "note": "gdzie to jest albo czemu nie dotyczy"}]
+}
+```
+
+- `id` przepisz DOKŁADNIE z listy wyżej; każdy punkt musi mieć wpis.
+- `note`: konkret (plik, linia, nazwa testu, numer komentarza), nie parafraza punktu.
+- `needed_evidence` obowiązkowe przy `unverifiable`, mile widziane przy `unmet` / `open` / `missing`.
+
+<%= style %>
+
+Bez zapisania `task_fit.json` odpowiedź uznaję za niedokończoną.

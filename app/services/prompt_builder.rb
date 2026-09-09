@@ -39,6 +39,13 @@ class PromptBuilder
     render("verify_findings", review, force_context: true)
   end
 
+  # Zgodność z zadaniem: świeża sesja Z ZAŁOŻENIA, jak verify_findings - sesja, która
+  # oceniła kod, ma sunk cost „fix jest realny” i przyjmuje premisę autora. Dyskusja
+  # z PR-a jedzie do promptu, bo cudzy głos „to nie naprawia zgłoszenia” to dowód.
+  def self.task_fit(review, discussion: nil)
+    render("task_fit", review, force_context: true, discussion: discussion)
+  end
+
   # `resumed` przychodzi z joba, bo tylko on wie, czy sesja faktycznie dostała
   # `--resume`. Świeża sesja nie zna poprzedniego przebiegu, więc kontekst musi
   # przyjechać w prompcie także wtedy, gdy konto się nie zmieniło, a plik sesji

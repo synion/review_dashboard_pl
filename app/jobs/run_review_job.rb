@@ -26,6 +26,9 @@ class RunReviewJob < ApplicationJob
 
     ReviewResultImporter.call(review)
     review.update!(status: "reviewed")
+    # Bramka zgodności z zadaniem rusza sama - ma zaświecić czerwone, zanim ktokolwiek
+    # przeczyta „można mergować” w podsumowaniu.
+    review.enqueue_task_fit!
   rescue StandardError => e
     review.fail!(e.message) if review.still_reviewing?
   end
