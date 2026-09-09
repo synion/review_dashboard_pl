@@ -5,7 +5,7 @@
 <% if review.status == "challenged" %>
   <div class="task-fit-banner task-fit-misses challenge-banner">
     <strong>⛔ Ktoś podważył Twoją decyzję (<%= review.decision %>)</strong>
-    <span class="task-fit-sub"><%= challenge_description(review) %>. Followup konfrontujący jest w kolejce albo już skończył - wynik niżej.</span>
+    <span class="task-fit-sub"><%= challenge_description(review) %>. <%= review.decided_at && review.decided_at < CheckReviewRequestJob::AUTO_FOLLOWUP_WINDOW.ago ? "Decyzja jest starsza niż dwa tygodnie, więc followup nie ruszył sam - odpal go niżej, jeśli sprawa żyje." : "Followup konfrontujący jest w kolejce albo już skończył - wynik niżej." %></span>
   </div>
 <% end %>
 <% unless review.finished? || review.status.in?(%w[created describing]) %>

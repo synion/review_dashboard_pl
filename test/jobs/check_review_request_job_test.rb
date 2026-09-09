@@ -278,4 +278,16 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs(only: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
     assert_equal "challenged", @review.reload.status
   end
+
+  # Backfill po wdrożeniu detekcji: stare approve'y z cudzym CHANGES_REQUESTED sprzed
+  # tygodni odpaliłyby naraz kilka płatnych sesji. Stare = tylko baner, followup ręcznie.
+  test "podważenie starej decyzji oznacza challenged bez automatycznego followupu" do
+    approved!(at: 20.days.ago)
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
+                            reviews: [ other_review("tomek", "CHANGES_REQUESTED", 19.days.ago) ])
+    assert_no_enqueued_jobs(only: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
+    @review.reload
+    assert_equal "challenged", @review.status
+    assert_equal({ "source" => "pr", "by" => "tomek" }, @review.challenge)
+  end
 end

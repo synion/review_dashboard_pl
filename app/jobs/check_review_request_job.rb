@@ -9,6 +9,10 @@ class CheckReviewRequestJob < ApplicationJob
   # akcji, a ten status wypada z Review.due_for_github_check — więc to zarazem
   # ostatnie pytanie o ten PR.
   FINAL_STATES = { "MERGED" => "merged", "CLOSED" => "closed" }.freeze
+  # Automatyczny followup (płatna sesja) tylko dla świeżych decyzji. Starsze podważenia
+  # dostają status i baner, a sesję odpala człowiek - inaczej pierwsze sprawdzenie po
+  # wdrożeniu detekcji odpaliło naraz pięć sesji do PR-ów sprzed miesiąca.
+  AUTO_FOLLOWUP_WINDOW = 14.days
 
   def perform(review, github: GithubClient.new)
     # Status mógł się zmienić między kolejkowaniem a startem (np. user odpalił followup).
@@ -82,6 +86,8 @@ class CheckReviewRequestJob < ApplicationJob
     # i bramka zgodności czytają opis, nie tracker.
     attrs[:task_description_status] = "queued" if challenge["source"] == "task"
     review.update!(attrs)
+    return if review.decided_at < AUTO_FOLLOWUP_WINDOW.ago
+
     DescribeTaskJob.perform_later(review) if challenge["source"] == "task"
     FollowupReviewJob.perform_later(review, Review.challenge_message(review, challenge))
   end
