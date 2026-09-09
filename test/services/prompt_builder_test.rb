@@ -430,4 +430,46 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes prompt, "## Dyskusja na PR-ze"
     assert_includes prompt, "To nie naprawia zgłoszenia"
   end
+
+  # ---- Zgodność z zadaniem w promptach review i followup
+
+  test "review z opisem zadania każe rozliczyć AC z nazwy, pułapki i sprawdzalność z kodu" do
+    review = reviews(:pr_review)
+    review.update!(task_description: "**Cel** — x.\n\n**Niejasności / pułapki**\n- **log** — sprawdź, czy autor odczytał log")
+    prompt = PromptBuilder.review(review)
+    assert_includes prompt, "**Zgodność z zadaniem**"
+    assert_includes prompt, "niesprawdzalne z kodu"
+    assert_includes prompt, "„4 z 5”"
+    assert_includes prompt, "Niejasności / pułapki"
+    assert_includes prompt, "Do ręcznego sprawdzenia:"
+    assert_includes prompt, "Nie rozwiązuje zadania:"
+  end
+
+  test "review bez opisu zadania nie każe pisać linii o zgodności" do
+    assert_not_includes PromptBuilder.review(reviews(:pr_review)), "**Zgodność z zadaniem**"
+  end
+
+  test "followup każe wrócić do pytania, czy PR rozwiązuje zgłoszenie" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", worktree_path: Dir.tmpdir)
+    prompt = PromptBuilder.followup(review, "sprawdź", resumed: true)
+    assert_includes prompt, "czy PR rozwiązuje zgłoszenie"
+    assert_includes prompt, "cudze review"
+  end
+
+  test "dyskusja z PR-a niesie cudze review z werdyktem" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", worktree_path: Dir.tmpdir)
+    snapshot = PrSnapshot.new("fetched_at" => Time.current.iso8601, "files" => [], "review_comments" => [], "issue_comments" => [],
+                              "reviews" => [ { "id" => 5, "user" => "tomek", "state" => "CHANGES_REQUESTED", "submitted_at" => "2026-09-08T10:36:00Z",
+                                               "body" => "Log pokazuje count: 1, QUEUE. PR nie dotyka przyczyny." },
+                                             { "id" => 6, "user" => "ja", "state" => "APPROVED", "submitted_at" => "2026-09-03T11:51:00Z", "body" => "LGTM" } ],
+                              "author" => "autorka", "viewer" => "ja")
+    prompt = PromptBuilder.review(review, discussion: PrDiscussion.new(snapshot))
+    assert_includes prompt, "### Cudze review pod PR-em"
+    assert_includes prompt, "tomek"
+    assert_includes prompt, "CHANGES_REQUESTED"
+    assert_includes prompt, "PR nie dotyka przyczyny"
+    assert_not_includes prompt, "LGTM"
+  end
 end

@@ -4,15 +4,16 @@ class PrSnapshotTest < ActiveSupport::TestCase
   class FakeClient
     attr_reader :calls
 
-    def initialize(files: [], review_comments: [], issue_comments: [], author: "autor", viewer: "ja")
+    def initialize(files: [], review_comments: [], issue_comments: [], reviews: [], author: "autor", viewer: "ja")
       @data = { files: files, review_comments: review_comments, issue_comments: issue_comments,
-                author: author, viewer: viewer }
+                reviews: reviews, author: author, viewer: viewer }
       @calls = []
     end
 
     def pr_files(url, repo_dir:) = record(:files, url, repo_dir)
     def pr_review_comments(url, repo_dir:) = record(:review_comments, url, repo_dir)
     def pr_issue_comments(url, repo_dir:) = record(:issue_comments, url, repo_dir)
+    def pr_reviews_with_bodies(url, repo_dir:) = record(:reviews, url, repo_dir)
     def pr_author(url, repo_dir:) = record(:author, url, repo_dir)
     def viewer_login(repo_dir:) = record(:viewer, nil, repo_dir)
 
@@ -49,7 +50,7 @@ class PrSnapshotTest < ActiveSupport::TestCase
     client = FakeClient.new
     PrSnapshot.fetch!(@review, client: client)
 
-    assert_equal %i[files review_comments issue_comments author viewer], client.calls.map { |c| c[:kind] }
+    assert_equal %i[files review_comments issue_comments reviews author viewer], client.calls.map { |c| c[:kind] }
     assert_equal [ @review.workdir ], client.calls.map { |c| c[:repo_dir] }.uniq
     assert_equal [ @review.pr_url ], client.calls.filter_map { |c| c[:url] }.uniq
   end
@@ -96,5 +97,16 @@ class PrSnapshotTest < ActiveSupport::TestCase
     PrSnapshot.fetch!(@review, client: FakeClient.new(issue_comments: [ { "id" => 2 } ]))
 
     assert_equal 2, PrSnapshot.load(@review).issue_comments.sole["id"]
+  end
+
+  # Cudze review z werdyktem (CHANGES_REQUESTED) to najmocniejszy głos na PR-ze,
+  # a dotąd snapshot go nie widział - followup dostawał je tylko wklejone ręcznie.
+  test "fetch! zapisuje cudze review z treścią, stary artefakt bez klucza czyta się jako pusty" do
+    client = FakeClient.new(reviews: [ { "id" => 5, "user" => "tomek", "state" => "CHANGES_REQUESTED", "body" => "nie", "submitted_at" => "2026-09-08T10:36:00Z" } ])
+    snapshot = PrSnapshot.fetch!(@review, client: client)
+    assert_equal [ "tomek" ], snapshot.reviews.map { |r| r["user"] }
+
+    old = PrSnapshot.new("fetched_at" => Time.current.iso8601, "files" => [], "review_comments" => [], "issue_comments" => [])
+    assert_equal [], old.reviews
   end
 end

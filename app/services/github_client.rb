@@ -142,6 +142,13 @@ class GithubClient
          label: "gh label list", chdir: repo_dir).stdout.split("\n")
   end
 
+  # Review z treścią - dla snapshotu PR-a: cudze CHANGES_REQUESTED z uzasadnieniem
+  # to najmocniejszy głos na PR-ze i sesja ma go czytać, nie dostawać wklejony.
+  def pr_reviews_with_bodies(pr_url, repo_dir:)
+    paginated(pr_endpoint(pr_url, "pulls", "reviews"), label: "gh api pulls reviews", repo_dir: repo_dir,
+              fields: "{id, state, body, submitted_at, user: .user.login}")
+  end
+
   # Same reviews, bez comments/body — dla listy „kto reviewował" pr_activity
   # ściągałoby gadatliwe pola, których nikt tu nie czyta.
   def pr_reviews(pr_url, repo_dir:)

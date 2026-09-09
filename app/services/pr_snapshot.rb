@@ -8,7 +8,7 @@
 class PrSnapshot
   FILENAME = "pr_snapshot.json".freeze
 
-  attr_reader :fetched_at, :files, :review_comments, :issue_comments, :author, :viewer
+  attr_reader :fetched_at, :files, :review_comments, :issue_comments, :reviews, :author, :viewer
 
   def self.path_for(review) = review.artifacts_dir.join(FILENAME)
 
@@ -17,6 +17,8 @@ class PrSnapshot
              "files" => client.pr_files(review.pr_url, repo_dir: review.workdir),
              "review_comments" => client.pr_review_comments(review.pr_url, repo_dir: review.workdir),
              "issue_comments" => client.pr_issue_comments(review.pr_url, repo_dir: review.workdir),
+             # Cudze review z werdyktem i treścią - patrz PrDiscussion#foreign_reviews.
+             "reviews" => client.pr_reviews_with_bodies(review.pr_url, repo_dir: review.workdir),
              # Loginy jadą do artefaktu, a nie do widoku: prompt sesji musi wiedzieć,
              # który głos w wątku należy do autora, a który jest mój.
              "author" => client.pr_author(review.pr_url, repo_dir: review.workdir),
@@ -60,6 +62,8 @@ class PrSnapshot
     @files = data["files"].to_a
     @review_comments = data["review_comments"].to_a
     @issue_comments = data["issue_comments"].to_a
+    # Artefakty sprzed tej zmiany nie mają klucza - wtedy po prostu bez cudzych review.
+    @reviews = data["reviews"].to_a
     # Artefakty sprzed tej zmiany nie znają loginów — wtedy PrDiscussion pokaże
     # sam login zamiast roli, zamiast zgadywać.
     @author = data["author"]

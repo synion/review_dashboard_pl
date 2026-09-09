@@ -18,6 +18,7 @@ class FakeGithubClient
   def pr_files(_url, repo_dir:) = []
   def pr_review_comments(_url, repo_dir:) = @review_comments
   def pr_issue_comments(_url, repo_dir:) = @issue_comments
+  def pr_reviews_with_bodies(_url, repo_dir:) = []
   def pr_author(_url, repo_dir:) = @author
   def viewer_login(repo_dir:) = @viewer
 

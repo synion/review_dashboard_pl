@@ -5,6 +5,7 @@ class FetchPrSnapshotJobTest < ActiveJob::TestCase
     def pr_files(_url, repo_dir:) = [ { "filename" => "app/x.rb" } ]
     def pr_review_comments(_url, repo_dir:) = []
     def pr_issue_comments(_url, repo_dir:) = []
+    def pr_reviews_with_bodies(_url, repo_dir:) = []
     def pr_author(_url, repo_dir:) = "autor"
     def viewer_login(repo_dir:) = "ja"
   end

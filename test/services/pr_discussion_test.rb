@@ -4,10 +4,10 @@ class PrDiscussionTest < ActiveSupport::TestCase
   VIEWER = "reviewerka".freeze
   AUTHOR = "autorka".freeze
 
-  def snapshot(review_comments: [], issue_comments: [], author: AUTHOR, viewer: VIEWER)
+  def snapshot(review_comments: [], issue_comments: [], reviews: [], author: AUTHOR, viewer: VIEWER)
     PrSnapshot.new("fetched_at" => "2026-09-01T10:00:00Z", "files" => [],
                    "review_comments" => review_comments, "issue_comments" => issue_comments,
-                   "author" => author, "viewer" => viewer)
+                   "reviews" => reviews, "author" => author, "viewer" => viewer)
   end
 
   def comment(**attrs)
@@ -168,5 +168,22 @@ class PrDiscussionTest < ActiveSupport::TestCase
     comments = [ comment(id: 5), comment(id: 6, in_reply_to_id: 5) ]
 
     assert_empty PrDiscussion.new(snapshot(review_comments: comments)).replies_after(nil)
+  end
+
+  # --- cudze review ---
+
+  test "foreign_reviews pomija moje i puste, any? je liczy" do
+    d = PrDiscussion.new(snapshot(reviews: [
+      { "id" => 1, "user" => VIEWER, "state" => "APPROVED", "body" => "LGTM", "submitted_at" => "2026-09-03T11:51:00Z" },
+      { "id" => 2, "user" => "tomek", "state" => "COMMENTED", "body" => "", "submitted_at" => "2026-09-04T11:51:00Z" },
+      { "id" => 3, "user" => "tomek", "state" => "CHANGES_REQUESTED", "body" => "nie naprawia", "submitted_at" => "2026-09-08T10:36:00Z" }
+    ]))
+    assert_equal [ 3 ], d.foreign_reviews.map { |r| r["id"] }
+    assert d.any?
+    assert_equal "- **tomek (CHANGES_REQUESTED, 2026-09-08)**: nie naprawia", d.review_entry(d.foreign_reviews.first)
+  end
+
+  test "bez cudzych review any? zostaje false" do
+    assert_not PrDiscussion.new(snapshot).any?
   end
 end

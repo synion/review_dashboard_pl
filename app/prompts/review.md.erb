@@ -9,6 +9,21 @@ To jest to, co MIAŁO być zrobione. Skonfrontuj z tym kod — zwłaszcza Accept
 Criteria: czy każdy punkt jest zrealizowany i czy zmiany nie wychodzą poza zakres
 zadania. Rozjazd kodu z opisem zadania to znalezisko.
 
+Trzy reguły, bez wyjątków:
+
+1. **Każde AC z nazwy.** Nie pisz „4 z 5” - wymień, które jest spełnione (plik, linia
+   albo test), które nie, a które jest **niesprawdzalne z kodu**. AC o zachowaniu
+   produkcji („kod dochodzi do klienta”) bez dowodu z produkcji NIE jest spełnione:
+   jest niesprawdzalne i wtedy piszesz, jaki dowód (log, zrzut z panelu, repro) autor
+   ma dołączyć do zadania. Niesprawdzalne AC celu zadania to znalezisko `important`.
+2. **Każda pułapka z sekcji „Niejasności / pułapki” z osobna.** W „Co sprawdziłem”
+   odnieś się do każdej: zamknięta (czym) albo otwarta. Pułapka, której nie da się
+   zamknąć z kodu, to znalezisko - nie zdanie w prozie.
+3. **`Krótko` mówi najpierw o zadaniu, potem o kodzie.** Gdy którekolwiek AC jest
+   niespełnione albo niesprawdzalne, `Krótko` nie może brzmieć „approve” ani „można
+   mergować”. Zaczyna się wtedy od „Do ręcznego sprawdzenia: …” albo
+   „Nie rozwiązuje zadania: …”.
+
 <%= review.task_description %>
 <% end -%>
 <% if review.description.present? -%>
@@ -87,6 +102,10 @@ Po analizie statycznej przeklikaj feature na żywo i napisz test Playwright prze
 
 ```
 **Krótko:** jedno zdanie — czy można approve'ować i ile rzeczy wymaga poprawki.
+<% if review.task_description.present? -%>
+
+**Zgodność z zadaniem** — które AC spełnione, które nie, które niesprawdzalne z kodu (z nazwy).
+<% end -%>
 
 **Co sprawdziłem**
 - **nazwa obszaru** — jedno zdanie o tym, co w nim zastałeś

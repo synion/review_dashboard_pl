@@ -229,4 +229,16 @@ class GithubClientTest < ActiveSupport::TestCase
     fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: "\n{\"id\":1}\n\n", stderr: "", timed_out: false) ])
     assert_equal [ { "id" => 1 } ], GithubClient.new(runner: fake).pr_issue_comments(PR_URL, repo_dir: "/repo")
   end
+
+  test "pr_reviews_with_bodies zwraca cudze review z treścią i werdyktem" do
+    jsonl = [ { id: 5, state: "CHANGES_REQUESTED", body: "nie naprawia", submitted_at: "2026-09-08T10:36:00Z", user: "tomek" } ].map(&:to_json).join("\n")
+    fake = FakeRunner.new([ CommandRunner::Result.new(exit_code: 0, stdout: jsonl, stderr: "", timed_out: false) ])
+
+    reviews = GithubClient.new(runner: fake).pr_reviews_with_bodies(PR_URL, repo_dir: "/repo")
+
+    assert_equal [ "tomek", "CHANGES_REQUESTED" ], [ reviews.sole["user"], reviews.sole["state"] ]
+    assert_equal [ "gh", "api", "repos/acme/webapp/pulls/1234/reviews", "--paginate", "--jq",
+                   ".[] | {id, state, body, submitted_at, user: .user.login}" ],
+                 fake.calls.sole[:cmd]
+  end
 end

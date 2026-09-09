@@ -78,8 +78,21 @@ class PrDiscussion
     relevant_threads.reject { |thread| taken.include?(header_of(thread)) }
   end
 
+  # Cudze review z treścią (nie moje, nie puste „APPROVED” bez słowa). To ten głos,
+  # którego brak sprawił, że followup po cudzym CHANGES_REQUESTED dostawał treść
+  # dopiero wklejoną ręcznie przez usera.
+  def foreign_reviews
+    @foreign_reviews ||= @snapshot.reviews.reject { |r| mine?(r) || r["body"].to_s.strip.empty? }
+                                  .sort_by { |r| r["submitted_at"].to_s }
+  end
+
+  def review_entry(review)
+    at = Time.zone.parse(review["submitted_at"].to_s)
+    "- **#{review["user"]} (#{review["state"]}#{", #{at.to_date}" if at})**: #{body_of(review)}"
+  end
+
   # Czy jest o czym pisać w prompcie.
-  def any? = relevant_threads.any? || issue_comments.any?
+  def any? = relevant_threads.any? || issue_comments.any? || foreign_reviews.any?
 
   # Mój własny głos na PR-ze. Snapshot bez loginu (artefakt sprzed tej zmiany) nie
   # pozwala tego rozstrzygnąć — wtedy nie wycinamy nic, bo nadmiar jest tańszy
