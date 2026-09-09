@@ -5,10 +5,15 @@ class DecisionsController < ApplicationController
     return render_error("Nieznana decyzja: #{verdict}") unless Review::DECISIONS.include?(verdict)
     return render_error("Ten review nie ma powiązanego PR-a — nie ma gdzie wysłać decyzji") if @review.pr_url.blank?
 
+    if (gate_error = gate_error_for(verdict))
+      return render_error(gate_error)
+    end
+
     body = params[:body].to_s
     notice = DecisionPublisher.call(@review, verdict: verdict, body: body, inline: params[:inline_comments] == "1")
     attrs = { status: "decided", decision: verdict, decision_body: body, decided_at: Time.current,
-              decision_head_sha: head_sha_at_decision }
+              decision_head_sha: head_sha_at_decision, challenge: nil }
+    attrs[:decision_checklist] = checklist_snapshot if @review.task_fit_gate?
     # Instrukcję mrozimy na review (nawet identyczną z projektową) — „Ponów" ma
     # użyć dokładnie tej, którą user widział przy decyzji, a nie późniejszego
     # stanu projektu. Status kolejki tu, nie w jobie — patrz refresh_task_description;
@@ -39,6 +44,24 @@ class DecisionsController < ApplicationController
   end
 
   private
+
+  # Miękka bramka approve (C + override z A). Reject i comment przechodzą bez
+  # pytań - one nie zamykają zadania. Błąd wraca formularzem z komunikatem, żeby
+  # nie stracić edytowanej treści decyzji.
+  def gate_error_for(verdict)
+    return unless verdict == "approve" && @review.task_fit_gate?
+
+    missing = @review.task_criteria_list.map { |item| item["id"] }.reject { |id| params.dig(:checklist, id) == "1" }
+    return "Odhacz każdy punkt z zadania przed approve (brakuje: #{missing.join(", ")})" if missing.any?
+    return if !@review.approve_needs_override? || params[:override] == "1"
+
+    "Zgodność z zadaniem jest #{@review.task_fit_verdict == "misses" ? "czerwona" : "niesprawdzona"} - zaznacz „Approve mimo to”, jeśli to świadoma decyzja"
+  end
+
+  def checklist_snapshot
+    checked = @review.task_criteria_list.to_h { |item| [ item["id"], params.dig(:checklist, item["id"]) == "1" ] }
+    checked.merge("override" => params[:override] == "1")
+  end
 
   # Stan kodu, na który człowiek właśnie patrzył — bez niego późniejsze „sprawdź, czy
   # uwagi wdrożone" nie ma od czego liczyć diffu. Padnięty gh nie może wywalić wysyłki

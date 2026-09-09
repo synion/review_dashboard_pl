@@ -1,0 +1,71 @@
+<%# Bramka zgodności z zadaniem. Stoi na samej górze panelu, PRZED opisem zadania
+    i podsumowaniem: to ma być pierwsza i największa rzecz na ekranie, bo w prozie
+    podsumowania „AC 4 z 5, jedno świadomie otwarte” czyta się jak „wszystko gra”.
+    Stany: brak listy AC (none), sesja w toku (pending), padła (failed), werdykt. %>
+<% verdict = review.task_fit_verdict %>
+<% manual = review.task_fit_manual_checks %>
+<% if !review.task_fit_gate? %>
+  <div class="task-fit-banner task-fit-none">
+    <strong>Zgodność z zadaniem niesprawdzona</strong>
+    <span class="task-fit-sub">brak listy AC z opisu zadania<%= " (wygeneruj opis zadania, żeby włączyć bramkę)" if review.task_url.present? || review.pr_url.present? %></span>
+  </div>
+<% elsif %w[queued running].include?(review.task_fit_status) %>
+  <div class="task-fit-banner task-fit-pending">
+    <strong>Sprawdzam zgodność z zadaniem…</strong>
+    <div id="review_<%= review.id %>_side_progress"><%= render "reviews/task_progress", review: review %></div>
+  </div>
+<% elsif review.task_fit_status == "failed" && verdict.nil? %>
+  <div class="task-fit-banner task-fit-failed">
+    <strong>Ocena zgodności z zadaniem padła</strong><%= ": #{review.task_fit_error}" if review.task_fit_error.present? %>
+    <%= button_to "↻ Ponów ocenę zgodności", refresh_task_fit_review_path(review), class: "btn" %>
+  </div>
+<% elsif verdict.nil? %>
+  <div class="task-fit-banner task-fit-none">
+    <strong>Zgodność z zadaniem jeszcze niesprawdzona</strong>
+    <% if review.task_fit_possible? %><%= button_to "Sprawdź zgodność z zadaniem", refresh_task_fit_review_path(review), class: "btn" %><% end %>
+  </div>
+<% else %>
+  <div class="task-fit-banner task-fit-<%= verdict %>">
+    <strong>
+      <% if verdict == "misses" %>⛔ NIE ROZWIĄZUJE ZADANIA
+      <% elsif verdict == "partial" %>⚠ SPRAWDŹ RĘCZNIE: <%= manual.size %> <%= manual_checks_noun(manual.size) %>
+      <% else %>✓ Rozwiązuje zadanie
+      <% end %>
+    </strong>
+    <% if review.task_fit_status == "failed" %>
+      <span class="task-fit-sub">ostatnia ocena padła, to jest poprzedni wynik</span>
+    <% end %>
+    <% if manual.any? %>
+      <ul class="task-fit-manual">
+        <% manual.each do |check| %>
+          <li><strong><%= check["text"] %></strong> - zdobądź: <%= check["needed_evidence"].presence || "dowód spoza kodu" %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+<% end %>
+
+<% if verdict %>
+  <details class="card task-fit-details" <%= "open" unless verdict == "fits" %>>
+    <summary>Zgodność z zadaniem: szczegóły</summary>
+    <div class="task-fit-premise">
+      <p><strong>Objaw</strong> - <%= review.task_fit["symptom"] %></p>
+      <p><strong>Przyczyna wg PR-a</strong> - <%= review.task_fit["assumed_cause"] %></p>
+      <p><strong>Dowód</strong> - <%= review.task_fit["evidence_found"] ? "" : "BRAK. " %><%= review.task_fit["evidence"] %></p>
+    </div>
+    <ul class="task-fit-items">
+      <% task_fit_items(review).each do |item| %>
+        <li class="task-fit-item task-fit-item-<%= item["status"].tr("/", "_") %>">
+          <span class="status-badge checklist-status-<%= item["status"].tr("/", "_") %>"><%= task_fit_status_label(item["status"]) %></span>
+          <strong><%= item["text"] %></strong>
+          <% if item["note"].present? %><div class="muted"><%= item["note"] %></div><% end %>
+          <% if item["needed_evidence"].present? %><div class="muted">Do zdobycia: <%= item["needed_evidence"] %></div><% end %>
+        </li>
+      <% end %>
+    </ul>
+    <p class="muted">sprawdzone <%= l review.task_fit_checked_at, format: :short if review.task_fit_checked_at %></p>
+    <% if review.task_fit_possible? %>
+      <%= button_to "↻ Sprawdź zgodność ponownie", refresh_task_fit_review_path(review), class: "btn" %>
+    <% end %>
+  </details>
+<% end %>

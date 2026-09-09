@@ -201,11 +201,59 @@ module ReviewsHelper
     "Review w toku"
   end
 
+  # Szkic decyzji zaczyna od werdyktu zgodności z zadaniem, a znaleziska bramki
+  # (niespełnione AC, brak dowodu) stoją przed uwagami do kodu - autor PR-a na
+  # GitHubie ma zobaczyć to samo czerwone, co reviewer w dashboardzie.
   def decision_draft(review)
-    parts = [ "## Review\n", review.summary.to_s, "\n" ]
-    review.findings.order(:priority).each do |f|
+    parts = [ "## Review\n" ]
+    parts << "**Zgodność z zadaniem:** #{task_fit_label(review.task_fit_verdict)}\n" if review.task_fit_verdict
+    parts << review.summary.to_s << "\n"
+    findings = review.findings.order(:priority).sort_by { |f| f.task_fit? ? 0 : 1 }
+    findings.each do |f|
       parts << "- **[#{f.priority}]** #{f.title} (#{f.file_location})"
     end
     parts.join("\n")
+  end
+
+  TASK_FIT_LABELS = { "fits" => "Rozwiązuje zadanie", "partial" => "Część AC niesprawdzalna z kodu",
+                      "misses" => "Nie rozwiązuje zgłoszenia" }.freeze
+  TASK_FIT_STATUS_LABELS = { "met" => "✓ spełnione", "unmet" => "✗ niespełnione", "unverifiable" => "? niesprawdzalne z kodu",
+                             "addressed" => "✓ zamknięta", "open" => "✗ otwarta",
+                             "present" => "✓ jest", "missing" => "✗ brak", "n/a" => "nie dotyczy" }.freeze
+
+  def task_fit_label(verdict) = TASK_FIT_LABELS.fetch(verdict.to_s, "niesprawdzona")
+
+  def task_fit_status_label(status) = TASK_FIT_STATUS_LABELS.fetch(status.to_s, status.to_s)
+
+  # Punkty do tabeli i checklisty: ze statusem z wyniku, a gdy wyniku nie ma - sama
+  # lista z opisu zadania (checklista działa też bez sesji, tylko bez podpowiedzi).
+  def task_fit_items(review)
+    return review.task_criteria_list unless review.task_fit_verdict
+
+    %w[criteria traps process].flat_map { |key| Array(review.task_fit[key]) }
+  end
+
+  def manual_checks_noun(count)
+    return "punkt" if count == 1
+    return "punkty" if (2..4).cover?(count % 10) && !(12..14).cover?(count % 100)
+
+    "punktów"
+  end
+
+  # Badge na liście i kaflu - tylko czerwone i żółte. Zielone nie potrzebuje miejsca.
+  def task_fit_badge(review)
+    case review.task_fit_verdict
+    when "misses" then tag.span("⛔ nie rozwiązuje zadania", class: "task-fit-badge task-fit-badge-misses")
+    when "partial" then tag.span("⚠ sprawdź ręcznie (#{review.task_fit_manual_checks.size})", class: "task-fit-badge task-fit-badge-partial")
+    end
+  end
+
+  def challenge_description(review)
+    challenge = review.challenge || {}
+    if challenge["source"] == "task"
+      "nowe komentarze w zadaniu po Twojej decyzji (#{challenge["count"]} łącznie)"
+    else
+      "#{challenge["by"]} zażądał zmian na PR-ze po Twojej decyzji"
+    end
   end
 end

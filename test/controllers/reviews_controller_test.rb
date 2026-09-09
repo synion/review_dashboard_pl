@@ -1280,4 +1280,111 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs(only: TaskFitJob) { post refresh_task_fit_review_path(review) }
     assert_equal "Brak listy AC z opisu zadania - najpierw wygeneruj opis zadania", flash[:alert]
   end
+
+  # ---- Bramka zgodności z zadaniem: baner ma być pierwszą rzeczą na ekranie.
+
+  def gated_review(verdict:, status: "reviewed")
+    review = reviews(:pr_review)
+    review.update!(status: status, branch: "b", summary: "OK", task_description: "**Cel** — x.",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "Kod dochodzi do klienta" },
+                                                    { "id" => "ac2", "text" => "count 0 to porażka" } ],
+                                    "traps" => [ { "id" => "t1", "text" => "Autor odczytał log?" } ],
+                                    "process" => [ { "id" => "p1", "text" => "Link do Figmy" } ] },
+                   task_fit_status: "ready",
+                   task_fit: { "verdict" => verdict, "symptom" => "SMS nie dochodzi", "assumed_cause" => "SMSAPI odrzuca",
+                               "evidence" => "brak logu", "evidence_found" => verdict != "misses",
+                               "criteria" => [ { "id" => "ac1", "text" => "Kod dochodzi do klienta", "kind" => "criterion",
+                                                 "status" => verdict == "fits" ? "met" : "unverifiable", "note" => "brak dowodu z produkcji",
+                                                 "needed_evidence" => "status doręczenia obu id z panelu SMSAPI" },
+                                               { "id" => "ac2", "text" => "count 0 to porażka", "kind" => "criterion", "status" => "met", "note" => "two_step_verification.rb:280" } ],
+                               "traps" => [ { "id" => "t1", "text" => "Autor odczytał log?", "kind" => "trap",
+                                              "status" => verdict == "misses" ? "open" : "addressed", "note" => "komentarz 3" } ],
+                               "process" => [ { "id" => "p1", "text" => "Link do Figmy", "kind" => "process", "status" => "n/a", "note" => "bugfix" } ] })
+    review
+  end
+
+  test "misses: czerwony baner NIE ROZWIĄZUJE ZADANIA stoi przed opisem zadania i podsumowaniem" do
+    review = gated_review(verdict: "misses")
+    get review_path(review)
+    assert_select ".task-fit-banner.task-fit-misses", text: /NIE ROZWIĄZUJE ZADANIA/
+    body = response.body
+    assert_operator body.index("task-fit-banner"), :<, body.index("Opis zadania")
+    assert_operator body.index("task-fit-banner"), :<, body.index("Podsumowanie")
+    assert_select ".task-fit-item-open", text: /Autor odczytał log\?/
+    assert_select ".task-fit-premise", text: /SMSAPI odrzuca/
+  end
+
+  test "partial: żółty baner SPRAWDŹ RĘCZNIE z listą dowodów do zdobycia" do
+    review = gated_review(verdict: "partial")
+    get review_path(review)
+    assert_select ".task-fit-banner.task-fit-partial", text: /SPRAWDŹ RĘCZNIE: 1 punkt/
+    assert_select ".task-fit-manual li", text: /status doręczenia obu id z panelu SMSAPI/
+  end
+
+  test "fits: zielony, mały baner" do
+    review = gated_review(verdict: "fits")
+    get review_path(review)
+    assert_select ".task-fit-banner.task-fit-fits", text: /Rozwiązuje zadanie/
+    assert_select ".task-fit-manual", count: 0
+  end
+
+  test "bez listy AC: żółty baner o braku listy, bez checklisty" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", summary: "OK")
+    get review_path(review)
+    assert_select ".task-fit-banner.task-fit-none", text: /Zgodność z zadaniem niesprawdzona/
+    assert_select "input[name^='checklist[']", count: 0
+    assert_select "input[name='override']", count: 0
+  end
+
+  test "sesja w toku: baner mówi, że sprawdza, i pokazuje postęp" do
+    review = gated_review(verdict: "fits")
+    review.update!(task_fit_status: "running")
+    review.claude_runs.create!(kind: "task_fit", status: "running", claude_config: review.effective_claude_config, last_message: "Czytam zadanie")
+    get review_path(review)
+    assert_select ".task-fit-banner.task-fit-pending", text: /Sprawdzam zgodność z zadaniem/
+    assert_select ".task-fit-banner", text: /NIE ROZWIĄZUJE/, count: 0
+  end
+
+  test "padnięta sesja: czerwony box z ponowieniem" do
+    review = gated_review(verdict: "fits")
+    review.update!(task_fit_status: "failed")
+    get review_path(review)
+    assert_select ".task-fit-banner.task-fit-failed"
+    assert_select "form[action='#{refresh_task_fit_review_path(review)}']"
+  end
+
+  test "formularz decyzji: checklista per punkt i override przy misses" do
+    review = gated_review(verdict: "misses")
+    get review_path(review)
+    %w[ac1 ac2 t1 p1].each { |id| assert_select "input[type=checkbox][name='checklist[#{id}]']", count: 1 }
+    assert_select "input[type=checkbox][name='override']", count: 1
+    assert_select ".checklist-status-unverifiable", minimum: 1
+  end
+
+  test "formularz decyzji: bez override przy partial" do
+    review = gated_review(verdict: "partial")
+    get review_path(review)
+    assert_select "input[name='override']", count: 0
+    assert_select "input[type=checkbox][name='checklist[ac1]']", count: 1
+  end
+
+  test "lista pokazuje badge nie rozwiązuje zadania i sprawdź ręcznie" do
+    review = gated_review(verdict: "misses")
+    get project_reviews_path(review.project)
+    assert_select "tr#review_row_#{review.id} .task-fit-badge-misses", text: /nie rozwiązuje zadania/
+
+    review.update!(task_fit: review.task_fit.merge("verdict" => "partial"))
+    get project_reviews_path(review.project)
+    assert_select "tr#review_row_#{review.id} .task-fit-badge-partial", text: /sprawdź ręcznie \(1\)/
+  end
+
+  test "challenged: czerwony baner o podważeniu na samej górze i followup w panelu" do
+    review = gated_review(verdict: "fits", status: "challenged")
+    review.update!(decision: "approve", decided_at: 1.day.ago, challenge: { "source" => "pr", "by" => "tomek" })
+    get review_path(review)
+    assert_select ".challenge-banner", text: /tomek/
+    assert_operator response.body.index("challenge-banner"), :<, response.body.index("task-fit-banner")
+    assert_select "form[action='#{review_followup_path(review)}']"
+  end
 end

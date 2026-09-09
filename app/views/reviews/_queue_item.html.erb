@@ -32,6 +32,7 @@
   <% if (next_step = review_next_step(review)) %>
     <div class="qact"><span class="qgo"><%= next_step %></span></div>
   <% end %>
+  <% if (badge = task_fit_badge(review)) %><div class="qmeta"><%= badge %></div><% end %>
   <div class="qmeta">
     <%= [ review_findings_summary(review),
           (review.pr_number if review.pr_url.blank?)&.then { |n| "PR ##{n}" },

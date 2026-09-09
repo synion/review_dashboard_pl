@@ -1,5 +1,17 @@
 <p><span class="status-badge status-<%= review.status %>"><%= review_status_label(review) %></span></p>
 
+<%# Podważona decyzja i bramka zgodności PRZED wszystkim innym: jedyne dwie rzeczy,
+    które mają prawo zmienić to, co user zrobi w następnej minucie. %>
+<% if review.status == "challenged" %>
+  <div class="challenge-banner">
+    <strong>⛔ Ktoś podważył Twoją decyzję (<%= review.decision %>)</strong>
+    <span class="task-fit-sub"><%= challenge_description(review) %>. Followup konfrontujący jest w kolejce albo już skończył - wynik niżej.</span>
+  </div>
+<% end %>
+<% unless review.finished? || review.status.in?(%w[created describing]) %>
+  <%= render "reviews/task_fit", review: review %>
+<% end %>
+
 <%# Nad opisem i wynikiem, bo to jedyna informacja, której user tu szuka: czy jeszcze
     coś do mnie należy. Poza `case`, żeby nie gubić się w gałęziach statusów. %>
 <% if review.finished? %>
@@ -56,10 +68,16 @@
   </div>
 <% when "reviewing" %>
   <%= render "reviews/in_progress", review: review, title: in_progress_title(review) %>
-<% when "reviewed", "decided", "waiting_review", "merged", "closed" %>
+<% when "reviewed", "decided", "waiting_review", "challenged", "merged", "closed" %>
   <div class="card"><h2>Podsumowanie</h2><%= markdown review.summary %></div>
   <%= render "reviews/findings", review: review %>
-  <% if review.status == "waiting_review" %>
+  <% if review.status == "challenged" %>
+    <%= render "reviews/followup_form", review: review,
+          title: "⚠ Skonfrontuj decyzję z podważeniem",
+          label: "Followup po podważeniu poszedł automatycznie; tu możesz dopytać o konkret",
+          body: Review.challenge_message(review, review.challenge || {}),
+          submit: "Sprawdź ponownie" %>
+  <% elsif review.status == "waiting_review" %>
     <%= render "reviews/followup_form", review: review,
           title: "🔁 Autor prosi o ponowne review",
           label: "Claude wróci do tej samej sesji, pobierze aktualny kod i sprawdzi poprawki — możesz doprecyzować, na co zwrócić uwagę",
@@ -117,6 +135,9 @@
         </div>
         <%# Prefill z wyboru przy starcie, ale ostatnie słowo należy do tego miejsca:
             dopiero tu widać konkretne znaleziska i to, czy mają sensowne linie. %>
+        <% if review.task_fit_gate? %>
+          <%= render "reviews/decision_checklist", review: review %>
+        <% end %>
         <div class="field">
           <label><input type="checkbox" name="inline_comments" value="1" <%= "checked" if review.inline_comments? %>>
             📍 Wyślij znaleziska jako komentarze przy liniach kodu</label>

@@ -222,4 +222,85 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
       post review_followup_actions_path(@review)
     end
   end
+
+  # ---- Miękka bramka approve: checklista zawsze, override przy czerwonym.
+
+  def gate!(verdict)
+    @review.update!(task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "Kod dochodzi" } ],
+                                     "traps" => [ { "id" => "t1", "text" => "Log?" } ] },
+                    task_fit_status: "ready", task_fit: { "verdict" => verdict, "criteria" => [], "traps" => [], "evidence_found" => true })
+  end
+
+  test "approve bez odhaczonej checklisty wraca z błędem i nic nie wysyła" do
+    gate!("partial")
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      post review_decision_path(@review), params: { verdict: "approve", body: "LGTM", checklist: { "ac1" => "1" } }
+    end
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Odhacz każdy punkt"
+    assert_includes response.body, "t1"
+    assert_empty submitted
+    assert_equal "reviewed", @review.reload.status
+  end
+
+  test "approve przy misses wymaga override" do
+    gate!("misses")
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      post review_decision_path(@review), params: { verdict: "approve", body: "LGTM", checklist: { "ac1" => "1", "t1" => "1" } }
+    end
+    assert_response :unprocessable_entity
+    assert_includes response.body, "Approve mimo to"
+    assert_empty submitted
+  end
+
+  test "approve z checklistą i override przechodzi i zapisuje, co odhaczono" do
+    gate!("misses")
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      post review_decision_path(@review), params: { verdict: "approve", body: "LGTM", checklist: { "ac1" => "1", "t1" => "1" }, override: "1" }
+    end
+    assert_equal 1, submitted.size
+    assert_equal({ "ac1" => true, "t1" => true, "override" => true }, @review.reload.decision_checklist)
+    assert_equal "decided", @review.status
+  end
+
+  test "approve przy partial z samą checklistą przechodzi" do
+    gate!("partial")
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      post review_decision_path(@review), params: { verdict: "approve", body: "LGTM", checklist: { "ac1" => "1", "t1" => "1" } }
+    end
+    assert_equal "decided", @review.reload.status
+    assert_equal({ "ac1" => true, "t1" => true, "override" => false }, @review.decision_checklist)
+  end
+
+  test "reject i comment nie wymagają checklisty" do
+    gate!("misses")
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      post review_decision_path(@review), params: { verdict: "reject", body: "Nie" }
+    end
+    assert_equal "decided", @review.reload.status
+  end
+
+  test "bez listy AC approve działa jak dotąd" do
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      post review_decision_path(@review), params: { verdict: "approve", body: "LGTM" }
+    end
+    assert_equal "decided", @review.reload.status
+    assert_nil @review.decision_checklist
+  end
+
+  test "szkic decyzji zaczyna od werdyktu zgodności i stawia znaleziska bramki na górze" do
+    gate!("partial")
+    @review.findings.create!(priority: "minor", title: "Literówka", body: "x")
+    @review.findings.create!(priority: "important", title: "Niesprawdzalne z kodu: Kod dochodzi", body: "x", source: "task_fit")
+    get review_path(@review)
+    draft = css_select("textarea[name=body]").first.text
+    assert_match(/\A## Review\n\n\*\*Zgodność z zadaniem:\*\* Część AC niesprawdzalna z kodu/, draft)
+    assert_operator draft.index("Niesprawdzalne z kodu"), :<, draft.index("Literówka")
+  end
 end

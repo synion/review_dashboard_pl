@@ -1,0 +1,20 @@
+<%# Checklista przed Approve (C): człowiek odhacza każdy punkt z osobna, patrząc na
+    status od modelu. Override tylko przy czerwonym/niesprawdzonym werdykcie - miękko,
+    bo bywa AC świadomie odłożone na inny PR. Walidacja po stronie serwera. %>
+<div class="checklist">
+  <p><strong>Zanim klikniesz Approve, odhacz każdy punkt z zadania:</strong></p>
+  <% task_fit_items(review).each do |item| %>
+    <label class="checklist-row">
+      <input type="checkbox" name="checklist[<%= item["id"] %>]" value="1">
+      <span class="status-badge checklist-status-<%= item["status"].to_s.tr("/", "_") %>"><%= task_fit_status_label(item["status"]) %></span>
+      <%= item["text"] %>
+      <% if item["needed_evidence"].present? %><span class="muted">(do zdobycia: <%= item["needed_evidence"] %>)</span><% end %>
+    </label>
+  <% end %>
+  <% if review.approve_needs_override? %>
+    <label class="checklist-row checklist-override">
+      <input type="checkbox" name="override" value="1">
+      <strong>Approve mimo to</strong> - wiem, że zgodność z zadaniem jest <%= review.task_fit_verdict == "misses" ? "czerwona" : "niesprawdzona" %>, i biorę to na siebie
+    </label>
+  <% end %>
+</div>

@@ -12,6 +12,7 @@
   </td>
   <td>
     <span class="status-badge status-<%= review.status %>"><%= review_status_label(review) %></span>
+    <%= task_fit_badge(review) %>
     <% if review.status == "reviewing" && running_ids.exclude?(review.id) %>
       <span class="queued-hint">⏳ Czeka w kolejce</span>
     <% elsif review.finished? %>
