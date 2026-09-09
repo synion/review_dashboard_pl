@@ -426,9 +426,13 @@ class Review < ApplicationRecord
 
   # AC i pułapki z opisu zadania, jedną listą z rodzajem - panel, checklista
   # i importer chodzą po tej samej kolejności. Pusto = brak listy = brak bramki.
+  # `text` albo `name`: model przy wymogach procesu pisze „name” mimo wzoru w prompcie,
+  # a pusty tytuł znaleziska „Brak w procesie: ” nic nie mówi.
   def task_criteria_list
     data = task_criteria || {}
-    TASK_FIT_SECTIONS.flat_map { |section, kind| Array(data[section]).map { |item| item.merge("kind" => kind) } }
+    TASK_FIT_SECTIONS.flat_map do |section, kind|
+      Array(data[section]).map { |item| item.merge("kind" => kind, "text" => item["text"].presence || item["name"].to_s) }
+    end
   end
 
   # Punkty, których agent nie rozstrzygnął z kodu - do banera „SPRAWDŹ RĘCZNIE”.

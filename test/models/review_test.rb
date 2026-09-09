@@ -604,4 +604,10 @@ class ReviewTest < ActiveSupport::TestCase
     review.update!(task_comments_checked_at: 1.hour.ago)
     assert review.task_comments_check_due?
   end
+
+  test "task_criteria_list przyjmuje name zamiast text (wymogi procesu z sesji)" do
+    review = reviews(:pr_review)
+    review.update!(task_criteria: { "process" => [ { "id" => "p1", "name" => "Link do Figmy", "status" => "missing" } ] })
+    assert_equal "Link do Figmy", review.task_criteria_list.sole["text"]
+  end
 end
