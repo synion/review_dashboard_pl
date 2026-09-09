@@ -2,8 +2,8 @@ module ReviewsHelper
   STATUS_LABELS = {
     "created" => "Utworzony", "describing" => "Claude czyta zadanie…", "ready" => "Gotowy do startu",
     "reviewing" => "Review w toku…", "reviewed" => "Review zakończony", "decided" => "Zdecydowany",
-    "waiting_review" => "Czeka ponowne review", "merged" => "🎉 Zmergowany", "closed" => "🚫 PR zamknięty",
-    "failed" => "Błąd"
+    "waiting_review" => "Czeka ponowne review", "challenged" => "⛔ Podważony", "merged" => "🎉 Zmergowany",
+    "closed" => "🚫 PR zamknięty", "failed" => "Błąd"
   }.freeze
 
   # Następny ruch, nie stan. Badge odpowiada „w jakim stanie jest review", a strona
@@ -16,6 +16,7 @@ module ReviewsHelper
     "reviewing" => "Sesja review pracuje",
     "reviewed" => "Przejrzyj znaleziska i wyślij decyzję",
     "waiting_review" => "Autor poprawił — sprawdź zmiany followupem",
+    "challenged" => "Ktoś podważył Twoją decyzję po wysłaniu. Followup konfrontujący jest w kolejce, przeczytaj wynik",
     "failed" => "Sesja padła — ponów krok albo przełącz konto"
   }.freeze
 

@@ -503,4 +503,84 @@ class ReviewTest < ActiveSupport::TestCase
     review.update!(pr_activity_at: Time.utc(2026, 8, 4))
     assert review.pr_activity_after_decision?
   end
+
+  test "task_criteria_list skleja AC i pułapki z rodzajem, pusto bez opisu" do
+    review = reviews(:pr_review)
+    assert_equal [], review.task_criteria_list
+    assert_not review.task_fit_gate?
+
+    review.update!(task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "Kod dochodzi" } ],
+                                    "traps" => [ { "id" => "t1", "text" => "Autor odczytał log?" } ] })
+    assert_equal [ { "id" => "ac1", "text" => "Kod dochodzi", "kind" => "criterion" },
+                   { "id" => "t1", "text" => "Autor odczytał log?", "kind" => "trap" } ], review.task_criteria_list
+    assert review.task_fit_gate?
+  end
+
+  test "task_fit_possible? wymaga listy AC i brancha, bez pracującej sesji" do
+    review = reviews(:pr_review)
+    assert_not review.task_fit_possible?
+
+    review.update!(branch: "b", task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ], "traps" => [] })
+    assert review.task_fit_possible?
+
+    review.claude_runs.create!(kind: "task_fit", status: "running", claude_config: review.effective_claude_config)
+    assert_not review.task_fit_possible?
+  end
+
+  test "task_fit_verdict tylko przy gotowym wyniku" do
+    review = reviews(:pr_review)
+    review.update!(task_fit: { "verdict" => "misses" })
+    assert_nil review.task_fit_verdict
+
+    review.update!(task_fit_status: "ready")
+    assert_equal "misses", review.task_fit_verdict
+  end
+
+  # Miękka bramka: override tylko gdy jest lista AC, a wynik jest czerwony albo go nie ma.
+  test "approve_needs_override? przy misses albo bez gotowego wyniku, tylko gdy jest lista AC" do
+    review = reviews(:pr_review)
+    assert_not review.approve_needs_override?
+
+    review.update!(task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ], "traps" => [] })
+    assert review.approve_needs_override?
+
+    review.update!(task_fit_status: "ready", task_fit: { "verdict" => "partial" })
+    assert_not review.approve_needs_override?
+
+    review.update!(task_fit: { "verdict" => "fits" })
+    assert_not review.approve_needs_override?
+
+    review.update!(task_fit: { "verdict" => "misses" })
+    assert review.approve_needs_override?
+  end
+
+  test "task_fit_status przyjmuje tylko znane wartości" do
+    review = reviews(:pr_review)
+    review.task_fit_status = "bzdura"
+    assert_not review.valid?
+    review.task_fit_status = "queued"
+    assert review.valid?
+  end
+
+  test "challenged jest legalnym statusem i czeka na człowieka" do
+    review = reviews(:pr_review)
+    review.status = "challenged"
+    assert review.valid?
+    assert_includes Review::ATTENTION_STATUSES, "challenged"
+    assert_includes Review::FOLLOWUPABLE_STATUSES, "challenged"
+    assert_includes Review::CHECKABLE_STATUSES, "challenged"
+    assert_equal 1, Review::ATTENTION_ORDER.index("challenged")
+  end
+
+  test "challenge_message mówi, kto i gdzie podważył decyzję" do
+    review = reviews(:task_only)
+    review.update!(decided_at: Time.zone.parse("2026-09-03 13:51"))
+    pr = Review.challenge_message(review, { "source" => "pr", "by" => "tomek" })
+    assert_includes pr, "tomek"
+    assert_includes pr, "czy PR w ogóle rozwiązuje zgłoszenie"
+
+    task = Review.challenge_message(review, { "source" => "task", "count" => 5 })
+    assert_includes task, review.task_url
+    assert_includes task, "2026-09-03 13:51"
+  end
 end

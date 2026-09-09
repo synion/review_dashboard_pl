@@ -28,9 +28,18 @@ class Finding < ApplicationRecord
   VERDICT_LABELS = { "confirmed" => "✓ potwierdzone", "disputed" => "~ sporne",
                      "refuted" => "✗ obalone" }.freeze
 
+  # Skąd znalezisko: z sesji review (kod) albo z bramki zgodności z zadaniem
+  # (TaskFitImporter). Każdy importer kasuje tylko własne - inaczej ponowny import
+  # result.json zdejmowałby czerwone światło z niespełnionego AC.
+  SOURCES = %w[review task_fit].freeze
+
   belongs_to :review
 
+  scope :from_review, -> { where(source: "review") }
+  scope :from_task_fit, -> { where(source: "task_fit") }
+
   validates :priority, inclusion: { in: PRIORITIES }
+  validates :source, inclusion: { in: SOURCES }
   validates :title, presence: true
   validates :fix_status, inclusion: { in: FIX_STATUSES }, allow_nil: true
   validates :verdict, inclusion: { in: VERDICTS }, allow_nil: true
@@ -40,6 +49,8 @@ class Finding < ApplicationRecord
   def verdict_label = VERDICT_LABELS[verdict]
 
   def refuted? = verdict == "refuted"
+
+  def task_fit? = source == "task_fit"
 
   def location_path
     location_match&.[](:path)

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_03_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_09_100001) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -59,6 +59,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_100001) do
     t.string "fix_status"
     t.string "priority"
     t.integer "review_id", null: false
+    t.string "source", default: "review", null: false
     t.string "title"
     t.datetime "updated_at", null: false
     t.string "verdict"
@@ -119,12 +120,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_100001) do
 
   create_table "reviews", force: :cascade do |t|
     t.string "branch"
+    t.json "challenge"
     t.string "claude_config"
     t.datetime "created_at", null: false
     t.datetime "decided_at"
     t.string "decision"
     t.text "decision_body"
+    t.json "decision_checklist"
     t.string "decision_head_sha"
+    t.integer "decision_task_comments_count"
     t.text "description"
     t.string "effort"
     t.text "error_message"
@@ -156,8 +160,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_03_100001) do
     t.string "task_comment_responsible_id"
     t.string "task_comment_responsible_name"
     t.string "task_comment_status", default: "skipped", null: false
+    t.json "task_criteria"
     t.text "task_description"
     t.string "task_description_status", default: "skipped", null: false
+    t.json "task_fit"
+    t.datetime "task_fit_checked_at"
+    t.string "task_fit_status", default: "skipped", null: false
     t.string "task_url"
     t.datetime "updated_at", null: false
     t.datetime "worktree_health_checked_at"

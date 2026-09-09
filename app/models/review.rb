@@ -1,11 +1,19 @@
 class Review < ApplicationRecord
-  STATUSES = %w[created describing ready reviewing reviewed decided waiting_review merged closed failed].freeze
+  # `challenged`: ktoś podważył wysłaną decyzję (cudzy CHANGES_REQUESTED na PR-ze albo
+  # nowe komentarze w zadaniu po approve). Followup konfrontujący jest już w kolejce,
+  # ale status jest osobny, bo to inna robota niż „autor poprawił, sprawdź”: tu trzeba
+  # odpowiedzieć, czy własne review było w ogóle trafne.
+  STATUSES = %w[created describing ready reviewing reviewed decided waiting_review challenged merged closed failed].freeze
   # Cykl życia opisu zadania — niezależny od statusu review: opis zadania nie
   # blokuje `ready`, a jego porażka nie kładzie całego review.
   TASK_DESCRIPTION_STATUSES = %w[skipped queued running ready failed].freeze
   # Komentarz do zadania po decyzji — dosłownie ten sam kształt cyklu co opis
   # zadania (stąd alias, nie kopia): porażka nie dotyka decyzji na GitHubie.
   TASK_COMMENT_STATUSES = TASK_DESCRIPTION_STATUSES
+  # Zgodność z zadaniem (świeża sesja task_fit): ten sam cykl poboczny co opis zadania.
+  # Werdykt liczy TaskFitImporter, nie model - stąd stała z dozwolonymi wartościami.
+  TASK_FIT_STATUSES = TASK_DESCRIPTION_STATUSES
+  TASK_FIT_VERDICTS = %w[fits partial misses].freeze
   # Akcje na PR-ze po decyzji (reviewer/label): ten sam kształt cyklu pobocznego,
   # ale bez running/ready — pojedynczy strzał gh zamiast długiej sesji.
   FOLLOWUP_STATUSES = %w[queued sent failed].freeze
@@ -18,19 +26,21 @@ class Review < ApplicationRecord
   # review wisi w „Review zakończony / wyślij decyzję" do końca świata. Poza listą
   # zostają statusy z pracującą sesją (created, describing, reviewing): tam status
   # należy do joba, nie do GitHuba.
-  CHECKABLE_STATUSES = %w[ready reviewed decided waiting_review failed].freeze
+  CHECKABLE_STATUSES = %w[ready reviewed decided waiting_review challenged failed].freeze
   # Statusy, z których wolno odpalić followup. `decided` jest tu dla review, których
   # GitHub nigdy nie przestawi w waiting_review: własnego PR-a nie da się zgłosić
   # samemu sobie do review, a na obcym branchu autor po prostu nie musi klikać
   # re-requestu — a zmiany i tak trzeba sprawdzić.
-  FOLLOWUPABLE_STATUSES = %w[reviewed waiting_review decided].freeze
+  FOLLOWUPABLE_STATUSES = %w[reviewed waiting_review decided challenged].freeze
   # Kubełki liczników na liście projektów. „Czeka na Ciebie" to wszystko, co stoi
   # i czeka na kliknięcie — łącznie z `failed`, bo tam też decyzja należy do człowieka.
-  ATTENTION_STATUSES = %w[ready reviewed waiting_review failed].freeze
+  ATTENTION_STATUSES = %w[ready reviewed waiting_review challenged failed].freeze
   # Kolejność sekcji „Rozpoczęte w dashboardzie" na stronie wejściowej. Najpierw to,
   # co jest zepsute albo blokuje kogoś innego (padnięta sesja, gotowe znaleziska,
   # autor czekający na ponowne review), na końcu review jeszcze nieodpalone.
-  ATTENTION_ORDER = %w[failed reviewed waiting_review ready].freeze
+  # `challenged` zaraz po `failed`: podważona decyzja wisi na GitHubie i w trackerze
+  # z moim nazwiskiem, więc to najpilniejsza rzecz po padniętej sesji.
+  ATTENTION_ORDER = %w[failed challenged reviewed waiting_review ready].freeze
   # „created" jest tu, bo review siedzi w tym statusie od stworzenia aż do startu
   # DescribeReviewJob — a między zakolejkowaniem a workerem potrafi minąć kilkanaście
   # minut (patrz komentarze w ReviewsController). Bez tego świeżo założone review
@@ -99,6 +109,7 @@ class Review < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :task_description_status, inclusion: { in: TASK_DESCRIPTION_STATUSES }
   validates :task_comment_status, inclusion: { in: TASK_COMMENT_STATUSES }
+  validates :task_fit_status, inclusion: { in: TASK_FIT_STATUSES }
   validates :followup_reviewer_status, :followup_label_status,
             inclusion: { in: FOLLOWUP_STATUSES }, allow_nil: true
   validates :decision, inclusion: { in: DECISIONS }, allow_nil: true
@@ -404,6 +415,76 @@ class Review < ApplicationRecord
 
   def task_comment_error
     side_run_error("comment_task")
+  end
+
+  def task_fit_error
+    side_run_error("task_fit")
+  end
+
+  # AC i pułapki z opisu zadania, jedną listą z rodzajem - panel, checklista
+  # i importer chodzą po tej samej kolejności. Pusto = brak listy = brak bramki.
+  def task_criteria_list
+    data = task_criteria || {}
+    Array(data["criteria"]).map { |item| item.merge("kind" => "criterion") } +
+      Array(data["traps"]).map { |item| item.merge("kind" => "trap") }
+  end
+
+  # Bramka zgodności istnieje tylko wtedy, gdy opis zadania dał listę AC. Bez niej
+  # formularz decyzji działa jak dotąd (selfreview, PR bez zadania, stary opis).
+  def task_fit_gate?
+    task_criteria_list.any?
+  end
+
+  # Werdykt tylko z gotowego wyniku: po odświeżeniu opisu albo w trakcie sesji
+  # stary werdykt odnosiłby się do innej listy AC.
+  def task_fit_verdict
+    task_fit&.dig("verdict") if task_fit_status == "ready"
+  end
+
+  def task_fit_in_progress?
+    claude_runs.exists?(kind: "task_fit", status: %w[pending running])
+  end
+
+  # Sesja musi mieć co czytać (branch) i z czym konfrontować (lista AC); druga
+  # sesja w locie pisałaby po tym samym pliku.
+  def task_fit_possible?
+    task_fit_gate? && branch.present? && !task_fit_in_progress?
+  end
+
+  # Miękka bramka Approve: świadome „mimo to” wymagane, gdy jest lista AC, a wynik
+  # jest czerwony albo go nie ma (sesja w toku, padła, nigdy nie ruszyła). `partial`
+  # (coś do sprawdzenia ręcznie) przechodzi przez samą checklistę - to człowiek
+  # odhacza, że sprawdził.
+  def approve_needs_override?
+    task_fit_gate? && !task_fit_verdict.in?(%w[fits partial])
+  end
+
+  # Zakolejkowanie sesji zgodności. Status tu, nie w jobie - między kliknięciem
+  # a startem workera panel ma już pokazywać „sprawdzam”, jak przy opisie zadania.
+  def enqueue_task_fit!
+    return false unless task_fit_possible?
+
+    update!(task_fit_status: "queued")
+    TaskFitJob.perform_later(self)
+    true
+  end
+
+  # Wiadomość followupu po podważeniu decyzji. Z zadania nie da się pobrać treści
+  # komentarzy przez API (endpoint ignoruje filtr po zadaniu), więc sesja ma je
+  # przeczytać sama, po dacie decyzji.
+  def self.challenge_message(review, challenge)
+    stamp = review.decided_at&.strftime("%Y-%m-%d %H:%M")
+    if challenge["source"] == "task"
+      "W zadaniu #{review.task_url} pojawiły się nowe komentarze po mojej decyzji (#{review.decision}, #{stamp}). " \
+        "Otwórz zadanie, przeczytaj WSZYSTKIE komentarze dodane po #{stamp} i skonfrontuj je z moją decyzją: " \
+        "czy ktoś podważa PR, co przeoczyłem i czy PR w ogóle rozwiązuje zgłoszenie z zadania. " \
+        "Odpowiedz wprost, bez bronienia poprzedniego wniosku."
+    else
+      "Inny reviewer (#{challenge["by"]}) zażądał zmian po moim #{review.decision} (#{stamp}). " \
+        "Przeczytaj jego review w sekcji „Cudze review pod PR-em”, skonfrontuj z moją decyzją i odpowiedz wprost: " \
+        "czy miał rację, co przeoczyłem i czy PR w ogóle rozwiązuje zgłoszenie z zadania. " \
+        "Nie broń poprzedniego wniosku - sprawdź go od nowa."
+    end
   end
 
   # Instrukcja dla sesji komentującej: zamrożona przy decyzji wygrywa (Ponów używa

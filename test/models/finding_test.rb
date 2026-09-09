@@ -37,4 +37,15 @@ class FindingTest < ActiveSupport::TestCase
   test "ogon po numerze linii nie jest częścią ścieżki" do
     assert_equal [ "app/x.rb", 42..42 ], location("app/x.rb:42 (metoda #call)")
   end
+
+  test "source domyślnie review, task_fit odróżnia znaleziska bramki" do
+    review = reviews(:pr_review)
+    mine = review.findings.create!(priority: "minor", title: "a", body: "x")
+    gate = review.findings.create!(priority: "critical", title: "b", body: "x", source: "task_fit")
+    assert_equal "review", mine.source
+    assert gate.task_fit?
+    assert_equal [ mine ], review.findings.from_review.to_a
+    assert_equal [ gate ], review.findings.from_task_fit.to_a
+    assert_not review.findings.build(priority: "minor", title: "c", source: "bzdura").valid?
+  end
 end
