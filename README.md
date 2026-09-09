@@ -112,6 +112,7 @@ Wszystko klika się w UI (**Nowy projekt**). Pola:
 | Prefiks adresu zadania (`task_url_prefix`) | nie | link do zadania jest wyłuskiwany z opisu PR-a i wpisywany w formularz review; puste = wyłączone |
 | Katalog dokumentacji (`docs_path`) | nie (default `doc/llm`) | jeśli istnieje w repo, review czyta stamtąd konwencje projektu |
 | Stałe zasady review | nie | tekst doklejany do każdego promptu review w tym projekcie |
+| Wymogi procesu przed implementacją (`process_rules`) | nie | lista elementów, które zadanie MUSI mieć zanim ktoś zacznie je robić (np. „nowy feature: link do Figmy, analiza w zadaniu”). Opis zadania sprawdza każdy na zadaniu; brak = czerwone w bramce zgodności |
 | Instrukcja komentarza do zadania | nie | jak ma wyglądać komentarz w trackerze po decyzji |
 | API token trackera (`intum_api_token`) | nie | włącza integrację z trackerem (Intum): komentarz po decyzji idzie bezpośrednio z aplikacji (bez sesji Claude) i można go skierować do osoby drugiego sprawdzenia; przycisk „Testuj połączenie" sprawdza token i uprawnienia. Szyfrowany w bazie |
 | Domyślny drugi reviewer / label po decyzji | nie | prefille comboboxów akcji na PR-ze po decyzji (reviewer gdy nikt nie reviewował, label gdy ktoś już tak) |
@@ -221,6 +222,38 @@ Własne PR-y nie znikają z apki — review swojego kodu zakładasz normalnie pr
 
 Artefakty każdego review (result.json, logi sesji, logi Playwright) leżą
 w `storage/reviews/<id>/` i znikają razem z review.
+
+## Zgodność z zadaniem (bramka przed Approve)
+
+Review kodu potrafi zaakceptować PR, który jest poprawny technicznie i nie naprawia
+tego, co zgłosił klient: autor przyjął hipotezę o przyczynie, nikt jej nie sprawdził,
+a reviewer ocenił spójność diffu. Dashboard rozlicza z tego osobno:
+
+1. **Opis zadania** oprócz markdownu zapisuje `task_criteria.json`: każde AC, każda
+   pułapka z sekcji „Niejasności / pułapki” i każdy wymóg procesu projektu dostaje `id`.
+2. **Po każdym review i followupie** rusza świeża sesja `task_fit` (bez kontekstu review,
+   ok. 1 do 2 USD, do 30 min). Odpowiada na cztery pytania: co zgłoszono, jaką przyczynę
+   zakłada PR, jaki jest na to dowód, i jaki status ma każdy punkt z osobna. Reguła:
+   AC o zachowaniu produkcji („kod dochodzi do klienta”) bez dowodu z produkcji to
+   `unverifiable`, nie `met`, z konkretnym artefaktem do zdobycia (`needed_evidence`).
+3. **Werdykt liczy importer, nie model**: `misses` (niespełnione AC, otwarta pułapka,
+   brakujący wymóg procesu albo przyczyna bez dowodu), `partial` (coś niesprawdzalne z kodu),
+   `fits`. Punkt bez odpowiedzi sesji jest czerwony. Niespełnione punkty stają się
+   znaleziskami (`critical` / `important`), więc jadą na GitHub razem z decyzją.
+4. **Panel** pokazuje to jako pierwszy element, nad opisem zadania i podsumowaniem:
+   czerwony „NIE ROZWIĄZUJE ZADANIA”, żółty „SPRAWDŹ RĘCZNIE: N punktów” z listą
+   dowodów do zdobycia, mały zielony „Rozwiązuje zadanie”. Lista i kafle dostają badge.
+5. **Approve** wymaga odhaczenia każdego punktu z zadania (checklista), a przy
+   werdykcie czerwonym albo braku wyniku dodatkowo „Approve mimo to”. Reject i Comment
+   bez wymogów. Zaznaczenia zostają w `decision_checklist`.
+6. **Podważona decyzja**: cudzy `CHANGES_REQUESTED` na PR-ze po approve albo wzrost
+   liczby komentarzy w zadaniu (Intum) od decyzji przestawia review w status
+   **Podważony** (czerwony kafel na górze kolejki) i sam odpala followup konfrontujący
+   z treścią cudzego review w prompcie. Bez ręcznego wklejania cudzych uwag.
+
+Ręczne odpalenie: przycisk „Sprawdź zgodność z zadaniem” na panelu. Bez opisu zadania
+(brak `task_url`, selfreview) bramki nie ma: panel mówi „Zgodność z zadaniem
+niesprawdzona”, formularz działa jak dotąd.
 
 ---
 
