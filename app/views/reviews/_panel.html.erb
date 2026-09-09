@@ -5,7 +5,7 @@
 <% if review.status == "challenged" %>
   <div class="task-fit-banner task-fit-misses challenge-banner">
     <strong>⛔ Ktoś podważył Twoją decyzję (<%= review.decision %>)</strong>
-    <span class="task-fit-sub"><%= challenge_description(review) %>. <%= review.decided_at && review.decided_at < CheckReviewRequestJob::AUTO_FOLLOWUP_WINDOW.ago ? "Decyzja jest starsza niż dwa tygodnie, więc followup nie ruszył sam - odpal go niżej, jeśli sprawa żyje." : "Followup konfrontujący jest w kolejce albo już skończył - wynik niżej." %></span>
+    <span class="task-fit-sub"><%= challenge_description(review) %>. Nic nie ruszyło samo: <%= review.challenge&.dig("source") == "task" ? "najpierw dograj nowe komentarze (karta „Opis zadania”), potem" : "jeśli sprawa żyje," %> odpal sprawdzenie ponowne niżej.</span>
   </div>
 <% end %>
 <% unless review.finished? || review.status.in?(%w[created describing]) %>
@@ -74,7 +74,7 @@
   <% if review.status == "challenged" %>
     <%= render "reviews/followup_form", review: review,
           title: "⚠ Skonfrontuj decyzję z podważeniem",
-          label: "Followup po podważeniu poszedł automatycznie; tu możesz dopytać o konkret",
+          label: "Claude wróci do sesji, przeczyta cudze review / nowe komentarze i odpowie wprost, czy Twoja decyzja była trafna",
           body: Review.challenge_message(review, review.challenge || {}),
           submit: "Sprawdź ponownie" %>
   <% elsif review.status == "waiting_review" %>

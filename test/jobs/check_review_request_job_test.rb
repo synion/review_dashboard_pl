@@ -198,16 +198,15 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     { "author" => { "login" => login }, "state" => state, "submittedAt" => at.iso8601 }
   end
 
-  test "cudzy CHANGES_REQUESTED po approve przestawia w challenged i kolejkuje followup konfrontujący" do
+  # Sam status i baner - sesję odpala człowiek (nic płatnego nie rusza bez kliknięcia).
+  test "cudzy CHANGES_REQUESTED po approve przestawia w challenged bez automatycznej sesji" do
     approved!
     github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
                             reviews: [ other_review("tomek", "CHANGES_REQUESTED", 1.hour.ago) ])
-    assert_enqueued_with(job: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
+    assert_no_enqueued_jobs(only: [ FollowupReviewJob, DescribeTaskJob ]) { CheckReviewRequestJob.perform_now(@review, github: github) }
     @review.reload
     assert_equal "challenged", @review.status
     assert_equal({ "source" => "pr", "by" => "tomek" }, @review.challenge)
-    job = enqueued_jobs.find { |j| j["job_class"] == "FollowupReviewJob" }
-    assert_includes job["arguments"].last, "tomek"
   end
 
   test "review sprzed decyzji, własne i bez werdyktu zmian nie podważają" do
@@ -228,20 +227,17 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_equal "decided", @review.reload.status
   end
 
-  test "nowe komentarze w zadaniu po approve podważają, odświeżają opis i kolejkują followup" do
+  test "nowe komentarze w zadaniu po approve podważają bez automatycznej sesji" do
     approved!(comments: 3)
     @review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
     @review.update!(task_url: "https://tracker.example.com/organize/tasks/34119")
     github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
-    assert_enqueued_with(job: FollowupReviewJob) do
-      assert_enqueued_with(job: DescribeTaskJob) do
-        with_intum(FakeIntum.new(5)) { CheckReviewRequestJob.perform_now(@review, github: github) }
-      end
+    assert_no_enqueued_jobs(only: [ FollowupReviewJob, DescribeTaskJob ]) do
+      with_intum(FakeIntum.new(5)) { CheckReviewRequestJob.perform_now(@review, github: github) }
     end
     @review.reload
     assert_equal "challenged", @review.status
     assert_equal({ "source" => "task", "count" => 5 }, @review.challenge)
-    assert_equal "queued", @review.task_description_status
   end
 
   test "ta sama liczba komentarzy albo brak licznika z decyzji nie podważa" do
@@ -279,17 +275,6 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_equal "challenged", @review.reload.status
   end
 
-  # Backfill po wdrożeniu detekcji: stare approve'y z cudzym CHANGES_REQUESTED sprzed
-  # tygodni odpaliłyby naraz kilka płatnych sesji. Stare = tylko baner, followup ręcznie.
-  test "podważenie starej decyzji oznacza challenged bez automatycznego followupu" do
-    approved!(at: 20.days.ago)
-    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
-                            reviews: [ other_review("tomek", "CHANGES_REQUESTED", 19.days.ago) ])
-    assert_no_enqueued_jobs(only: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
-    @review.reload
-    assert_equal "challenged", @review.status
-    assert_equal({ "source" => "pr", "by" => "tomek" }, @review.challenge)
-  end
 
   # Liczy się OSTATNI stan danej osoby: „zażądał zmian, potem zaakceptował” to nie
   # podważenie, tylko zamknięta dyskusja (review 9: tbogus).

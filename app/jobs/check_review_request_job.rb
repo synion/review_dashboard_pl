@@ -9,10 +9,6 @@ class CheckReviewRequestJob < ApplicationJob
   # akcji, a ten status wypada z Review.due_for_github_check — więc to zarazem
   # ostatnie pytanie o ten PR.
   FINAL_STATES = { "MERGED" => "merged", "CLOSED" => "closed" }.freeze
-  # Automatyczny followup (płatna sesja) tylko dla świeżych decyzji. Starsze podważenia
-  # dostają status i baner, a sesję odpala człowiek - inaczej pierwsze sprawdzenie po
-  # wdrożeniu detekcji odpaliło naraz pięć sesji do PR-ów sprzed miesiąca.
-  AUTO_FOLLOWUP_WINDOW = 14.days
 
   def perform(review, github: GithubClient.new)
     # Status mógł się zmienić między kolejkowaniem a startem (np. user odpalił followup).
@@ -30,9 +26,10 @@ class CheckReviewRequestJob < ApplicationJob
     elsif review.status == "decided" && rerequested?(info, github, review)
       review.update!(status: "waiting_review", **stamps)
     elsif review.status == "decided" && (challenge = challenge_for(review, info, github))
-      # Podważona decyzja: sesja od razu konfrontuje mój wniosek z cudzym, zamiast
-      # czekać, aż user wklei cudze uwagi ręcznie (review 116: pięć dni).
-      challenge!(review, challenge, stamps)
+      # Podważona decyzja: tylko status i baner. Sesję (płatną) odpala człowiek
+      # z panelu - decyzja Szymona z 2026-09-09, po tym jak pierwsze sprawdzenie
+      # po wdrożeniu odpaliło pięć sesji naraz bez kliknięcia.
+      review.update!(status: "challenged", challenge: challenge, **stamps)
     else
       # Sam stempel przez update_columns — rutynowe „nic się nie zmieniło" nie ma
       # co odpalać walidacji ani broadcastów panelu.
@@ -81,18 +78,6 @@ class CheckReviewRequestJob < ApplicationJob
 
     count = review.task_comments_count_now
     { "source" => "task", "count" => count } if count && count > baseline
-  end
-
-  def challenge!(review, challenge, stamps)
-    attrs = { status: "challenged", challenge: challenge, **stamps }
-    # Nowe komentarze w zadaniu mają wejść do „Ustalenia z komentarzy” - followup
-    # i bramka zgodności czytają opis, nie tracker.
-    attrs[:task_description_status] = "queued" if challenge["source"] == "task"
-    review.update!(attrs)
-    return if review.decided_at < AUTO_FOLLOWUP_WINDOW.ago
-
-    DescribeTaskJob.perform_later(review) if challenge["source"] == "task"
-    FollowupReviewJob.perform_later(review, Review.challenge_message(review, challenge))
   end
 
   def rerequested?(info, github, review)

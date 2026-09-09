@@ -246,10 +246,10 @@ a reviewer ocenił spójność diffu. Dashboard rozlicza z tego osobno:
 5. **Approve** wymaga odhaczenia każdego punktu z zadania (checklista), a przy
    werdykcie czerwonym albo braku wyniku dodatkowo „Approve mimo to”. Reject i Comment
    bez wymogów. Zaznaczenia zostają w `decision_checklist`.
-6. **Podważona decyzja**: cudzy `CHANGES_REQUESTED` na PR-ze po approve albo wzrost
-   liczby komentarzy w zadaniu (Intum) od decyzji przestawia review w status
-   **Podważony** (czerwony kafel na górze kolejki) i sam odpala followup konfrontujący
-   z treścią cudzego review w prompcie. Bez ręcznego wklejania cudzych uwag.
+6. **Podważona decyzja**: cudzy `CHANGES_REQUESTED` na PR-ze po approve (liczy się
+   ostatni stan danej osoby) albo wzrost liczby komentarzy w zadaniu (Intum) od decyzji
+   przestawia review w status **Podważony** (czerwony kafel na górze kolejki). Nic nie
+   rusza samo: followup konfrontujący odpalasz przyciskiem, prompt ma już cudze review.
 
 Ręczne odpalenie: przycisk „Sprawdź zgodność z zadaniem” na panelu. Bez opisu zadania
 (brak `task_url`, selfreview) bramki nie ma: panel mówi „Zgodność z zadaniem
