@@ -303,4 +303,34 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/\A## Review\n\n\*\*Zgodność z zadaniem:\*\* Część AC niesprawdzalna z kodu/, draft)
     assert_operator draft.index("Niesprawdzalne z kodu"), :<, draft.index("Literówka")
   end
+
+  # Licznik komentarzy w zadaniu z chwili decyzji - potem wzrost = ktoś podważył w trackerze.
+  test "decyzja zapamiętuje liczbę komentarzy w zadaniu, gdy jest integracja z trackerem" do
+    @review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
+    @review.update!(task_url: "https://tracker.example.com/organize/tasks/34119")
+    fake_intum = Object.new
+    def fake_intum.task(_id) = { "id" => 1, "comments_count" => 44 }
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      IntumClient.stub :new, fake_intum do
+        post review_decision_path(@review), params: { verdict: "approve", body: "LGTM" }
+      end
+    end
+    assert_equal 44, @review.reload.decision_task_comments_count
+  end
+
+  test "padnięty tracker nie blokuje decyzji, licznik zostaje pusty" do
+    @review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
+    @review.update!(task_url: "https://tracker.example.com/organize/tasks/34119")
+    broken = Object.new
+    def broken.task(_id) = raise(IntumClient::Error, "502")
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      IntumClient.stub :new, broken do
+        post review_decision_path(@review), params: { verdict: "approve", body: "LGTM" }
+      end
+    end
+    assert_equal "decided", @review.reload.status
+    assert_nil @review.decision_task_comments_count
+  end
 end

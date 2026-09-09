@@ -1,17 +1,22 @@
 require "test_helper"
 
 class CheckReviewRequestJobTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   class FakeGithub
     attr_reader :calls
 
-    def initialize(response = nil, error: nil, login: "synion")
+    def initialize(response = nil, error: nil, login: "synion", reviews: [])
       @response = response
       @error = error
       @login = login
+      @reviews = reviews
       @calls = []
     end
 
     def viewer_login(repo_dir:) = @login
+
+    def pr_reviews(_pr_url, repo_dir:) = @reviews
 
     def pr_review_state(pr_url, repo_dir:)
       @calls << { pr_url: pr_url, repo_dir: repo_dir }
@@ -176,5 +181,101 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
                             login: "inny_login")
     CheckReviewRequestJob.perform_now(@review, github: github)
     assert_equal "waiting_review", @review.reload.status
+  end
+
+  # ---- Podważenie decyzji: cudzy CHANGES_REQUESTED po approve albo nowe komentarze w zadaniu.
+
+  class FakeIntum
+    def initialize(count) = @count = count
+    def task(_scoped_id) = { "id" => 1, "comments_count" => @count }
+  end
+
+  def approved!(at: 2.days.ago, comments: nil)
+    @review.update!(decision: "approve", decided_at: at, decision_task_comments_count: comments)
+  end
+
+  def other_review(login, state, at)
+    { "author" => { "login" => login }, "state" => state, "submittedAt" => at.iso8601 }
+  end
+
+  test "cudzy CHANGES_REQUESTED po approve przestawia w challenged i kolejkuje followup konfrontujący" do
+    approved!
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
+                            reviews: [ other_review("tomek", "CHANGES_REQUESTED", 1.hour.ago) ])
+    assert_enqueued_with(job: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
+    @review.reload
+    assert_equal "challenged", @review.status
+    assert_equal({ "source" => "pr", "by" => "tomek" }, @review.challenge)
+    job = enqueued_jobs.find { |j| j["job_class"] == "FollowupReviewJob" }
+    assert_includes job["arguments"].last, "tomek"
+  end
+
+  test "review sprzed decyzji, własne i bez werdyktu zmian nie podważają" do
+    approved!
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
+                            reviews: [ other_review("tomek", "CHANGES_REQUESTED", 3.days.ago),
+                                       other_review("synion", "CHANGES_REQUESTED", 1.hour.ago),
+                                       other_review("ola", "COMMENTED", 1.hour.ago) ])
+    assert_no_enqueued_jobs(only: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
+    assert_equal "decided", @review.reload.status
+  end
+
+  test "decyzja comment nie jest podważana cudzym CHANGES_REQUESTED" do
+    @review.update!(decision: "comment", decided_at: 2.days.ago)
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
+                            reviews: [ other_review("tomek", "CHANGES_REQUESTED", 1.hour.ago) ])
+    CheckReviewRequestJob.perform_now(@review, github: github)
+    assert_equal "decided", @review.reload.status
+  end
+
+  test "nowe komentarze w zadaniu po approve podważają, odświeżają opis i kolejkują followup" do
+    approved!(comments: 3)
+    @review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
+    @review.update!(task_url: "https://tracker.example.com/organize/tasks/34119")
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
+    assert_enqueued_with(job: FollowupReviewJob) do
+      assert_enqueued_with(job: DescribeTaskJob) do
+        CheckReviewRequestJob.perform_now(@review, github: github, intum: FakeIntum.new(5))
+      end
+    end
+    @review.reload
+    assert_equal "challenged", @review.status
+    assert_equal({ "source" => "task", "count" => 5 }, @review.challenge)
+    assert_equal "queued", @review.task_description_status
+  end
+
+  test "ta sama liczba komentarzy albo brak licznika z decyzji nie podważa" do
+    approved!(comments: 5)
+    @review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
+    @review.update!(task_url: "https://tracker.example.com/organize/tasks/34119")
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
+    CheckReviewRequestJob.perform_now(@review, github: github, intum: FakeIntum.new(5))
+    assert_equal "decided", @review.reload.status
+
+    approved!(comments: nil)
+    CheckReviewRequestJob.perform_now(@review, github: github, intum: FakeIntum.new(50))
+    assert_equal "decided", @review.reload.status
+  end
+
+  test "padnięty tracker nie wywraca sprawdzenia" do
+    approved!(comments: 3)
+    @review.project.update!(task_url_prefix: "https://tracker.example.com/organize/tasks/", intum_api_token: "t")
+    @review.update!(task_url: "https://tracker.example.com/organize/tasks/34119")
+    broken = Object.new
+    def broken.task(_id) = raise(IntumClient::Error, "502")
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" })
+    CheckReviewRequestJob.perform_now(@review, github: github, intum: broken)
+    assert_equal "decided", @review.reload.status
+    assert_not_nil @review.github_checked_at
+  end
+
+  # Idempotencja: challenged nie jest już decided, więc drugi check nie odpali drugiego followupu.
+  test "challenged nie podważa się drugi raz" do
+    approved!
+    @review.update!(status: "challenged", challenge: { "source" => "pr", "by" => "tomek" })
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
+                            reviews: [ other_review("tomek", "CHANGES_REQUESTED", 1.hour.ago) ])
+    assert_no_enqueued_jobs(only: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
+    assert_equal "challenged", @review.reload.status
   end
 end
