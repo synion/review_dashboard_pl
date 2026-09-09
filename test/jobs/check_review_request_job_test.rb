@@ -290,4 +290,15 @@ class CheckReviewRequestJobTest < ActiveSupport::TestCase
     assert_equal "challenged", @review.status
     assert_equal({ "source" => "pr", "by" => "tomek" }, @review.challenge)
   end
+
+  # Liczy się OSTATNI stan danej osoby: „zażądał zmian, potem zaakceptował” to nie
+  # podważenie, tylko zamknięta dyskusja (review 9: tbogus).
+  test "cudzy CHANGES_REQUESTED zastąpiony późniejszym APPROVED nie podważa" do
+    approved!
+    github = FakeGithub.new({ "reviewRequests" => [], "state" => "OPEN" },
+                            reviews: [ other_review("tomek", "CHANGES_REQUESTED", 1.day.ago),
+                                       other_review("tomek", "APPROVED", 1.hour.ago) ])
+    assert_no_enqueued_jobs(only: FollowupReviewJob) { CheckReviewRequestJob.perform_now(@review, github: github) }
+    assert_equal "decided", @review.reload.status
+  end
 end

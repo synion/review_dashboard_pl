@@ -60,14 +60,17 @@ class CheckReviewRequestJob < ApplicationJob
 
   # Cudze CHANGES_REQUESTED złożone po mojej decyzji - z tego samego `gh pr view`,
   # które dało stan PR-a (pole `reviews`), bez drugiego spawnu.
+  # Ostatni stan per osoba (jak PrReviewers): CHANGES_REQUESTED, po którym ta sama
+  # osoba dała APPROVED, to zamknięta dyskusja, nie podważenie.
   def pr_challenge(review, info, github)
     me = github.viewer_login(repo_dir: review.workdir)
-    challenger = Array(info["reviews"]).find do |other|
-      login = other.dig("author", "login")
+    latest = Array(info["reviews"]).sort_by { |other| other["submittedAt"].to_s }
+                                   .index_by { |other| other.dig("author", "login") }
+    challenger = latest.find do |login, other|
       other["state"] == "CHANGES_REQUESTED" && login.present? && login != me &&
         (at = Time.zone.parse(other["submittedAt"].to_s)) && at > review.decided_at
     end
-    { "source" => "pr", "by" => challenger.dig("author", "login") } if challenger
+    { "source" => "pr", "by" => challenger.first } if challenger
   end
 
   # API trackera nie zwraca komentarzy per zadanie, ale zwraca ich liczbę - wzrost
