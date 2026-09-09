@@ -55,6 +55,12 @@ class ReviewsController < ApplicationController
       @review.update_column(:pr_reviewers_checked_at, Time.current)
       RefreshPrReviewersJob.perform_later(@review)
     end
+    # Liczba komentarzy w zadaniu - ten sam wzorzec: optymistyczny stempel, job w tle,
+    # broadcast przerysuje panel, gdy tracker odpowie.
+    if @review.task_comments_check_due?
+      @review.update_column(:task_comments_checked_at, Time.current)
+      CheckTaskCommentsJob.perform_later(@review)
+    end
   end
 
   # Weryfikacja poprawek autora — osobna, krótka sesja, która nie rusza statusu

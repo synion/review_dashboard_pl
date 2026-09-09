@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_100002) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_09_120001) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -161,6 +161,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_100002) do
     t.string "task_comment_responsible_id"
     t.string "task_comment_responsible_name"
     t.string "task_comment_status", default: "skipped", null: false
+    t.datetime "task_comments_checked_at"
+    t.integer "task_comments_latest"
+    t.integer "task_comments_seen"
     t.json "task_criteria"
     t.text "task_description"
     t.string "task_description_status", default: "skipped", null: false

@@ -1387,4 +1387,38 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_operator response.body.index("challenge-banner"), :<, response.body.index("task-fit-fits")
     assert_select "form[action='#{review_followup_path(review)}']"
   end
+
+  test "wejście na panel kolejkuje sprawdzenie komentarzy w zadaniu, gdy stempel przeterminowany" do
+    review = reviews(:task_only)
+    review.project.update!(task_url_prefix: "https://tasks.example.com/", intum_api_token: "t")
+    assert_enqueued_with(job: CheckTaskCommentsJob) { get review_path(review) }
+    assert_not_nil review.reload.task_comments_checked_at
+    assert_no_enqueued_jobs(only: CheckTaskCommentsJob) { get review_path(review) }
+  end
+
+  test "nowe komentarze w zadaniu od opisu: pasek z prośbą o odświeżenie opisu" do
+    review = reviews(:task_only)
+    review.update!(task_description: "**Cel** — x.", task_description_status: "ready",
+                   task_comments_seen: 5, task_comments_latest: 8, task_comments_checked_at: Time.current)
+    get review_path(review)
+    assert_select ".task-comments-stale", text: /3 nowe komentarze/
+    assert_select ".task-comments-stale form[action='#{refresh_task_description_review_path(review)}']"
+  end
+
+  test "bez nowych komentarzy paska nie ma" do
+    review = reviews(:task_only)
+    review.update!(task_description: "**Cel** — x.", task_description_status: "ready",
+                   task_comments_seen: 5, task_comments_latest: 5, task_comments_checked_at: Time.current)
+    get review_path(review)
+    assert_select ".task-comments-stale", count: 0
+  end
+
+  test "przed startem review baner mówi, że lista AC czeka na review, nie że niesprawdzona" do
+    review = reviews(:pr_review)
+    review.update!(status: "ready", description: "opis", branch: "b",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" }, { "id" => "ac2", "text" => "y" } ], "traps" => [] })
+    get review_path(review)
+    assert_select ".task-fit-banner.task-fit-pending", text: /Lista AC gotowa: 2 punkty/
+    assert_select ".task-fit-banner", text: /niesprawdzona/, count: 0
+  end
 end

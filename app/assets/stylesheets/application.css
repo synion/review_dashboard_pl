@@ -536,3 +536,4 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .task-fit-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; }
 .task-fit-badge-misses { background: var(--err-bg); color: var(--danger); }
 .task-fit-badge-partial { background: var(--wait-bg); color: var(--warn); }
+.task-comments-stale { padding: 10px 14px; margin: 8px 0; border-radius: 8px; border-left: 6px solid var(--warn); background: var(--wait-bg); color: var(--warn); }

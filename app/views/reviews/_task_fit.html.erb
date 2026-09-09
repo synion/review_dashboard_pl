@@ -19,6 +19,11 @@
     <strong>Ocena zgodności z zadaniem padła</strong><%= ": #{review.task_fit_error}" if review.task_fit_error.present? %>
     <%= button_to "↻ Ponów ocenę zgodności", refresh_task_fit_review_path(review), class: "btn" %>
   </div>
+<% elsif verdict.nil? && review.status == "ready" %>
+  <div class="task-fit-banner task-fit-pending">
+    <strong>Lista AC gotowa: <%= review.task_criteria_list.size %> <%= manual_checks_noun(review.task_criteria_list.size) %></strong>
+    <span class="task-fit-sub">ocena zgodności ruszy sama po review<%= "; w zadaniu są nowe komentarze, najpierw odśwież opis" if review.task_comments_stale? %></span>
+  </div>
 <% elsif verdict.nil? %>
   <div class="task-fit-banner task-fit-none">
     <strong>Zgodność z zadaniem jeszcze niesprawdzona</strong>

@@ -583,4 +583,25 @@ class ReviewTest < ActiveSupport::TestCase
     assert_includes task, review.task_url
     assert_includes task, "2026-09-03 13:51"
   end
+
+  test "task_comments_stale? tylko gdy bieżąca liczba komentarzy przewyższa widzianą przy opisie" do
+    review = reviews(:task_only)
+    assert_not review.task_comments_stale?
+    review.update!(task_comments_seen: 5, task_comments_latest: 5)
+    assert_not review.task_comments_stale?
+    review.update!(task_comments_latest: 7)
+    assert review.task_comments_stale?
+    assert_equal 2, review.task_comments_new
+  end
+
+  test "task_comments_check_due? wymaga integracji, zadania i przeterminowanego stempla" do
+    review = reviews(:task_only)
+    assert_not review.task_comments_check_due?
+    review.project.update!(task_url_prefix: "https://tasks.example.com/", intum_api_token: "t")
+    assert review.task_comments_check_due?
+    review.update!(task_comments_checked_at: 1.minute.ago)
+    assert_not review.task_comments_check_due?
+    review.update!(task_comments_checked_at: 1.hour.ago)
+    assert review.task_comments_check_due?
+  end
 end

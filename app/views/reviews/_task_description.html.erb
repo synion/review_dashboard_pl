@@ -4,6 +4,13 @@
     opis to wciąż najlepsza wiedza o zadaniu, dopóki nowy go nie zastąpi.
     `open` jak w karcie opisu zmian: rozwinięta jako materiał do decyzji w „ready",
     potem zwinięta, żeby ustąpić miejsca wynikowi. %>
+<% if review.task_comments_stale? %>
+  <div class="task-comments-stale">
+    <strong>W zadaniu <%= review.task_comments_new %> <%= pluralize_pl(review.task_comments_new, "nowy komentarz", "nowe komentarze", "nowych komentarzy") %> od opisu.</strong>
+    Review ich nie zna - odśwież opis, zanim polegniesz na liście AC.
+    <%= button_to "↻ Dograj nowe komentarze", refresh_task_description_review_path(review), class: "btn btn-primary" %>
+  </div>
+<% end %>
 <% if review.task_description.present? %>
   <details class="card" <%= "open" if review.status == "ready" %>>
     <summary>Opis zadania</summary>

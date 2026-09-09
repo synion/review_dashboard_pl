@@ -120,4 +120,16 @@ class DescribeTaskJobTest < ActiveSupport::TestCase
   ensure
     FileUtils.rm_rf(review.artifacts_dir)
   end
+
+  test "opis zadania zapamiętuje liczbę komentarzy z trackera" do
+    review = reviews(:task_only)
+    review.project.update!(task_url_prefix: "https://tasks.example.com/", intum_api_token: "t")
+    fake = Object.new
+    def fake.task(_id) = { "id" => 1, "comments_count" => 9 }
+    IntumClient.stub :new, fake do
+      run_with(review, "TASK_URL: none\n\n**Cel** — x.")
+    end
+    assert_equal [ 9, 9 ], [ review.task_comments_seen, review.task_comments_latest ]
+    assert_not review.task_comments_stale?
+  end
 end

@@ -488,6 +488,25 @@ class Review < ApplicationRecord
     true
   end
 
+  # Opis zadania widział `task_comments_seen` komentarzy; od tego czasu w zadaniu
+  # jest `task_comments_latest`. Różnica = ustalenia, których review nie zna.
+  def task_comments_stale?
+    task_comments_seen.present? && task_comments_latest.present? && task_comments_latest > task_comments_seen
+  end
+
+  def task_comments_new
+    task_comments_stale? ? task_comments_latest - task_comments_seen : 0
+  end
+
+  TASK_COMMENTS_CHECK_INTERVAL = 10.minutes
+
+  # Czy warto spytać tracker o liczbę komentarzy: jest integracja, jest zadanie,
+  # a ostatnie sprawdzenie jest starsze niż interwał.
+  def task_comments_check_due?
+    task_url.present? && project.intum_enabled? &&
+      (task_comments_checked_at.nil? || task_comments_checked_at < TASK_COMMENTS_CHECK_INTERVAL.ago)
+  end
+
   # Bieżąca liczba komentarzy w zadaniu z trackera - nil bez integracji, bez zadania
   # albo gdy tracker padł (log warn). Jedno miejsce na guard i rescue: decyzja zapisuje
   # ten licznik jako punkt odniesienia, CheckReviewRequestJob porównuje z nim później.
