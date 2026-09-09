@@ -22,7 +22,9 @@ class ReviewResultImporter
 
   def self.import(review, data, raw:)
     review.transaction do
-      review.findings.destroy_all
+      # Tylko własne: znaleziska bramki zgodności (source task_fit) ma prawo kasować
+      # wyłącznie TaskFitImporter, inaczej followup zdejmowałby czerwone światło z AC.
+      review.findings.from_review.destroy_all
       Array(data["findings"]).each do |f|
         review.findings.create!(priority: f["priority"], title: f["title"], body: f["body"], file_location: f["file"])
       end

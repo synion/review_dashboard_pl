@@ -65,4 +65,17 @@ class ReviewResultImporterTest < ActiveSupport::TestCase
     ReviewResultImporter.call(@review)
     assert_equal [ "A" ], @review.findings.map(&:title)
   end
+
+  # Znaleziska bramki zgodności żyją własnym cyklem - ponowny import result.json
+  # (followup) nie może zdjąć czerwonego światła z niespełnionego AC.
+  test "nie kasuje znalezisk bramki zgodności z zadaniem" do
+    gate = @review.findings.create!(priority: "critical", title: "AC niespełnione: x", body: "x", source: "task_fit")
+    File.write(@review.artifacts_dir.join("result.json"),
+               { summary: "OK", findings: [ { priority: "minor", title: "Literówka", body: "Y", file: nil } ], playwright: nil }.to_json)
+
+    ReviewResultImporter.call(@review)
+
+    assert_equal [ gate.id ], @review.findings.from_task_fit.pluck(:id)
+    assert_equal [ "Literówka" ], @review.findings.from_review.pluck(:title)
+  end
 end
