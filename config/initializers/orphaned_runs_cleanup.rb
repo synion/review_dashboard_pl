@@ -2,6 +2,11 @@
 # user widzi „Ponów" zamiast wiecznego spinnera. Logika w OrphanedRunsCleanup.
 Rails.application.config.after_initialize do
   next if Rails.env.test?
+  # Tylko proces serwera. `bin/rails runner` i konsola też bootują apkę, a review
+  # w fazie tworzenia worktree (status describing, sesja Claude jeszcze nie istnieje)
+  # wygląda dla sprzątania jak sierota po restarcie i dostawał „kliknij Ponów”
+  # od zwykłego odczytu stanu z runnera.
+  next unless defined?(Rails::Server)
 
   begin
     OrphanedRunsCleanup.call
