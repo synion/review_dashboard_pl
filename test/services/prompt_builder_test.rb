@@ -94,6 +94,25 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes prompt, "**Acceptance Criteria**"
   end
 
+  test "describe_task każe zapisać task_criteria.json z AC, pułapkami i wymogami procesu" do
+    review = reviews(:task_only)
+    review.project.update!(process_rules: "Nowy feature: link do Figmy w zadaniu.")
+    prompt = PromptBuilder.describe_task(review)
+    assert_includes prompt, review.artifacts_dir.join("task_criteria.json").to_s
+    assert_includes prompt, '"criteria"'
+    assert_includes prompt, '"traps"'
+    assert_includes prompt, '"process"'
+    assert_includes prompt, '"id": "ac1"'
+    assert_includes prompt, "Nowy feature: link do Figmy w zadaniu."
+    assert_includes prompt, "Wymogi procesu"
+  end
+
+  test "describe_task bez wymogów procesu nie niesie pustej sekcji o nich" do
+    prompt = PromptBuilder.describe_task(reviews(:task_only))
+    assert_not_includes prompt, "Wymogi procesu"
+    assert_includes prompt, '"process": []'
+  end
+
   test "describe_task bez linku każe szukać go w opisie PR" do
     prompt = PromptBuilder.describe_task(reviews(:pr_review))
     assert_includes prompt, "gh pr view"

@@ -105,7 +105,7 @@ class ProjectsController < ApplicationController
   def project_params
     # Puste pole tokena nie kasuje sekretu — niezmiennik siedzi w setterze modelu.
     params.require(:project).permit(:name, :repo_path, :repo_url, :default_claude_config, :default_model,
-                                    :default_effort, :docs_path, :review_prompt_extra, :task_comment_instructions,
+                                    :default_effort, :docs_path, :review_prompt_extra, :process_rules, :task_comment_instructions,
                                     :worktree_command, :worktree_delete_command, :worktree_url_template,
                                     :task_url_prefix,
                                     :second_reviewer_default, :approve_label_default, :intum_api_token)

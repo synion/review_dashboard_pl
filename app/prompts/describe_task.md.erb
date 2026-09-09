@@ -19,7 +19,37 @@ Nie znam linku do zadania. Znajdź go w opisie PR-a:
 Jeśli zadanie jest niedostępne (brak dostępu, błąd), nie zmyślaj treści — napisz
 krótko, co się stało i co widziałeś.
 
+<% if review.project.process_rules.present? -%>
+## Wymogi procesu w tym projekcie
+
+Zespół wymaga, żeby zadanie ZANIM ktoś zacznie je robić miało określone elementy.
+Sprawdź na zadaniu każdy z poniższych wymogów i dla każdego ustal: `present` (jest,
+z linkiem albo miejscem, gdzie to jest), `missing` (powinno być, a nie ma) albo `n/a`
+(ten wymóg nie dotyczy tego typu zadania - napisz dlaczego). Brak analizy albo
+projektu przy nowym feature to nie drobiazg: bez tego zadania nie powinno się robić.
+
+<%= review.project.process_rules %>
+<% end -%>
+
 <%= style %>
+
+## Struktura dla dashboardu (OBOWIĄZKOWE)
+
+Oprócz odpowiedzi tekstowej zapisz plik `<%= review.artifacts_dir.join("task_criteria.json") %>`
+(utwórz katalog, jeśli trzeba). To lista punktów, z których dashboard rozliczy potem
+sesję review i sesję zgodności z zadaniem - punkt, którego tu nie ma, nikt nie sprawdzi.
+
+```json
+{
+  "criteria": [{"id": "ac1", "text": "dokładnie ten sam tekst co w Acceptance Criteria niżej"}],
+  "traps": [{"id": "t1", "text": "dokładnie ten sam tekst co w Niejasności / pułapki"}],
+  "process": [{"id": "p1", "text": "nazwa wymogu procesu", "status": "present|missing|n/a", "note": "gdzie to jest albo czemu nie dotyczy"}]
+}
+```
+
+- `criteria`: każde AC z listy niżej, w tej samej kolejności, id `ac1`, `ac2`, ...
+- `traps`: każda pułapka z listy niżej, id `t1`, `t2`, ... („Wszystko jasne” = `[]`).
+- `process`: każdy wymóg procesu z sekcji wyżej<% if review.project.process_rules.blank? %> (w tym projekcie brak wymogów: `"process": []`)<% end %>.
 
 ## Format odpowiedzi
 

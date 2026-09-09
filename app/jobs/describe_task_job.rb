@@ -13,6 +13,7 @@ class DescribeTaskJob < ApplicationJob
     url, body = split_task_url(text.to_s)
     attrs = { task_description: body, task_description_status: "ready" }
     attrs[:task_url] = url if review.task_url.blank? && url.present?
+    attrs.merge!(criteria_attrs(review))
     review.update!(attrs)
   rescue StandardError => e
     # Osobny cykl życia: porażka opisu zadania nie kładzie review (opis zmian i review
@@ -22,6 +23,24 @@ class DescribeTaskJob < ApplicationJob
   end
 
   private
+
+  CRITERIA_FILE = "task_criteria.json".freeze
+
+  # Lista AC z pliku obok odpowiedzi. Brak pliku = brak bramki (stary prompt, sesja
+  # nie zapisała) - opis i tak jest ważny. Nowa lista unieważnia stary werdykt
+  # zgodności: jego statusy odnosiły się do poprzednich id.
+  def criteria_attrs(review)
+    path = review.artifacts_dir.join(CRITERIA_FILE)
+    return {} unless File.exist?(path)
+
+    criteria = JSON.parse(File.read(path)).slice("criteria", "traps", "process")
+    attrs = { task_criteria: criteria }
+    attrs.merge!(task_fit: nil, task_fit_status: "skipped") if criteria != review.task_criteria
+    attrs
+  rescue JSON::ParserError => e
+    Rails.logger.warn("DescribeTaskJob review #{review.id}: zepsuty #{CRITERIA_FILE} (#{e.message})")
+    {}
+  end
 
   # Czysta funkcja: [url | nil, opis]. Brak linii kontraktu = miękka degradacja —
   # cała odpowiedź idzie do opisu. "none" znaczy "szukałem, nie ma" i nie jest adresem.

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_09_100002) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -106,6 +106,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_100001) do
     t.string "intum_api_token"
     t.datetime "main_at"
     t.string "name"
+    t.text "process_rules"
     t.string "repo_path"
     t.string "repo_url"
     t.text "review_prompt_extra"

@@ -65,4 +65,59 @@ class DescribeTaskJobTest < ActiveSupport::TestCase
     assert_equal "DOBRY STARY OPIS", review.task_description, "błąd odświeżania nie może zamazać dobrego opisu"
     assert_equal "created", review.status
   end
+
+  # Sesja pisze plik obok odpowiedzi tekstowej - lista AC ma być danymi, nie prozą.
+  test "czyta task_criteria.json i zapisuje listę AC razem z opisem" do
+    review = reviews(:task_only)
+    FileUtils.mkdir_p(review.artifacts_dir)
+    writing = ->(_run) {
+      Object.new.tap do |session|
+        session.define_singleton_method(:call) do |_prompt|
+          review.artifacts_dir.join("task_criteria.json").write(
+            { criteria: [ { id: "ac1", text: "Kod dochodzi" } ], traps: [ { id: "t1", text: "Log?" } ],
+              process: [ { id: "p1", text: "Figma" } ] }.to_json
+          )
+          "TASK_URL: https://tasks.example.com/555\n\n**Cel** — x."
+        end
+      end
+    }
+    DescribeTaskJob.perform_now(review, session_factory: writing)
+    review.reload
+    assert_equal "**Cel** — x.", review.task_description
+    assert_equal [ "ac1", "t1", "p1" ], review.task_criteria_list.map { |c| c["id"] }
+    assert_equal %w[criterion trap process], review.task_criteria_list.map { |c| c["kind"] }
+  ensure
+    FileUtils.rm_rf(review.artifacts_dir)
+  end
+
+  test "brak task_criteria.json zostawia listę AC pustą (miękka degradacja)" do
+    review = run_with(reviews(:task_only), "TASK_URL: none\n\n**Cel** — x.")
+    assert_nil review.task_criteria
+    assert_equal "ready", review.task_description_status
+  end
+
+  # Nowa lista AC unieważnia stary werdykt: statusy odnosiły się do innych id.
+  test "zmieniona lista AC zeruje wynik zgodności z zadaniem" do
+    review = reviews(:task_only)
+    review.update!(task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "stare" } ] },
+                   task_fit: { "verdict" => "fits" }, task_fit_status: "ready")
+    FileUtils.mkdir_p(review.artifacts_dir)
+    review.artifacts_dir.join("task_criteria.json").write({ criteria: [ { id: "ac1", text: "nowe" } ], traps: [], process: [] }.to_json)
+    run_with(review, "TASK_URL: none\n\n**Cel** — x.")
+    assert_nil review.task_fit
+    assert_equal "skipped", review.task_fit_status
+  ensure
+    FileUtils.rm_rf(review.artifacts_dir)
+  end
+
+  test "zepsuty task_criteria.json nie wywraca opisu" do
+    review = reviews(:task_only)
+    FileUtils.mkdir_p(review.artifacts_dir)
+    review.artifacts_dir.join("task_criteria.json").write("{ nie json")
+    run_with(review, "TASK_URL: none\n\n**Cel** — x.")
+    assert_equal "ready", review.task_description_status
+    assert_nil review.task_criteria
+  ensure
+    FileUtils.rm_rf(review.artifacts_dir)
+  end
 end
