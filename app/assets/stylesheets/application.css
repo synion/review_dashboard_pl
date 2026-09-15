@@ -533,6 +533,19 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .checklist { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--border, #ddd); border-radius: 8px; }
 .checklist-row { display: block; margin: 6px 0; }
 .checklist-override { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--danger); color: var(--danger); }
+.checklist-hint { margin: 0 0 10px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+/* Zakładki decyzji. Jedyny stan to atrybut aktywnej zakładki na formularzu
+   (decision_tabs_controller): panele i przyciski dostają `hidden` z serwera
+   i z JS, CSS tylko maluje zakładki. */
+.decision-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.decision-tab { font: inherit; font-weight: 600; cursor: pointer; padding: 8px 14px; margin-bottom: -1px; color: var(--muted);
+  background: none; border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; }
+.decision-tab:hover { color: var(--fg); }
+.decision-tab[aria-selected="true"] { color: var(--fg); background: var(--surface); border-color: var(--line); }
+.decision-tab-approve[aria-selected="true"] { color: var(--ok); }
+.decision-tab-reject[aria-selected="true"] { color: var(--danger); }
+.decision-tab-suggested { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 999px; background: var(--info-bg); color: var(--accent); }
 .task-fit-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; }
 .task-fit-badge-misses { background: var(--err-bg); color: var(--danger); }
 .task-fit-badge-partial { background: var(--wait-bg); color: var(--warn); }

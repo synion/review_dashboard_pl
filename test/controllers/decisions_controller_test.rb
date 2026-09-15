@@ -79,7 +79,30 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     assert_equal "reviewed", @review.reload.status
     assert_select ".flash-error", text: /approve your own/
-    assert_select "textarea[name=body]", text: /MOJA TREŚĆ/
+    assert_select "textarea[name='body[approve]']", text: /MOJA TREŚĆ/
+  end
+
+  test "formularz z zakładek: wysyła treść spod klikniętego werdyktu" do
+    submitted = []
+    GithubClient.stub :new, fake_client(submitted) do
+      post review_decision_path(@review),
+           params: { verdict: "reject", body: { approve: "LGTM", reject: "POPRAW", comment: "PYTANIE" } }
+    end
+    assert_equal "POPRAW", submitted.sole[:body]
+    assert_equal "POPRAW", @review.reload.decision_body
+  end
+
+  test "błąd gh po zakładkach: wracają wszystkie trzy treści i zakładka, z której kliknięto" do
+    failing = Object.new.tap { |o| o.define_singleton_method(:submit_review) { |*_a, **_kw| raise GithubClient::Error, "boom" } }
+    GithubClient.stub :new, failing do
+      post review_decision_path(@review),
+           params: { verdict: "comment", body: { approve: "MOJE A", reject: "MOJE R", comment: "MOJE C" } }
+    end
+    assert_response :unprocessable_entity
+    assert_select "form.decision-form[data-decision-tabs-active-value=comment]"
+    assert_select "textarea[name='body[approve]']", text: /MOJE A/
+    assert_select "textarea[name='body[reject]']", text: /MOJE R/
+    assert_select "textarea[name='body[comment]']", text: /MOJE C/
   end
 
   test "formularz decyzji dziedziczy wybór inline ze startu review" do
@@ -262,7 +285,8 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
       post review_decision_path(@review), params: { verdict: "approve", body: "LGTM", checklist: { "ac1" => "1", "t1" => "1" }, override: "1" }
     end
     assert_equal 1, submitted.size
-    assert_equal({ "ac1" => true, "t1" => true, "override" => true }, @review.reload.decision_checklist)
+    assert_equal({ "ac1" => true, "t1" => true, "override" => true, "prefilled" => [] },
+                 @review.reload.decision_checklist)
     assert_equal "decided", @review.status
   end
 
@@ -273,7 +297,8 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
       post review_decision_path(@review), params: { verdict: "approve", body: "LGTM", checklist: { "ac1" => "1", "t1" => "1" } }
     end
     assert_equal "decided", @review.reload.status
-    assert_equal({ "ac1" => true, "t1" => true, "override" => false }, @review.decision_checklist)
+    assert_equal({ "ac1" => true, "t1" => true, "override" => false, "prefilled" => [] },
+                 @review.decision_checklist)
   end
 
   test "reject i comment nie wymagają checklisty" do
@@ -294,14 +319,19 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     assert_nil @review.decision_checklist
   end
 
-  test "szkic decyzji zaczyna od werdyktu zgodności i stawia znaleziska bramki na górze" do
+  test "każdy szkic zaczyna od werdyktu zgodności, a punkty z zadania stoją przed uwagami do kodu" do
     gate!("partial")
+    @review.update!(task_fit: @review.task_fit.merge("criteria" => [ { "id" => "ac1", "text" => "Kod dochodzi", "kind" => "criterion", "status" => "unverifiable" } ]))
     @review.findings.create!(priority: "minor", title: "Literówka", body: "x")
+    # znalezisko bramki NIE wchodzi do szkicu - ten sam punkt jest już w liście z task_fit
     @review.findings.create!(priority: "important", title: "Niesprawdzalne z kodu: Kod dochodzi", body: "x", source: "task_fit")
     get review_path(@review)
-    draft = css_select("textarea[name=body]").first.text
-    assert_match(/\A## Review\n\n\*\*Zgodność z zadaniem:\*\* Część AC niesprawdzalna z kodu/, draft)
-    assert_operator draft.index("Niesprawdzalne z kodu"), :<, draft.index("Literówka")
+    Review::DECISIONS.each do |verdict|
+      draft = css_select("textarea[name='body[#{verdict}]']").first.text
+      assert_match(/\A## Review\n\n\*\*Zgodność z zadaniem:\*\* Część AC niesprawdzalna z kodu/, draft, verdict)
+      assert_operator draft.index("Kod dochodzi"), :<, draft.index("Literówka"), verdict
+      assert_no_match(/Niesprawdzalne z kodu: Kod dochodzi/, draft, verdict)
+    end
   end
 
   # Licznik komentarzy w zadaniu z chwili decyzji - potem wzrost = ktoś podważył w trackerze.

@@ -1,11 +1,16 @@
 <%# Checklista przed Approve (C): człowiek odhacza każdy punkt z osobna, patrząc na
-    status od modelu. Override tylko przy czerwonym/niesprawdzonym werdykcie - miękko,
-    bo bywa AC świadomie odłożone na inny PR. Walidacja po stronie serwera. %>
-<div class="checklist">
+    status od modelu. Zielone i „nie dotyczy” przychodzą odhaczone — ręka idzie tam,
+    gdzie jest co sprawdzić — ale zostają zwykłymi checkboxami: można je odznaczyć,
+    jeśli nie zgadzasz się z modelem. Override tylko przy czerwonym/niesprawdzonym
+    werdykcie - miękko, bo bywa AC świadomie odłożone na inny PR. Przycisk Approve
+    blokuje decision_checklist_controller, ale ostatnie słowo ma walidacja na serwerze. %>
+<div class="checklist" data-action="change->decision-checklist#refresh">
   <p><strong>Zanim klikniesz Approve, odhacz każdy punkt z zadania:</strong></p>
-  <% task_fit_items(review).each do |item| %>
+  <% review.task_fit_items.each do |item| %>
     <label class="checklist-row">
-      <input type="checkbox" name="checklist[<%= item["id"] %>]" value="1">
+      <input type="checkbox" name="checklist[<%= item["id"] %>]" value="1"
+             data-decision-checklist-target="box"
+             <%= "checked" if Review.task_fit_status_ok?(item["status"]) %>>
       <span class="status-badge checklist-status-<%= item["status"].to_s.tr("/", "_") %>"><%= task_fit_status_label(item["status"]) %></span>
       <%= item["text"] %>
       <% if item["needed_evidence"].present? %><span class="muted">(do zdobycia: <%= item["needed_evidence"] %>)</span><% end %>
@@ -13,7 +18,7 @@
   <% end %>
   <% if review.approve_needs_override? %>
     <label class="checklist-row checklist-override">
-      <input type="checkbox" name="override" value="1">
+      <input type="checkbox" name="override" value="1" data-decision-checklist-target="box">
       <strong>Approve mimo to</strong> - wiem, że zgodność z zadaniem jest <%= review.task_fit_verdict == "misses" ? "czerwona" : "niesprawdzona" %>, i biorę to na siebie
     </label>
   <% end %>

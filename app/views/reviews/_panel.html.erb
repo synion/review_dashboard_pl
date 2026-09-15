@@ -123,20 +123,50 @@
         formularza decyzji — najpierw followup ma zweryfikować poprawki. %>
     <div class="card">
       <h2>Decyzja</h2>
-      <% body_draft = defined?(@body_draft) && @body_draft.present? ? @body_draft : decision_draft(review) %>
-      <details open>
-        <summary>Podgląd (tak zobaczy to GitHub)</summary>
-        <%= markdown body_draft %>
-      </details>
-      <%= form_with url: review_decision_path(review), method: :post do %>
-        <div class="field">
-          <label>Treść decyzji — możesz edytować i dopisać coś od siebie (markdown)</label>
-          <textarea name="body" rows="8"><%= body_draft %></textarea>
+      <%# Trzy szkice, po jednym na werdykt: to, co reviewer pisze przy reject
+          („czego brakuje”), nie jest tym, co pisze przy approve („biorę to na
+          siebie”) ani przy comment („dopytuję”). Każdy panel ma własny podgląd
+          i własną textarea (body[<verdict>]), więc edycja przeżywa przełączanie
+          zakładek bez stanu w JS; serwer bierze treść z zakładki, z której
+          padło kliknięcie. Po błędzie wracają wszystkie trzy treści usera. %>
+      <% draft = DecisionDraft.new(review) %>
+      <% drafts = draft.all.merge(@body_drafts || {}) %>
+      <% suggested = draft.suggested_verdict %>
+      <% active = @active_verdict || suggested %>
+      <%# Bramka Approve po stronie przeglądarki: kontroler wyłącza przycisk, dopóki
+          checklista nie jest odhaczona w całości, i trzyma zaznaczenia przy życiu
+          mimo podmiany panelu broadcastem. Serwer waliduje to samo niezależnie. %>
+      <%= form_with url: review_decision_path(review), method: :post, class: "decision-form",
+                    data: decision_form_data(review, active: active) do %>
+        <div class="decision-tabs" role="tablist">
+          <% ReviewsHelper::DECISION_TABS.each do |verdict, tab| %>
+            <button type="button" role="tab" class="decision-tab decision-tab-<%= verdict %>"
+                    data-decision-tabs-target="tab" data-verdict="<%= verdict %>"
+                    data-action="decision-tabs#select" aria-selected="<%= verdict == active %>">
+              <%= tab[:label] %><% if verdict == suggested %> <span class="decision-tab-suggested">sugerowane</span><% end %>
+            </button>
+          <% end %>
         </div>
-        <%# Prefill z wyboru przy starcie, ale ostatnie słowo należy do tego miejsca:
-            dopiero tu widać konkretne znaleziska i to, czy mają sensowne linie. %>
-        <% if review.task_fit_gate? %>
-          <%= render "reviews/decision_checklist", review: review %>
+        <% ReviewsHelper::DECISION_TABS.each do |verdict, tab| %>
+          <div class="decision-pane" role="tabpanel" data-decision-tabs-target="pane" data-verdict="<%= verdict %>"
+               <%= "hidden" unless verdict == active %>>
+            <p class="muted"><%= tab[:hint] %></p>
+            <details open>
+              <summary>Podgląd (tak zobaczy to GitHub)</summary>
+              <%= markdown drafts[verdict] %>
+            </details>
+            <div class="field">
+              <label>Treść decyzji — możesz edytować i dopisać coś od siebie (markdown)</label>
+              <textarea name="body[<%= verdict %>]" rows="8"><%= drafts[verdict] %></textarea>
+            </div>
+            <%# Checklista tylko w panelu Approve: to jego bramka, na reject i comment
+                byłaby szumem. Prefill z wyboru przy starcie, ale ostatnie słowo należy
+                do tego miejsca: dopiero tu widać konkretne znaleziska. %>
+            <% if verdict == "approve" && review.task_fit_gate? %>
+              <%= render "reviews/decision_checklist", review: review %>
+              <p class="muted checklist-hint" data-decision-checklist-target="hint" hidden></p>
+            <% end %>
+          </div>
         <% end %>
         <div class="field">
           <label><input type="checkbox" name="inline_comments" value="1" <%= "checked" if review.inline_comments? %>>
@@ -183,9 +213,13 @@
                 field_name: "followup_label",
                 initial: (review.project.approve_label_default if reviewed_by.any?) %>
         </div>
-        <button class="btn btn-ok btn-big" name="verdict" value="approve">✓ Approve</button>
-        <button class="btn btn-danger btn-big" name="verdict" value="reject">✗ Reject</button>
-        <button class="btn btn-big" name="verdict" value="comment">💬 Comment</button>
+        <%# Jeden przycisk na werdykt, widoczny tylko na swojej zakładce — bramka
+            checklisty dalej celuje w Approve. %>
+        <% ReviewsHelper::DECISION_TABS.each do |verdict, tab| %>
+          <%= tag.button tab[:label], name: "verdict", value: verdict, class: [ "btn btn-big decision-submit", tab[:btn] ],
+                hidden: verdict != active, data: { decision_tabs_target: "submit", verdict: verdict,
+                                                   decision_checklist_target: ("approve" if verdict == "approve") }.compact %>
+        <% end %>
       <% end %>
     </div>
   <% elsif review.status == "reviewed" %>

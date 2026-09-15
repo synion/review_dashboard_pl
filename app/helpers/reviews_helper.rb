@@ -206,37 +206,38 @@ module ReviewsHelper
     "Review w toku"
   end
 
-  # Szkic decyzji zaczyna od werdyktu zgodności z zadaniem, a znaleziska bramki
-  # (niespełnione AC, brak dowodu) stoją przed uwagami do kodu - autor PR-a na
-  # GitHubie ma zobaczyć to samo czerwone, co reviewer w dashboardzie.
-  def decision_draft(review)
-    parts = [ "## Review\n" ]
-    parts << "**Zgodność z zadaniem:** #{task_fit_label(review.task_fit_verdict)}\n" if review.task_fit_verdict
-    parts << review.summary.to_s << "\n"
-    findings = review.findings.order(:priority).sort_by { |f| f.task_fit? ? 0 : 1 }
-    findings.each do |f|
-      parts << "- **[#{f.priority}]** #{f.title} (#{f.file_location})"
-    end
-    parts.join("\n")
-  end
-
-  TASK_FIT_LABELS = { "fits" => "Rozwiązuje zadanie", "partial" => "Część AC niesprawdzalna z kodu",
-                      "misses" => "Nie rozwiązuje zgłoszenia" }.freeze
   TASK_FIT_STATUS_LABELS = { "met" => "✓ spełnione", "unmet" => "✗ niespełnione", "unverifiable" => "? niesprawdzalne z kodu",
                              "addressed" => "✓ zamknięta", "open" => "✗ otwarta",
                              "present" => "✓ jest", "missing" => "✗ brak", "n/a" => "nie dotyczy" }.freeze
 
-  def task_fit_label(verdict) = TASK_FIT_LABELS.fetch(verdict.to_s, "niesprawdzona")
-
   def task_fit_status_label(status) = TASK_FIT_STATUS_LABELS.fetch(status.to_s, status.to_s)
 
-  # Punkty do tabeli i checklisty: ze statusem z wyniku, a gdy wyniku nie ma - sama
-  # lista z opisu zadania (checklista działa też bez sesji, tylko bez podpowiedzi).
-  def task_fit_items(review)
-    return review.task_criteria_list unless review.task_fit_verdict
-
-    Review::TASK_FIT_SECTIONS.keys.flat_map { |key| Array(review.task_fit[key]) }
+  # Cała umowa z decision_tabs_controller i decision_checklist_controller w jednym
+  # miejscu, zamiast rozlanej po wywołaniu form_with. Zakładki są zawsze; bramka
+  # tylko przy liście AC - bez niej nie ma czego blokować i formularz idzie bez
+  # hooków checklisty. Aktywna zakładka renderowana od razu w atrybucie, żeby
+  # panele wstały właściwie przed podłączeniem Stimulusa.
+  def decision_form_data(review, active:)
+    controllers = %w[decision-tabs]
+    controllers << "decision-checklist" if review.task_fit_gate?
+    { controller: controllers.join(" "),
+      action: controllers.map { |name| "turbo:submit-end->#{name}#clear" }.join(" "),
+      decision_tabs_active_value: active,
+      decision_tabs_key_value: "review-#{review.id}-tab",
+      decision_checklist_key_value: ("review-#{review.id}-checklist" if review.task_fit_gate?) }.compact
   end
+
+  # Wszystko, co zakładka decyzji wie o swoim werdykcie: etykieta (ta sama na
+  # zakładce i przycisku), klasa przycisku i zdanie tłumaczące, czym ten szkic
+  # różni się od pozostałych.
+  DECISION_TABS = {
+    "approve" => { label: "✓ Approve", btn: "btn-ok",
+                   hint: "Approve przechodzi także przy niespełnionych punktach - szkic wymienia je jako świadomie zaakceptowane, uwagi idą jako nieblokujące." },
+    "reject" => { label: "✗ Reject", btn: "btn-danger",
+                  hint: "Reject wylicza, czego brakuje z zadania i co poprawić w kodzie." },
+    "comment" => { label: "💬 Comment", btn: nil,
+                   hint: "Comment nie jest werdyktem - szkic zamienia luki w pytania do autora." }
+  }.freeze
 
   # Badge na liście i kaflu - tylko czerwone i żółte. Zielone nie potrzebuje miejsca.
   def task_fit_badge(review)

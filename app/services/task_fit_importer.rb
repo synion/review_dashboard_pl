@@ -15,8 +15,6 @@ class TaskFitImporter
     "trap" => [ %w[addressed open], "open" ],
     "process" => [ %w[present missing n/a], "missing" ]
   }.freeze
-  # Statusy, które same w sobie zamykają zadanie na czerwono.
-  BLOCKING = %w[unmet open missing].freeze
   NO_ANSWER = "sesja nie odpowiedziała na ten punkt".freeze
   TITLE_WORDS = 12
   # Treść znaleziska per status czerwony/żółty. `fix` to fallback - gdy sesja podała
@@ -86,7 +84,7 @@ class TaskFitImporter
   end
 
   def verdict_for(items, evidence_found)
-    return "misses" if !evidence_found || items.any? { |i| BLOCKING.include?(i["status"]) }
+    return "misses" if !evidence_found || items.any? { |i| Review.task_fit_status_blocking?(i["status"]) }
     return "partial" if items.any? { |i| i["status"] == "unverifiable" }
 
     "fits"

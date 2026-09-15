@@ -9,7 +9,7 @@ class DecisionsController < ApplicationController
       return render_error(gate_error)
     end
 
-    body = params[:body].to_s
+    body = bodies[verdict].to_s
     notice = DecisionPublisher.call(@review, verdict: verdict, body: body, inline: params[:inline_comments] == "1")
     attrs = { status: "decided", decision: verdict, decision_body: body, decided_at: Time.current,
               decision_head_sha: head_sha_at_decision, challenge: nil,
@@ -52,16 +52,21 @@ class DecisionsController < ApplicationController
   def gate_error_for(verdict)
     return unless verdict == "approve" && @review.task_fit_gate?
 
-    missing = @review.task_criteria_list.map { |item| item["id"] }.reject { |id| params.dig(:checklist, id) == "1" }
+    missing = @review.task_fit_items.map { |item| item["id"] }.reject { |id| params.dig(:checklist, id) == "1" }
     return "Odhacz każdy punkt z zadania przed approve (brakuje: #{missing.join(", ")})" if missing.any?
     return if !@review.approve_needs_override? || params[:override] == "1"
 
     "Zgodność z zadaniem jest #{@review.task_fit_verdict == "misses" ? "czerwona" : "niesprawdzona"} - zaznacz „Approve mimo to”, jeśli to świadoma decyzja"
   end
 
+  # Nie tylko CO odhaczono, ale i które punkty przyszły odhaczone z wyniku sesji.
+  # Bez `prefilled` z rekordu nie da się odróżnić „człowiek to sprawdził” od
+  # „model powiedział ✓, a człowiek przeklikał” - a to była cała wartość snapshotu.
   def checklist_snapshot
-    checked = @review.task_criteria_list.to_h { |item| [ item["id"], params.dig(:checklist, item["id"]) == "1" ] }
-    checked.merge("override" => params[:override] == "1")
+    items = @review.task_fit_items
+    checked = items.to_h { |item| [ item["id"], params.dig(:checklist, item["id"]) == "1" ] }
+    checked.merge("override" => params[:override] == "1",
+                  "prefilled" => items.select { |item| Review.task_fit_status_ok?(item["status"]) }.map { |item| item["id"] })
   end
 
   # Stan kodu, na który człowiek właśnie patrzył — bez niego późniejsze „sprawdź, czy
@@ -87,9 +92,22 @@ class DecisionsController < ApplicationController
     id && DirectoryEntry.name_for(@review.project, "intum_user", id)
   end
 
+  # Formularz niesie trzy treści (body[approve|reject|comment]) i wysyła tę spod
+  # klikniętego przycisku. Goły string zostaje dla wywołań spoza formularza (testy,
+  # curl) - wtedy jest jedną treścią niezależnie od werdyktu.
+  def bodies
+    @bodies ||= begin
+      body = params[:body]
+      body.respond_to?(:to_unsafe_h) ? body.to_unsafe_h.slice(*Review::DECISIONS) : Review::DECISIONS.index_with(body.to_s)
+    end
+  end
+
+  # Błąd wraca z wszystkimi trzema treściami i otwartą zakładką, z której padło
+  # kliknięcie - user nie ma tracić edycji w żadnej z nich.
   def render_error(message)
     flash.now[:error] = message
-    @body_draft = params[:body]
+    @active_verdict = params[:verdict] if Review::DECISIONS.include?(params[:verdict])
+    @body_drafts = bodies if params[:body].present?
     render "reviews/show", status: :unprocessable_entity
   end
 end

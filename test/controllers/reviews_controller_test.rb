@@ -517,8 +517,44 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     get review_path(review)
     assert_select ".finding-critical", text: /Nil na kwocie/
     assert_select "form[action=?]", review_decision_path(review)
-    assert_select "details summary", text: /Podgląd/
-    assert_select "textarea[name=body]"
+    assert_select "details summary", text: /Podgląd/, count: 3
+    Review::DECISIONS.each do |verdict|
+      assert_select ".decision-tab[data-verdict=?]", verdict
+      assert_select ".decision-pane[data-verdict=?] textarea[name=?]", verdict, "body[#{verdict}]"
+      assert_select "button.decision-submit[value=?]", verdict
+    end
+  end
+
+  # ---- Zakładki decyzji: inny szkic pod każdy werdykt, sugerowana zakładka z danych.
+
+  test "krytyczne znalezisko sugeruje reject i otwiera tę zakładkę" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", summary: "OK")
+    review.findings.create!(priority: "critical", title: "Nil na kwocie", body: "opis", file_location: "app/x.rb:1")
+    get review_path(review)
+    assert_select "form.decision-form[data-decision-tabs-active-value=reject]"
+    assert_select ".decision-tab[data-verdict=reject][aria-selected=true] .decision-tab-suggested", text: "sugerowane"
+    assert_select ".decision-tab[data-verdict=approve][aria-selected=true]", count: 0
+    assert_select "textarea[name='body[reject]']", text: /Do poprawy:.*Nil na kwocie/m
+    assert_select "textarea[name='body[approve]']", text: /Uwagi nieblokujące.*Nil na kwocie/m
+  end
+
+  test "bez znalezisk i bez bramki sugerowany jest approve" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", summary: "OK")
+    get review_path(review)
+    assert_select "form.decision-form[data-decision-tabs-active-value=approve]"
+    assert_select ".decision-tab[data-verdict=approve] .decision-tab-suggested"
+  end
+
+  test "partial: niesprawdzalny punkt sugeruje comment, a szkice różnią się między zakładkami" do
+    review = gated_review(verdict: "partial")
+    get review_path(review)
+    assert_select "form.decision-form[data-decision-tabs-active-value=comment]"
+    assert_select "textarea[name='body[comment]']", text: /Pytania do autora:\*\*\n- Kod dochodzi do klienta - jak to sprawdzić\? Potrzebne: status doręczenia/
+    assert_select "textarea[name='body[approve]']", text: /Niesprawdzone z kodu.*Kod dochodzi do klienta - potrzebne: status doręczenia/m
+    assert_select "textarea[name='body[reject]']", text: /Do wykazania.*Kod dochodzi do klienta/m
+    assert_select "textarea[name='body[reject]']", text: /Pytania do autora/, count: 0
   end
 
   test "show w statusie failed pokazuje błąd i retry" do
@@ -1335,6 +1371,9 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".task-fit-banner.task-fit-none", text: /Zgodność z zadaniem niesprawdzona/
     assert_select "input[name^='checklist[']", count: 0
     assert_select "input[name='override']", count: 0
+    # nie ma czego blokować - formularz decyzji idzie bez hooków bramki
+    assert_select "button[value=approve]"
+    assert_select "form[data-controller~='decision-checklist']", count: 0
   end
 
   test "sesja w toku: baner mówi, że sprawdza, i pokazuje postęp" do
@@ -1420,5 +1459,44 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     get review_path(review)
     assert_select ".task-fit-banner.task-fit-pending", text: /Lista AC gotowa: 2 punkty/
     assert_select ".task-fit-banner", text: /niesprawdzona/, count: 0
+  end
+
+  # ---- Checklista przed Approve: co model rozstrzygnął na zielono, człowiek dostaje
+  # odhaczone z góry; ręka idzie tylko tam, gdzie faktycznie jest co sprawdzić.
+
+  test "checklista odhacza z góry zielone punkty i „nie dotyczy”" do
+    review = gated_review(verdict: "partial")
+    get review_path(review)
+    assert_select ".checklist input[name='checklist[ac2]'][checked]"   # met
+    assert_select ".checklist input[name='checklist[t1]'][checked]"    # addressed
+    assert_select ".checklist input[name='checklist[p1]'][checked]"    # n/a
+  end
+
+  test "checklista zostawia puste punkty do sprawdzenia przez człowieka" do
+    review = gated_review(verdict: "misses")
+    get review_path(review)
+    assert_select ".checklist input[name='checklist[ac1]']"            # unverifiable - jest
+    assert_select ".checklist input[name='checklist[ac1]'][checked]", count: 0
+    assert_select ".checklist input[name='checklist[t1]'][checked]", count: 0   # open
+    assert_select ".checklist input[name='override'][checked]", count: 0
+  end
+
+  test "bez wyniku zgodności checklista nie zaznacza nic z góry" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", summary: "OK", branch: "b",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ], "traps" => [] })
+    get review_path(review)
+    assert_select ".checklist input[type=checkbox]"
+    assert_select ".checklist input[checked]", count: 0
+  end
+
+  test "formularz decyzji niesie hooki blokady Approve" do
+    review = gated_review(verdict: "partial")
+    get review_path(review)
+    assert_select "form[data-controller~='decision-checklist'][data-decision-checklist-key-value=?]",
+                  "review-#{review.id}-checklist"
+    assert_select ".checklist[data-action~='change->decision-checklist#refresh']"
+    assert_select "button[value=approve][data-decision-checklist-target='approve']"
+    assert_select "[data-decision-checklist-target='hint']"
   end
 end

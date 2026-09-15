@@ -17,6 +17,15 @@ class Review < ApplicationRecord
   # Sekcje listy punktów z opisu zadania (task_criteria.json) i wyniku task_fit -
   # jedno źródło dla modelu, importera, joba opisu i helpera.
   TASK_FIT_SECTIONS = { "criteria" => "criterion", "traps" => "trap", "process" => "process" }.freeze
+  # Podział statusów punktów zgodności - jedno miejsce dla importera (werdykt),
+  # checklisty (co odhaczone z góry) i szkicu decyzji (co jest do poprawy):
+  # zielone i „nie dotyczy" / czerwone, które same zamykają zadanie na czerwono /
+  # żółte „kod tego nie rozstrzyga". Nowy status wchodzi tu albo nigdzie.
+  TASK_FIT_OK_STATUSES = %w[met addressed present n/a].freeze
+  TASK_FIT_BLOCKING_STATUSES = %w[unmet open missing].freeze
+  TASK_FIT_UNVERIFIABLE_STATUS = "unverifiable".freeze
+  TASK_FIT_LABELS = { "fits" => "Rozwiązuje zadanie", "partial" => "Część AC niesprawdzalna z kodu",
+                      "misses" => "Nie rozwiązuje zgłoszenia" }.freeze
   # Akcje na PR-ze po decyzji (reviewer/label): ten sam kształt cyklu pobocznego,
   # ale bez running/ready — pojedynczy strzał gh zamiast długiej sesji.
   FOLLOWUP_STATUSES = %w[queued sent failed].freeze
@@ -434,6 +443,27 @@ class Review < ApplicationRecord
       Array(data[section]).map { |item| item.merge("kind" => kind, "text" => item["text"].presence || item["name"].to_s) }
     end
   end
+
+  # Punkty do tabeli zgodności i do checklisty przed Approve. Zbiór punktów bierzemy
+  # ZAWSZE z opisu zadania, a wynik sesji tylko nakładamy statusem: sesja potrafi
+  # zwrócić sekcję krótszą niż lista AC, a punkt, którego nie widać, nikogo nie zatrzyma.
+  # Dzięki temu widok, bramka approve i snapshot decyzji chodzą po identycznej liście.
+  def task_fit_items
+    return task_criteria_list unless task_fit_verdict
+
+    answers = TASK_FIT_SECTIONS.keys.flat_map { |key| Array(task_fit[key]) }.index_by { |item| item["id"].to_s }
+    task_criteria_list.map { |item| item.merge(answers[item["id"].to_s] || {}) }
+  end
+
+  # Statusy, które sesja rozstrzygnęła na zielono albo uznała za niedotyczące -
+  # checklista odhacza je z góry, a snapshot decyzji zapisuje, że przyszły gotowe.
+  def self.task_fit_status_ok?(status) = TASK_FIT_OK_STATUSES.include?(status.to_s)
+
+  def self.task_fit_status_blocking?(status) = TASK_FIT_BLOCKING_STATUSES.include?(status.to_s)
+
+  def self.task_fit_status_unverifiable?(status) = status.to_s == TASK_FIT_UNVERIFIABLE_STATUS
+
+  def task_fit_label = TASK_FIT_LABELS.fetch(task_fit_verdict.to_s, "niesprawdzona")
 
   # Punkty, których agent nie rozstrzygnął z kodu - do banera „SPRAWDŹ RĘCZNIE”.
   # Każdy niesie needed_evidence: co dokładnie człowiek ma zdobyć (log, panel, repro).
