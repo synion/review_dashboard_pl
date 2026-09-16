@@ -108,6 +108,10 @@ table#reviews td.date-cell, table#reviews td.pr-activity-cell { white-space: now
 table#reviews td.title-cell a { color: var(--fg); text-decoration: none; font-weight: 600; }
 table#reviews td.title-cell a:hover { color: var(--accent); }
 table#reviews td.title-cell .muted { font-size: 12px; margin-top: 2px; }
+/* Tytuł PR-a pod tytułem zadania (Project::HEADLINE_MODES „both"): o stopień
+   większy niż meta pod spodem, żeby czytał się jako drugi tytuł, nie szczegół. */
+.subheadline { margin-top: 1px; }
+table#reviews td.title-cell .subheadline { font-size: 13px; }
 table#reviews td.action-cell { text-align: right; }
 /* Usuwanie review kasuje też worktree, ale to najrzadsza akcja w wierszu — jako duża
    czerwona plama przykrywała tytuł PR-a. */
@@ -177,6 +181,7 @@ table#reviews td.activity-cell, table#reviews td.worktree-cell { white-space: no
 /* ===================== strona wejściowa: kolejki + projekty ===================== */
 .pagehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 4px; }
 .pagehead h1 { font-size: 22px; margin: 0; }
+.pagehead .subheadline { flex-basis: 100%; margin: 0; font-size: 15px; }
 .summary { margin: 0; display: flex; gap: 8px; flex-wrap: wrap; }
 .pill { font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
 .pill b { color: var(--fg); }
@@ -395,6 +400,13 @@ input[type=text], input[type=url], textarea, select { width: 100%; padding: 10px
 .task-comment-details { display: none; margin-top: 8px; }
 .task-comment-field:has(.task-comment-toggle:checked) .task-comment-details { display: block; }
 code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+/* Formularz projektu: lista nazw do szablonów decyzji i same szablony (monospace,
+   bo Mustache z wcięciami czyta się jak kod). */
+.placeholders { margin: 4px 0 12px 18px; padding: 0; }
+.placeholders li { margin: 2px 0; }
+.template-field { font-family: var(--diff-mono); font-size: 13px; }
+.template-family { margin: 8px 0 16px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.template-family > summary { font-weight: 600; color: var(--fg); }
 .md { line-height: 1.55; }
 .md h1, .md h2 { font-size: 17px; margin: 12px 0 6px; }
 .md h3, .md h4 { font-size: 15px; margin: 10px 0 4px; }

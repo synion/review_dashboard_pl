@@ -132,4 +132,16 @@ class DescribeTaskJobTest < ActiveSupport::TestCase
     assert_equal [ 9, 9 ], [ review.task_comments_seen, review.task_comments_latest ]
     assert_not review.task_comments_stale?
   end
+
+
+  test "opis zadania zapisuje tytuł zadania z trackera" do
+    review = reviews(:task_only)
+    review.project.update!(task_url_prefix: "https://tasks.example.com/", intum_api_token: "t")
+    fake = Object.new
+    def fake.task(_id) = { "id" => 1, "comments_count" => 2, "title" => "SMS nie dochodzi" }
+    IntumClient.stub :new, fake do
+      run_with(review, "TASK_URL: none\n\n**Cel** — x.")
+    end
+    assert_equal "SMS nie dochodzi", review.task_title
+  end
 end

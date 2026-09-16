@@ -4,10 +4,8 @@
 class CheckTaskCommentsJob < ApplicationJob
   queue_as :default
 
+  # Przy okazji odświeża tytuł zadania - to jedyne cykliczne pytanie do trackera.
   def perform(review)
-    count = review.task_comments_count_now
-    attrs = { task_comments_checked_at: Time.current }
-    attrs[:task_comments_latest] = count if count
-    review.update!(attrs)
+    review.update!(review.tracker_task_attrs.merge(task_comments_checked_at: Time.current))
   end
 end

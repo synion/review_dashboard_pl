@@ -70,3 +70,5 @@ end
 # Renderowanie markdownu z sesji Claude (opis, summary, findings).
 gem "kramdown"
 gem "kramdown-parser-gfm"
+
+gem "mustache", "~> 1.1"

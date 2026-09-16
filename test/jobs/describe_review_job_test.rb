@@ -1,6 +1,8 @@
 require "test_helper"
 
 class DescribeReviewJobTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   class FakeGithub
     def initialize(body: nil) = @body = body
 
@@ -74,6 +76,24 @@ class DescribeReviewJobTest < ActiveSupport::TestCase
                                           session_factory: ->(_run) { FakeSession.new("OPIS") })
 
     assert_equal "https://tracker.example.com/organize/tasks/32586", review.reload.task_url
+  end
+
+  test "znaleziony link do zadania od razu kolejkuje pobranie tytułu i licznika z trackera" do
+    projects(:webapp).update!(task_url_prefix: "https://tracker.example.com/organize/tasks/")
+    review = reviews(:pr_review)
+    github = FakeGithub.new(body: "https://tracker.example.com/organize/tasks/32586")
+    assert_enqueued_with(job: CheckTaskCommentsJob, args: [ review ]) do
+      DescribeReviewJob.perform_now(review, github: github, worktrees: FakeWorktrees.new,
+                                            session_factory: ->(_run) { FakeSession.new("OPIS") })
+    end
+  end
+
+  test "bez linku do zadania nie pyta trackera" do
+    review = reviews(:pr_review)
+    assert_no_enqueued_jobs only: CheckTaskCommentsJob do
+      DescribeReviewJob.perform_now(review, github: FakeGithub.new, worktrees: FakeWorktrees.new,
+                                            session_factory: ->(_run) { FakeSession.new("OPIS") })
+    end
   end
 
   test "should never overwrite a task link that came from the form" do

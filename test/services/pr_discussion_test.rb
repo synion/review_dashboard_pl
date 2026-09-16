@@ -22,7 +22,7 @@ class PrDiscussionTest < ActiveSupport::TestCase
 
   # Pinezka wysłana na GitHuba tak, jak zrobiłby to DecisionPublisher.
   def pin(finding, **attrs)
-    comment(body: InlineComments.send(:body_for, finding), **attrs)
+    comment(body: InlineComments.send(:body_for, finding, nil, "reject", nil), **attrs)
   end
 
   # --- składanie wątków ---

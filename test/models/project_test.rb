@@ -280,4 +280,35 @@ class ProjectTest < ActiveSupport::TestCase
     project.intum_api_token = "t"
     assert project.intum_enabled?
   end
+
+
+  # ---- Szablony wypowiedzi.
+
+  test "templates zapisuje tylko szablony różne od domyślnych, puste i domyślne = brak" do
+    project = projects(:webapp)
+    project.update!(templates: { "decision" => { "approve" => DecisionDraft::DEFAULT_TEMPLATES["approve"],
+                                                 "reject" => "  ", "comment" => "Własny {{summary}}" },
+                                 "inline_comment" => { "reject" => "{{body}}" },
+                                 "nieznana" => { "reject" => "x" } })
+    assert_equal({ "decision" => { "comment" => "Własny {{summary}}" } }, project.reload.templates)
+    assert_equal DecisionDraft::DEFAULT_TEMPLATES["approve"], project.template("decision", "approve")
+    assert_equal "Własny {{summary}}", project.template("decision", "comment")
+    assert_equal InlineComments::DEFAULT_TEMPLATES["approve"], project.template("inline_comment", "approve")
+    project.update!(templates: { "decision" => { "comment" => "" } })
+    assert_nil project.reload.templates
+  end
+
+  test "niedomknięty blok w szablonie nie przechodzi walidacji" do
+    project = projects(:webapp)
+    assert_not project.update(templates: { "followup" => { "reject" => "{{#blocking_list}} bez zamknięcia" } })
+    assert_match(/Szablon „Wiadomość ponownego sprawdzenia poprawek” \(reject\) jest zepsuty: Unclosed section/,
+                 project.errors.full_messages.to_sentence)
+  end
+
+  test "szablon z przeglądarki (CRLF) równy domyślnemu nie jest zapisywany jako własny" do
+    project = projects(:webapp)
+    project.update!(templates: { "decision" => { "approve" => DecisionDraft::DEFAULT_TEMPLATES["approve"].gsub("\n", "\r\n"),
+                                                 "reject" => "Popraw:\r\n{{blocking_list}}\r\n" } })
+    assert_equal({ "decision" => { "reject" => "Popraw:\n{{blocking_list}}" } }, project.reload.templates)
+  end
 end

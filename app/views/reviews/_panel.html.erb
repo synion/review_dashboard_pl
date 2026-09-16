@@ -75,13 +75,13 @@
     <%= render "reviews/followup_form", review: review,
           title: "⚠ Skonfrontuj decyzję z podważeniem",
           label: "Claude wróci do sesji, przeczyta cudze review / nowe komentarze i odpowie wprost, czy Twoja decyzja była trafna",
-          body: Review.challenge_message(review, review.challenge || {}),
+          body: FollowupMessage.new(review).challenge,
           submit: "Sprawdź ponownie" %>
   <% elsif review.status == "waiting_review" %>
     <%= render "reviews/followup_form", review: review,
           title: "🔁 Autor prosi o ponowne review",
           label: "Claude wróci do tej samej sesji, pobierze aktualny kod i sprawdzi poprawki — możesz doprecyzować, na co zwrócić uwagę",
-          body: "Autor naniósł poprawki po mojej decyzji — pobierz najnowszy stan brancha (git pull) i sprawdź, czy uwagi zostały zaadresowane.",
+          body: FollowupMessage.new(review).check_fixes,
           submit: "Sprawdź poprawki" %>
   <% elsif review.status == "reviewed" %>
     <%= render "reviews/followup_form", review: review,
@@ -227,13 +227,12 @@
   <% end %>
   <%# Ręczna furtka do followupu — dla PR-ów, których GitHub nigdy nie przestawi
       w waiting_review (własny PR, obcy branch bez re-requestu). Pod kartą decyzji,
-      bo tu najpierw liczy się „co zdecydowałem", a ponowne sprawdzenie jest opcjonalne.
-      Treść bez „Autor naniósł poprawki" — przy self review autorem jestem ja. %>
+      bo tu najpierw liczy się „co zdecydowałem", a ponowne sprawdzenie jest opcjonalne. %>
   <% if review.status == "decided" %>
     <%= render "reviews/followup_form", review: review,
           title: "🔁 Sprawdź zmiany ponownie",
           label: "Claude wróci do tej samej sesji, pobierze aktualny kod i sprawdzi, co zmieniło się od decyzji",
-          body: "Pobierz najnowszy stan brancha (git pull) i sprawdź, czy uwagi z mojego review zostały zaadresowane.",
+          body: FollowupMessage.new(review).check_fixes,
           submit: "Sprawdź poprawki" %>
   <% end %>
 <% when "failed" %>

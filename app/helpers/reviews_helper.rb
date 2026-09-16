@@ -145,7 +145,7 @@ module ReviewsHelper
     return "" if text.blank?
 
     html = Kramdown::Document.new(text, input: "GFM", hard_wrap: false).to_html
-    tag.div(sanitize(html, tags: %w[p br strong em b i ul ol li h1 h2 h3 h4 code pre blockquote a table thead tbody tr th td hr],
+    tag.div(sanitize(html, tags: %w[p br strong em b i ul ol li h1 h2 h3 h4 code pre blockquote a table thead tbody tr th td hr details summary],
                            attributes: %w[href]), class: "md")
   end
 

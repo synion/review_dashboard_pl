@@ -13,7 +13,7 @@ class DecisionPublisher
   end
 
   def publish(verdict:, body:, inline:)
-    comments, note = inline ? inline_comments : [ [], "" ]
+    comments, note = inline ? inline_comments(verdict) : [ [], "" ]
     submit(verdict, body, comments)
     "Decyzja #{verdict} wysłana na GitHub#{note}"
   rescue GithubClient::Error => e
@@ -28,12 +28,12 @@ class DecisionPublisher
   private
 
   # [komentarze, dopisek do komunikatu]. Brak znalezisk = nie ma po co pytać o diff.
-  def inline_comments
+  def inline_comments(verdict)
     findings = @review.findings.order(:priority).to_a
     return [ [], "" ] if findings.empty?
 
     diff = @client.pr_diff(@review.pr_url, repo_dir: repo_dir)
-    comments = InlineComments.build(findings, PrDiffMap.parse(diff))
+    comments = InlineComments.build(findings, PrDiffMap.parse(diff), verdict: verdict, project: @review.project)
     [ comments, note_for(comments, findings.size) ]
   rescue GithubClient::Error => e
     [ [], " — bez komentarzy przy liniach: nie udało się pobrać diffu (#{e.message})" ]

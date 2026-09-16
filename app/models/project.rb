@@ -6,6 +6,12 @@ class Project < ApplicationRecord
   # przy kopiowaniu z GitHuba, więc regexp je zjada, zamiast odrzucać adres.
   GITHUB_REPO_URL = %r{\Ahttps?://(?:www\.)?github\.com/(?<owner>[\w.-]+)/(?<repo>[\w.-]+?)(?:\.git)?/?\z}
 
+  # Który tytuł jest nagłówkiem review na liście, w kolejkach i na stronie review.
+  # Tytuł zadania przychodzi z trackera, więc bez integracji z Intum „task"
+  # i „both" degradują do tytułu PR-a (Review#headline).
+  HEADLINE_MODES = { "pr" => "tytuł PR-a", "task" => "tytuł zadania z trackera",
+                     "both" => "tytuł zadania, a pod nim tytuł PR-a" }.freeze
+
   has_many :reviews, dependent: :destroy
   has_many :inbox_items, dependent: :destroy
   has_many :directory_entries, dependent: :destroy
@@ -21,6 +27,25 @@ class Project < ApplicationRecord
     # strip: token wkleja się z panelu trackera i lubi złapać spację/enter —
     # niewidoczny znak = 401 "wrong api_token" nie do zdebugowania z UI.
     super(value.strip) if value.present?
+  end
+
+  # Szablon wypowiedzi (rodzina z MessageTemplate.families × werdykt): własny
+  # z ustawień albo domyślny rodziny. Formularz pokazuje zawsze ten obowiązujący.
+  def template(family, verdict)
+    templates&.dig(family, verdict).presence || MessageTemplate.default(family, verdict)
+  end
+
+  # Zapisujemy tylko to, co odbiega od domyślnego: formularz prefilluje pola
+  # obowiązującym szablonem, więc zapis bez zmian nie może zamrozić dzisiejszego
+  # domyślnego - poprawki defaultu mają dalej docierać do projektu. Puste = domyślny.
+  # CRLF → LF na wejściu: przeglądarka wysyła textarea z \r\n, a bez tego zapis
+  # nietkniętego formularza uchodziłby za własny szablon i \r leciałoby na GitHuba.
+  def templates=(value)
+    custom = value.to_h.slice(*MessageTemplate.families.keys).to_h do |family, per_verdict|
+      texts = per_verdict.to_h.slice(*Review::DECISIONS).transform_values { |text| text.to_s.gsub("\r\n", "\n").strip }
+      [ family, texts.reject { |verdict, text| text.blank? || text == MessageTemplate.default(family, verdict).strip } ]
+    end
+    super(custom.reject { |_family, texts| texts.empty? }.presence)
   end
 
   # Podgląd ustawionego tokena bez ujawniania sekretu: pierwszy znak + dwa
@@ -51,6 +76,8 @@ class Project < ApplicationRecord
                                                  message: "nie jest jednym z dostępnych configów" }
   validates :default_model, inclusion: { in: Review::MODELS }, allow_blank: true
   validates :default_effort, inclusion: { in: Review::EFFORTS }, allow_blank: true
+  validates :headline_mode, inclusion: { in: HEADLINE_MODES.keys }
+  validate :templates_compile, if: :will_save_change_to_templates?
   validates :repo_url, format: { with: GITHUB_REPO_URL, message: "musi być adresem repozytorium na GitHubie" },
                        allow_blank: true
   # Wszystkie trzy wzorce trafiają do `format(..., branch: ...)`. Zła literówka
@@ -137,6 +164,16 @@ class Project < ApplicationRecord
   end
 
   private
+
+  # Niedomknięty blok {{#x}} wywalałby się dopiero na stronie review.
+  def templates_compile
+    (templates || {}).each do |family, per_verdict|
+      per_verdict.each do |verdict, template|
+        error = MessageTemplate.error(template)
+        errors.add(:base, "Szablon „#{MessageTemplate.families.fetch(family).label}” (#{verdict}) jest zepsuty: #{error}") if error
+      end
+    end
+  end
 
   # Wspólna jest sama formatowalność wzorca, nie znaczenie podstawianej wartości:
   # w komendzie shellowej branch jest argumentem, w adresie — fragmentem hosta.

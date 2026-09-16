@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_09_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_15_110001) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -102,6 +102,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_120001) do
     t.string "default_effort"
     t.string "default_model"
     t.string "docs_path", default: "doc/llm"
+    t.string "headline_mode", default: "pr", null: false
     t.datetime "inbox_checked_at"
     t.string "intum_api_token"
     t.datetime "main_at"
@@ -113,6 +114,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_120001) do
     t.string "second_reviewer_default"
     t.text "task_comment_instructions"
     t.string "task_url_prefix"
+    t.json "templates"
     t.datetime "updated_at", null: false
     t.string "worktree_command"
     t.string "worktree_delete_command"
@@ -170,6 +172,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_09_120001) do
     t.json "task_fit"
     t.datetime "task_fit_checked_at"
     t.string "task_fit_status", default: "skipped", null: false
+    t.string "task_title"
     t.string "task_url"
     t.datetime "updated_at", null: false
     t.datetime "worktree_health_checked_at"

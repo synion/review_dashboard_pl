@@ -18,19 +18,47 @@ class DecisionDraftTest < ActiveSupport::TestCase
     )
   end
 
-  test "bez bramki i znalezisk: nagłówek z podsumowaniem i zdanie otwierające werdyktu" do
+  test "bez bramki i znalezisk: nagłówek z werdyktem, „Krótko” i zdanie otwierające werdyktu" do
     drafts = DecisionDraft.new(@review).all
-    assert_equal "## Review\n\nZmiana wygląda dobrze.\n", drafts["approve"]
-    assert_equal "## Review\n\nZmiana wygląda dobrze.\n\n**Proszę o zmiany przed merge'em.**\n", drafts["reject"]
-    assert_match(/\A## Review\n\nZmiana wygląda dobrze.\n\n\*\*Bez werdyktu/, drafts["comment"])
+    assert_equal "## ✅ Approve\n\nZmiana wygląda dobrze.\n\n**Zatwierdzam - nie wstrzymuję merge'a.**\n", drafts["approve"]
+    assert_equal "## ❌ Reject - wymagane zmiany\n\nZmiana wygląda dobrze.\n\n**Proszę o zmiany przed merge'em.**\n", drafts["reject"]
+    assert_match(/\A## 💬 Comment - pytania przed decyzją\n\nZmiana wygląda dobrze.\n\n\*\*Bez werdyktu/, drafts["comment"])
     assert_equal "approve", DecisionDraft.new(@review).suggested_verdict
+  end
+
+  test "długie podsumowanie: „Krótko” na górze, reszta zwinięta na końcu, po sekcjach werdyktu" do
+    @review.update!(summary: "**Krótko:** Nie approve'uj.\n\n**Co sprawdziłem**\n- migracje\n\n**Najważniejsze**\n- limit firm")
+    @review.findings.create!(priority: "critical", title: "Nil w VAT", body: "x")
+    reject = DecisionDraft.new(@review).for("reject")
+    assert_equal <<~MD, reject
+      ## ❌ Reject - wymagane zmiany
+
+      **Krótko:** Nie approve'uj.
+
+      **Proszę o zmiany przed merge'em.**
+
+      **Do poprawy:**
+      - **[critical]** Nil w VAT
+
+      <details><summary>Pełne podsumowanie review</summary>
+
+      **Krótko:** Nie approve'uj.
+
+      **Co sprawdziłem**
+      - migracje
+
+      **Najważniejsze**
+      - limit firm
+
+      </details>
+    MD
   end
 
   test "misses: reject wylicza niespełnione punkty, approve bierze je na siebie, comment pyta o zakres" do
     gate!("misses", criteria_status: "unmet", trap_status: "open")
     drafts = DecisionDraft.new(@review).all
     assert_match(/\*\*Niespełnione punkty z zadania:\*\*\n- Kod dochodzi \(brak logu\)\n- Log odczytany\? \(komentarz 3\)/, drafts["reject"])
-    assert_match(/\*\*Zatwierdzam mimo niespełnionych punktów z zadania\*\* \(świadoma decyzja\):\n- Kod dochodzi \(brak logu\)/, drafts["approve"])
+    assert_match(/\*\*Świadomie mimo niespełnionych punktów z zadania:\*\*\n- Kod dochodzi \(brak logu\)/, drafts["approve"])
     assert_match(/\*\*Do wyjaśnienia:\*\*\n- Kod dochodzi - czy to świadomie poza zakresem tego PR-a\? \(brak logu\)/, drafts["comment"])
     assert_equal "reject", DecisionDraft.new(@review).suggested_verdict
   end
@@ -56,5 +84,43 @@ class DecisionDraftTest < ActiveSupport::TestCase
     assert_match(/\*\*Uwagi do przemyślenia:\*\*\n- \*\*\[critical\]\*\* Nil w VAT/, drafts["comment"])
     drafts.each_value { |draft| assert_no_match(/AC niespełnione/, draft) }
     assert_equal "reject", DecisionDraft.new(@review).suggested_verdict
+  end
+
+
+  # ---- Szablony per projekt.
+
+  test "własny szablon projektu zastępuje domyślny, a puste bloki znikają z nagłówkiem" do
+    @review.findings.create!(priority: "minor", title: "Literówka", body: "x", file_location: "a.rb:1")
+    @review.project.update!(templates: { "decision" => { "reject" => <<~M } })
+      Cześć! {{summary}}
+      {{#blocking_list}}
+      Brakuje:
+      {{blocking_list}}
+      {{/blocking_list}}
+      {{#minor_findings_list}}
+      Drobiazgi:
+      {{minor_findings_list}}
+      {{/minor_findings_list}}
+      PR: {{pr_title}} / {{branch}}
+    M
+    @review.update!(pr_title: "Fix & VAT", branch: "b")
+    drafts = DecisionDraft.new(@review).all
+    assert_equal "Cześć! Zmiana wygląda dobrze.\nDrobiazgi:\n- **[minor]** Literówka (a.rb:1)\nPR: Fix & VAT / b\n", drafts["reject"]
+    assert_match(/\A## ✅ Approve\n\nZmiana wygląda dobrze.\n/, drafts["approve"], "approve zostaje domyślny")
+  end
+
+  test "każda nazwa z podpowiedzi formularza ma wartość w kontekście i odwrotnie" do
+    assert_equal DecisionDraft::PLACEHOLDERS.keys, DecisionDraft.new(@review).placeholders.keys.map(&:to_s)
+  end
+
+  test "szablon nie escapuje markdownu i nie czyta partiali z dysku" do
+    @review.project.update!(templates: { "decision" => { "comment" => "{{summary}} & {{> Gemfile}}<b>" } })
+    @review.update!(summary: "a > b")
+    assert_equal "a > b & <b>\n", DecisionDraft.new(@review).for("comment")
+  end
+
+  test "zepsuty szablon zapisany poza walidacją degraduje do domyślnego" do
+    @review.project.update_columns(templates: { "decision" => { "approve" => "{{#otwarty}} bez końca" } })
+    assert_equal "## ✅ Approve\n\nZmiana wygląda dobrze.\n\n**Zatwierdzam - nie wstrzymuję merge'a.**\n", DecisionDraft.new(@review).for("approve")
   end
 end

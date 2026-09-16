@@ -545,4 +545,31 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     assert_match(/403/, flash[:alert])
   end
+
+
+  test "edycja projektu zapisuje tryb nagłówka i odrzuca wartość spoza listy" do
+    project = projects(:webapp)
+    patch project_path(project), params: { project: { headline_mode: "both" } }
+    assert_equal "both", project.reload.headline_mode
+    patch project_path(project), params: { project: { headline_mode: "bzdura" } }
+    assert_response :unprocessable_entity
+    assert_equal "both", project.reload.headline_mode
+  end
+
+
+  test "formularz projektu pokazuje szablony każdej rodziny per werdykt i zapisuje zmieniony" do
+    project = projects(:webapp)
+    get edit_project_path(project)
+    MessageTemplate.families.each_key do |family|
+      Review::DECISIONS.each { |verdict| assert_select "textarea[name='project[templates][#{family}][#{verdict}]']" }
+    end
+    assert_select "textarea[name='project[templates][decision][reject]']", text: /Proszę o zmiany przed merge'em/
+    assert_select "textarea[name='project[templates][inline_comment][approve]']", text: /Uwaga nieblokująca/
+    patch project_path(project), params: { project: { templates: {
+      decision: { approve: DecisionDraft::DEFAULT_TEMPLATES["approve"], reject: "Popraw: {{blocking_findings_list}}" },
+      inline_comment: { comment: "Pytanie: {{body}}" } } } }
+    assert_redirected_to project_reviews_path(project)
+    assert_equal({ "decision" => { "reject" => "Popraw: {{blocking_findings_list}}" },
+                   "inline_comment" => { "comment" => "Pytanie: {{body}}" } }, project.reload.templates)
+  end
 end

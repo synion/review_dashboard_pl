@@ -15,9 +15,11 @@ class DescribeTaskJob < ApplicationJob
     attrs[:task_url] = url if review.task_url.blank? && url.present?
     attrs.merge!(criteria_attrs(review))
     # Świeży opis widział wszystkie komentarze - od tego punktu liczymy nowe.
-    if (count = review.task_comments_count_now)
-      attrs.merge!(task_comments_seen: count, task_comments_latest: count, task_comments_checked_at: Time.current)
+    tracker = review.tracker_task_attrs
+    if (count = tracker[:task_comments_latest])
+      tracker.merge!(task_comments_seen: count, task_comments_checked_at: Time.current)
     end
+    attrs.merge!(tracker)
     review.update!(attrs)
   rescue StandardError => e
     # Osobny cykl życia: porażka opisu zadania nie kładzie review (opis zmian i review

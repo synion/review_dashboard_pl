@@ -328,7 +328,7 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
     get review_path(@review)
     Review::DECISIONS.each do |verdict|
       draft = css_select("textarea[name='body[#{verdict}]']").first.text
-      assert_match(/\A## Review\n\n\*\*Zgodność z zadaniem:\*\* Część AC niesprawdzalna z kodu/, draft, verdict)
+      assert_match(/\A## \S+ \w+.*\n\n\*\*Zgodność z zadaniem:\*\* Część AC niesprawdzalna z kodu/, draft, verdict)
       assert_operator draft.index("Kod dochodzi"), :<, draft.index("Literówka"), verdict
       assert_no_match(/Niesprawdzalne z kodu: Kod dochodzi/, draft, verdict)
     end

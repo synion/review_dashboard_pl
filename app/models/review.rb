@@ -541,34 +541,37 @@ class Review < ApplicationRecord
       (task_comments_checked_at.nil? || task_comments_checked_at < TASK_COMMENTS_CHECK_INTERVAL.ago)
   end
 
-  # Bieżąca liczba komentarzy w zadaniu z trackera - nil bez integracji, bez zadania
-  # albo gdy tracker padł (log warn). Jedno miejsce na guard i rescue: decyzja zapisuje
-  # ten licznik jako punkt odniesienia, CheckReviewRequestJob porównuje z nim później.
-  def task_comments_count_now
+  # Bieżący stan zadania w trackerze jako atrybuty do zapisu (tytuł, liczba
+  # komentarzy) - nil bez integracji, bez zadania i gdy tracker padł (log warn).
+  # Jedno miejsce na guard i rescue oraz jeden kształt dla wszystkich wołających:
+  # opis zadania i okresowe sprawdzenie zapisują to wprost, decyzja zapamiętuje
+  # licznik jako punkt odniesienia, CheckReviewRequestJob porównuje z nim później.
+  def tracker_task_now
     return unless task_url.present? && project.intum_enabled?
 
-    project.intum_client.task(task_scoped_id)["comments_count"]&.to_i
+    task = project.intum_client.task(task_scoped_id)
+    { task_title: task["title"].presence, task_comments_latest: task["comments_count"]&.to_i }.compact
   rescue IntumClient::Error => e
     Rails.logger.warn("Review #{id}: tracker niedostępny (#{e.message})")
     nil
   end
 
-  # Wiadomość followupu po podważeniu decyzji. Z zadania nie da się pobrać treści
-  # komentarzy przez API (endpoint ignoruje filtr po zadaniu), więc sesja ma je
-  # przeczytać sama, po dacie decyzji.
-  def self.challenge_message(review, challenge)
-    stamp = review.decided_at&.strftime("%Y-%m-%d %H:%M")
-    if challenge["source"] == "task"
-      "W zadaniu #{review.task_url} pojawiły się nowe komentarze po mojej decyzji (#{review.decision}, #{stamp}). " \
-        "Otwórz zadanie, przeczytaj WSZYSTKIE komentarze dodane po #{stamp} i skonfrontuj je z moją decyzją: " \
-        "czy ktoś podważa PR, co przeoczyłem i czy PR w ogóle rozwiązuje zgłoszenie z zadania. " \
-        "Odpowiedz wprost, bez bronienia poprzedniego wniosku."
-    else
-      "Inny reviewer (#{challenge["by"]}) zażądał zmian po moim #{review.decision} (#{stamp}). " \
-        "Przeczytaj jego review w sekcji „Cudze review pod PR-em”, skonfrontuj z moją decyzją i odpowiedz wprost: " \
-        "czy miał rację, co przeoczyłem i czy PR w ogóle rozwiązuje zgłoszenie z zadania. " \
-        "Nie broń poprzedniego wniosku - sprawdź go od nowa."
-    end
+  def tracker_task_attrs = tracker_task_now || {}
+
+  def task_comments_count_now = tracker_task_now&.dig(:task_comments_latest)
+
+  # Nagłówek review wg ustawienia projektu (Project::HEADLINE_MODES): tytuł PR-a
+  # albo zadania z trackera. Brak wybranego tytułu degraduje do drugiego, potem do
+  # linku (walidacja gwarantuje, że jakiś jest).
+  def headline
+    preferred = project.headline_mode == "pr" ? pr_title : task_title
+    preferred.presence || pr_title.presence || task_title.presence || task_link
+  end
+
+  # Druga linia pod nagłówkiem w trybie „both": tytuł PR-a pod tytułem zadania.
+  # Bez tytułu zadania nagłówek już pokazuje PR, więc nie ma czego dublować.
+  def subheadline
+    pr_title.presence if project.headline_mode == "both" && task_title.present?
   end
 
   # Instrukcja dla sesji komentującej: zamrożona przy decyzji wygrywa (Ponów używa

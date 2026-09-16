@@ -14,6 +14,10 @@ class DescribeReviewJob < ApplicationJob
                  TaskLink.find(info["body"], prefix: review.project.task_url_prefix)
       review.update!(pr_number: info["number"], pr_title: info["title"],
                      branch: info["headRefName"], task_url: task_url)
+      # Tytuł zadania od razu, nie dopiero po sesji opisu zadania - lista ma go
+      # pokazać, zanim Claude skończy czytać zadanie. Osobnym jobem, żeby padnięty
+      # tracker nie trzymał opisu PR-a.
+      CheckTaskCommentsJob.perform_later(review) if task_url.present?
     end
 
     if review.branch.present?

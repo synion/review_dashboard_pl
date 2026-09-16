@@ -5,16 +5,36 @@ class InlineComments
   MARKS = { "critical" => "🔴", "important" => "🟠", "minor" => "⚪" }.freeze
   SIDE = "RIGHT" # komentujemy nową wersję pliku; lewa strona to linie usunięte
 
-  def self.build(findings, diff_map)
-    findings.filter_map { |finding| comment_for(finding, diff_map) }
+  # Treść pod nagłówkiem pinezki, per werdykt: przy approve ta sama uwaga jest
+  # nieblokująca, przy comment - pytaniem; reject zostaje gołą treścią znaleziska.
+  # Sam nagłówek (pierwsza linia) jest poza szablonem - patrz header_for.
+  DEFAULT_TEMPLATES = {
+    "approve" => "_Uwaga nieblokująca - nie wstrzymuje merge'a, zostawiam do rozważenia._\n\n{{body}}",
+    "reject" => "{{body}}",
+    "comment" => "_Bez werdyktu - chcę poznać Twoje zdanie, zanim zdecyduję._\n\n{{body}}"
+  }.freeze
+  PLACEHOLDERS = {
+    "body" => "treść znaleziska (problem, konsekwencja, poprawka)",
+    "title" => "tytuł znaleziska", "priority" => "priorytet (Krytyczne / Ważne / Drobne)",
+    "file" => "ścieżka pliku", "line" => "numer linii"
+  }.freeze
+  FAMILY = MessageTemplate::Family.new(
+    key: "inline_comment", label: "Komentarz przy linii kodu na GitHub",
+    hint: "Pierwsza linia pinezki (priorytet i tytuł) jest stała - po niej dashboard rozpoznaje własne komentarze na PR-ze. Szablon to reszta.",
+    defaults: DEFAULT_TEMPLATES, placeholders: PLACEHOLDERS
+  )
+
+  # Bez projektu (testy, wywołania spoza decyzji) obowiązują szablony domyślne.
+  def self.build(findings, diff_map, verdict: "reject", project: nil)
+    findings.filter_map { |finding| comment_for(finding, diff_map, verdict, project) }
   end
 
-  def self.comment_for(finding, diff_map)
+  def self.comment_for(finding, diff_map, verdict, project)
     path = diff_map.resolve(finding.location_path)
     lines = finding.location_lines
     return nil unless path && lines && diff_map.commentable?(path, lines.last)
 
-    { path: path, line: lines.last, side: SIDE, body: body_for(finding) }
+    { path: path, line: lines.last, side: SIDE, body: body_for(finding, lines.last, verdict, project) }
       .merge(range_for(lines, path, diff_map))
   end
   private_class_method :comment_for
@@ -38,8 +58,10 @@ class InlineComments
     "#{MARKS[finding.priority]} **#{Finding::PRIORITY_LABELS[finding.priority]} — #{finding.title}**"
   end
 
-  def self.body_for(finding)
-    "#{header_for(finding)}\n\n#{finding.body}"
+  def self.body_for(finding, line, verdict, project)
+    context = { body: finding.body.to_s.strip, title: finding.title, priority: Finding::PRIORITY_LABELS[finding.priority],
+                file: finding.location_path, line: line }
+    "#{header_for(finding)}\n\n#{MessageTemplate.render_for(project, "inline_comment", verdict, context)}"
   end
   private_class_method :body_for
 end

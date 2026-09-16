@@ -51,6 +51,35 @@
       <%= f.text_area :task_comment_instructions, rows: 4 %>
       <span class="hint">Default dla checkboxa „Dodaj komentarz do zadania" przy decyzji — tam da się ją jednorazowo nadpisać.</span>
     </div>
+    <%# Szablony wypowiedzi: każda rodzina (treść decyzji, pinezka przy linii,
+        wiadomości followupu) ma trzy warianty, bo approve, reject i comment mówią
+        autorowi co innego z tych samych danych. Pole pokazuje szablon obowiązujący
+        (własny albo domyślny); pusty zapis = powrót do domyślnego. %>
+    <h3>Szablony wypowiedzi (approve / reject / comment)</h3>
+    <p class="hint">Składnia Mustache: <code class="inline">{{nazwa}}</code> wstawia wartość, blok
+      <code class="inline">{{#nazwa}}…{{/nazwa}}</code> pojawia się tylko, gdy nazwa ma treść (pusta lista
+      znika razem z nagłówkiem). Wyczyść pole, żeby wrócić do domyślnego szablonu.</p>
+    <%= f.fields_for :templates do |t| %>
+      <% MessageTemplate.families.each_value do |family| %>
+        <details class="template-family">
+          <summary><%= family.label %><% if project.templates&.dig(family.key).present? %> <span class="status-badge">własny</span><% end %></summary>
+          <p class="hint"><%= family.hint %> Dostępne nazwy:</p>
+          <ul class="hint placeholders">
+            <% family.placeholders.each do |name, description| %>
+              <li><code class="inline">{{<%= name %>}}</code> - <%= description %></li>
+            <% end %>
+          </ul>
+          <%= t.fields_for family.key do |ft| %>
+            <% ReviewsHelper::DECISION_TABS.each do |verdict, tab| %>
+              <div class="field">
+                <%= ft.label verdict, "Szablon: #{tab[:label]}" %>
+                <%= ft.text_area verdict, value: project.template(family.key, verdict), rows: 10, class: "template-field" %>
+              </div>
+            <% end %>
+          <% end %>
+        </details>
+      <% end %>
+    <% end %>
     <%# Integracja z trackerem: token daje listę osób w comboboxie drugiego
         sprawdzenia i wysyłkę komentarza po review prosto z aplikacji (bez
         sesji Claude). Pole zawsze renderuje się puste — sekretu nie odbijamy
@@ -70,6 +99,12 @@
           <%= link_to "🔌 Testuj połączenie", test_intum_project_path(project), data: { turbo_method: :post } %>
         <% end %>
       </span>
+    </div>
+    <div class="field">
+      <%= f.label :headline_mode, "Nagłówek review na liście i stronie review" %>
+      <%= f.select :headline_mode, Project::HEADLINE_MODES.map { |mode, label| [ label, mode ] } %>
+      <span class="hint">Tytuł zadania przychodzi z trackera przy opisie zadania i odświeża się razem
+        z licznikiem komentarzy. Bez tokena tracker milczy i zostaje tytuł PR-a.</span>
     </div>
     <%# Akcje po decyzji: defaults comboboxów w panelu. Odśwież dotyczy całego
         cache list (collaboratorzy + labelki), więc siedzi przy nagłówku sekcji,

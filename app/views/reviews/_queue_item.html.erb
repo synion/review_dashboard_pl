@@ -26,9 +26,9 @@
                   title: "PR na GitHubie — otwiera się w nowej karcie" %>
     <% end %>
   </div>
-  <%= link_to (review.pr_title.presence || review.task_link || "review ##{review.id}"),
-              review_path(review), class: "qttl qttl-open", data: { turbo_frame: detail_frame },
+  <%= link_to review.headline, review_path(review), class: "qttl qttl-open", data: { turbo_frame: detail_frame },
               title: opens_hint("review") %>
+  <% if (sub = review.subheadline) %><div class="subheadline muted"><%= sub %></div><% end %>
   <% if (next_step = review_next_step(review)) %>
     <div class="qact"><span class="qgo"><%= next_step %></span></div>
   <% end %>

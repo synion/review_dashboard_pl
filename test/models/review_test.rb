@@ -572,18 +572,6 @@ class ReviewTest < ActiveSupport::TestCase
     assert_equal 1, Review::ATTENTION_ORDER.index("challenged")
   end
 
-  test "challenge_message mówi, kto i gdzie podważył decyzję" do
-    review = reviews(:task_only)
-    review.update!(decided_at: Time.zone.parse("2026-09-03 13:51"))
-    pr = Review.challenge_message(review, { "source" => "pr", "by" => "tomek" })
-    assert_includes pr, "tomek"
-    assert_includes pr, "czy PR w ogóle rozwiązuje zgłoszenie"
-
-    task = Review.challenge_message(review, { "source" => "task", "count" => 5 })
-    assert_includes task, review.task_url
-    assert_includes task, "2026-09-03 13:51"
-  end
-
   test "task_comments_stale? tylko gdy bieżąca liczba komentarzy przewyższa widzianą przy opisie" do
     review = reviews(:task_only)
     assert_not review.task_comments_stale?
@@ -609,5 +597,47 @@ class ReviewTest < ActiveSupport::TestCase
     review = reviews(:pr_review)
     review.update!(task_criteria: { "process" => [ { "id" => "p1", "name" => "Link do Figmy", "status" => "missing" } ] })
     assert_equal "Link do Figmy", review.task_criteria_list.sole["text"]
+  end
+
+
+  # ---- Nagłówek review: tytuł PR-a albo zadania wg ustawienia projektu.
+
+  test "headline: tryb pr daje tytuł PR-a, task i both tytuł zadania, każdy degraduje do drugiego" do
+    review = reviews(:pr_review)
+    review.update!(pr_title: "Poprawka VAT", task_title: "Faktura z błędnym VAT")
+    assert_equal "Poprawka VAT", review.headline
+    assert_nil review.subheadline
+
+    review.project.update!(headline_mode: "task")
+    assert_equal "Faktura z błędnym VAT", review.headline
+    assert_nil review.subheadline
+
+    review.project.update!(headline_mode: "both")
+    assert_equal [ "Faktura z błędnym VAT", "Poprawka VAT" ], [ review.headline, review.subheadline ]
+
+    review.update!(task_title: nil)
+    assert_equal [ "Poprawka VAT", nil ], [ review.headline, review.subheadline ]
+    review.project.update!(headline_mode: "pr")
+    review.update!(pr_title: nil, task_title: "Faktura z błędnym VAT")
+    assert_equal "Faktura z błędnym VAT", review.headline
+    review.update!(task_title: nil)
+    assert_equal review.pr_url, review.headline
+  end
+
+  test "tracker_task_now zwraca atrybuty do zapisu, tracker_task_attrs pomija to, czego tracker nie dał" do
+    review = reviews(:task_only)
+    review.project.update!(task_url_prefix: "https://tasks.example.com/", intum_api_token: "t")
+    fake = Object.new
+    def fake.task(_id) = { "id" => 1, "comments_count" => 3, "title" => "SMS nie dochodzi" }
+    IntumClient.stub :new, fake do
+      assert_equal({ task_title: "SMS nie dochodzi", task_comments_latest: 3 }, review.tracker_task_now)
+      assert_equal 3, review.task_comments_count_now
+    end
+    bare = Object.new
+    def bare.task(_id) = { "id" => 1, "title" => "" }
+    IntumClient.stub(:new, bare) { assert_equal({}, review.tracker_task_attrs) }
+    broken = Object.new
+    def broken.task(_id) = raise(IntumClient::Error, "502")
+    IntumClient.stub(:new, broken) { assert_equal({}, review.tracker_task_attrs) }
   end
 end

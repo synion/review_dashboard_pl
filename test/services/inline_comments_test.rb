@@ -81,4 +81,21 @@ class InlineCommentsTest < ActiveSupport::TestCase
     comments = build(finding(file: "app/models/invoice.rb:5"), finding(file: "app/models/user.rb:5"))
     assert_equal [ 5 ], comments.map { |c| c[:line] }
   end
+
+  # ---- Treść pod nagłówkiem zależy od werdyktu; nagłówek (klucz dopasowania wątków) nie.
+
+  test "approve i comment dostają wstęp per werdykt, nagłówek zostaje ten sam" do
+    bodies = Review::DECISIONS.index_with { |verdict| InlineComments.build([ finding ], diff_map, verdict: verdict).sole[:body] }
+    assert_equal "🔴 **Krytyczne — Nil w kalkulacji VAT**\n\n_Uwaga nieblokująca - nie wstrzymuje merge'a, zostawiam do rozważenia._\n\n**Problem:** nil", bodies["approve"]
+    assert_equal "🔴 **Krytyczne — Nil w kalkulacji VAT**\n\n**Problem:** nil", bodies["reject"]
+    assert_match(/\A🔴 \*\*Krytyczne — Nil w kalkulacji VAT\*\*\n\n_Bez werdyktu/, bodies["comment"])
+    bodies.each_value { |body| assert_equal InlineComments.header_for(finding), body.lines.first.chomp }
+  end
+
+  test "własny szablon projektu składa treść pinezki z nazw znaleziska" do
+    project = projects(:webapp)
+    project.update!(templates: { "inline_comment" => { "reject" => "{{priority}} w {{file}}:{{line}} - {{title}}\n{{body}}" } })
+    body = InlineComments.build([ finding ], diff_map, verdict: "reject", project: project).sole[:body]
+    assert_equal "🔴 **Krytyczne — Nil w kalkulacji VAT**\n\nKrytyczne w app/models/invoice.rb:5 - Nil w kalkulacji VAT\n**Problem:** nil", body
+  end
 end

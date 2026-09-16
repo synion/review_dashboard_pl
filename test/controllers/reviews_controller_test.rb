@@ -277,7 +277,7 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     review.update!(status: "decided", summary: "Werdykt: OK", decision: "approve", decided_at: Time.current)
     get review_path(review)
     assert_select "h2", text: "Decyzja: approve"
-    assert_select "textarea[name=message]", text: /Pobierz najnowszy stan brancha/
+    assert_select "textarea[name=message]", text: /Zatwierdziłem PR .*pobierz najnowszy stan brancha/
   end
 
   test "create kolejkuje DescribeReviewJob i przekierowuje na show" do
@@ -1498,5 +1498,28 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".checklist[data-action~='change->decision-checklist#refresh']"
     assert_select "button[value=approve][data-decision-checklist-target='approve']"
     assert_select "[data-decision-checklist-target='hint']"
+  end
+
+
+  # ---- Nagłówek z trackera: tytuł zadania na stronie review, liście i w kolejce.
+
+  test "show i lista pokazują tytuł zadania w trybie both, z tytułem PR-a pod spodem" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", pr_title: "Poprawka VAT", task_title: "Faktura z błędnym VAT")
+    review.project.update!(headline_mode: "both")
+    get review_path(review)
+    assert_select ".pagehead h1", text: "Faktura z błędnym VAT"
+    assert_select ".pagehead .subheadline", text: "Poprawka VAT"
+    get project_reviews_path(review.project)
+    assert_select "td.title-cell a", text: "Faktura z błędnym VAT"
+    assert_select "td.title-cell .subheadline", text: "Poprawka VAT"
+  end
+
+  test "w domyślnym trybie pr tytuł zadania nie zmienia nagłówków" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", pr_title: "Poprawka VAT", task_title: "Faktura z błędnym VAT")
+    get review_path(review)
+    assert_select ".pagehead h1", text: "Poprawka VAT"
+    assert_select ".subheadline", count: 0
   end
 end

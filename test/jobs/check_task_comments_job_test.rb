@@ -27,4 +27,12 @@ class CheckTaskCommentsJobTest < ActiveSupport::TestCase
     assert_equal 5, @review.task_comments_latest
     assert_not_nil @review.task_comments_checked_at
   end
+
+
+  test "odświeża tytuł zadania razem z licznikiem" do
+    fake = Object.new
+    def fake.task(_id) = { "id" => 1, "comments_count" => 5, "title" => "Nowy tytuł zadania" }
+    IntumClient.stub(:new, fake) { CheckTaskCommentsJob.perform_now(@review) }
+    assert_equal "Nowy tytuł zadania", @review.reload.task_title
+  end
 end
