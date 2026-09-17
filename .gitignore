@@ -37,6 +37,8 @@
 # klucz w podkatalogu, którego wzorzec wyżej nie łapie — bez tej linijki klucz
 # deszyfrujący wchodzi do `git status` jako plik do zacommitowania.
 /config/credentials/*.key
+# Własne credentials dev (klucze szyfrowania tokenów) — każdy ma swoje, patrz README.
+/config/credentials/development.yml.enc
 
 .gstack/
 

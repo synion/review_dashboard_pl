@@ -38,12 +38,49 @@ na GitHuba — razem z komentarzami przypiętymi do linii.
 
 ---
 
+## Co jest wspólne, a co Twoje
+
+Każdy uruchamia **własną kopię** dashboardu na swojej maszynie. Nie ma wspólnego
+serwera ani wspólnej bazy — to, co widzisz Ty, nie wpływa na to, co widzi ktoś inny.
+
+| Rzecz | Gdzie żyje | Wspólne? |
+|---|---|---|
+| Kod, prompty (`app/prompts/`, w tym `_style.md`), domyślne szablony wypowiedzi | repo | **tak** — przychodzą z `git pull`, u wszystkich takie same |
+| Projekty i ich ustawienia (zasady review, wymogi procesu, własne szablony, domyślny reviewer/label) | baza SQLite w `storage/` | **nie** — każdy wyklikuje je sam. Chcecie tych samych zasad w zespole? Skopiujcie treść pól między sobą |
+| Review, decyzje, artefakty sesji | baza + `storage/reviews/` | nie |
+| Token API trackera | baza (szyfrowany) | nie — każdy generuje **własny** token na swoim koncie |
+| Klucz szyfrowania (`master.key` albo `config/credentials/development.key`) | `config/`, poza gitem | nie |
+| Lista configów Claude (`config/claude_configs.yml`) | `config/`, poza gitem | nie |
+| Skille, MCP i ustawienia Claude | Twój katalog configu Claude | nie — patrz [co config Claude musi umieć](#3-co-config-claude-musi-umieć) |
+| Login GitHuba | zalogowane `gh` | nie — kolejka „czeka na Twoje review” jest zawsze Twoja |
+
+Wniosek: różnice między osobami biorą się **tylko** z ustawień projektu, tokena
+i configu Claude. Kod i prompty są identyczne.
+
+## Po każdym `git pull`
+
+Zmiany w repo często niosą nowe gemy i migracje. Kolejność:
+
+```bash
+bin/setup --skip-server   # bundle install + migracje (db:prepare), bez startu serwera
+touch tmp/restart.txt     # workery jobów nie przeładowują się same
+```
+
+Restart ubija działające sesje Claude — najpierw sprawdź, czy żaden review nie
+jest w toku. Jeśli apka nie chodzi, zamiast `touch` po prostu uruchom `bin/dev`.
+
+Po aktualizacji zajrzyj do formularza projektu: nowe pola mają bezpieczne
+wartości domyślne, ale warto wiedzieć, że są (np. nagłówek review, szablony
+wypowiedzi).
+
+---
+
 ## Wymagania
 
 | Narzędzie | Po co | Jak sprawdzić |
 |---|---|---|
 | Ruby 3.4.7 | apka (Rails 8.1, SQLite — zero zewnętrznych baz) | `ruby -v` |
-| `claude` CLI | sesje review (headless, `--output-format stream-json`) | `claude --version` |
+| `claude` CLI, aktualny | sesje review (headless, `--output-format stream-json`); stara wersja może nie znać modelu wybranego w UI (np. `fable`) | `claude --version`, aktualizacja: `claude update` |
 | `gh` CLI, zalogowany | czytanie PR-ów, wysyłka decyzji (`gh pr review`, `gh api`) | `gh auth status` |
 | `zsh` | komendy worktree i Playwright odpalane są przez `zsh -c` | jest w macOS |
 | repo projektu ze skryptem worktree | review pracuje w izolowanym worktree, nie w Twoim repo | np. `bin/worktree-docker` |
@@ -116,6 +153,8 @@ Wszystko klika się w UI (**Nowy projekt**). Pola:
 | Instrukcja komentarza do zadania | nie | jak ma wyglądać komentarz w trackerze po decyzji |
 | API token trackera (`intum_api_token`) | nie | włącza integrację z trackerem (Intum): komentarz po decyzji idzie bezpośrednio z aplikacji (bez sesji Claude) i można go skierować do osoby drugiego sprawdzenia; przycisk „Testuj połączenie" sprawdza token i uprawnienia. Szyfrowany w bazie |
 | Domyślny drugi reviewer / label po decyzji | nie | prefille comboboxów akcji na PR-ze po decyzji (reviewer gdy nikt nie reviewował, label gdy ktoś już tak) |
+| Nagłówek review (`headline_mode`) | nie (default: tytuł PR-a) | co jest tytułem review na liście, w kolejkach i na stronie review: tytuł PR-a, tytuł zadania z trackera albo oba. Tytuł zadania wymaga tokena trackera; gdy go brak, nagłówek pokazuje drugi tytuł, a w ostateczności link |
+| Szablony wypowiedzi (`templates`) | nie | treść decyzji na GitHub, komentarz przy linii, wiadomość ponownego sprawdzenia i wiadomość po podważeniu — osobno dla approve / reject / comment. Składnia [Mustache](https://mustache.github.io/mustache.5.html) (`{{nazwa}}`, bloki `{{#sekcja}}…{{/sekcja}}`), lista dostępnych nazw jest przy polu. Zapisuje się tylko to, co różni się od domyślnego; zepsuty szablon nie przejdzie walidacji, a znakiem „własny" oznaczone są zmienione |
 
 **Kontrakt na skrypt worktree:** dostaje nazwę brancha, tworzy działający worktree
 (z configami i bazą — surowy `git worktree add` nie wystarcza) i wypisuje go tak,
@@ -154,11 +193,21 @@ awaria nigdy nie cofa decyzji; status i przycisk „Ponów" są na karcie decyzj
 
 ### Jak skonfigurować (raz na projekt, ~5 minut)
 
-1. **Świeża instalacja repo?** Wygeneruj własne klucze szyfrowania (token trackera
-   jest szyfrowany w bazie): `rm config/credentials.yml.enc`, potem
-   `bin/rails credentials:edit` i wklej wynik `bin/rails db:encryption:init`.
-   Istniejąca instalacja z działającym `config/master.key` ma to już za sobą —
-   **zrób backup `master.key`**, bez niego tokeny w bazie są nie do odzyskania.
+1. **Nie masz `config/master.key`?** (czyli nie jesteś osobą, która go
+   wygenerowała — klucz nigdy nie trafia do repo). Załóż **własne** klucze
+   szyfrowania, bez ruszania plików śledzonych przez gita:
+
+   ```bash
+   bin/rails db:encryption:init                                  # skopiuj wypisany blok
+   EDITOR=nano bin/rails credentials:edit --environment development  # wklej go i zapisz
+   ```
+
+   Powstają `config/credentials/development.yml.enc` i `development.key` — oba
+   są w `.gitignore`, a Rails w środowisku dev bierze je zamiast wspólnego
+   `config/credentials.yml.enc`. Nie usuwaj `config/credentials.yml.enc`:
+   to plik z repo i jego usunięcie wywoła konflikt przy następnym `git pull`.
+   **Zrób backup swojego klucza** — bez niego tokeny w bazie są nie do odzyskania
+   (wtedy: wpisz token w projekcie jeszcze raz).
 2. **Prefiks adresu zadania** w ustawieniach projektu (np.
    `https://twoj-tracker.example.com/organize/tasks/`) — z niego brany jest host API.
 3. **Token API trackera**: wygeneruj w trackerze pod `/account/api_tokens/new`,
@@ -270,6 +319,8 @@ Wszystkie opcjonalne. Wzorzec w [`.env.example`](.env.example) — **Rails nie
 | `INBOX_SCHEDULE` | wyłączone | `1` włącza odświeżanie kolejki „czeka na Twoje review" w tle (co `GithubInbox::STALE_AFTER`); bez tego dashboard pyta GitHuba tylko przy wejściu na stronę i po kliknięciu „Sprawdź teraz" |
 | `SOLID_QUEUE_IN_PUMA` | ustawia `bin/dev` | workery jobów w procesie Pumy; bez tego joby nie ruszają |
 | `JOB_CONCURRENCY` | `1` | liczba procesów workerów |
+| `JOB_THREADS` | `6` | wątki w procesie workera, czyli ile jobów (m.in. sesji Claude) idzie naraz |
+| `TUNNEL_PASSWORD` | wyłączone | hasło do dashboardu wystawionego przez tunel `cloudflared` (host `*.trycloudflare.com`), np. żeby zajrzeć z telefonu. Działa tylko w dev i tylko dla ruchu z tunelu — `localhost` zostaje bez hasła. Wejście: formularz, link `/unlock/<klucz>` albo `?k=<hasło>`. Bez tej zmiennej host tunelu nie jest wpuszczany |
 | `RAILS_MAX_THREADS` | `5` | pula połączeń do SQLite |
 
 ---
@@ -304,6 +355,17 @@ Logi: `log/autostart.out.log` i `log/autostart.err.log`.
 - **Workery nie widzą zmian w kodzie / po migracji** — forkowane procesy jobów
   nie przeładowują się same: `touch tmp/restart.txt`. Uwaga: restart ubija
   działające sesje — najpierw sprawdź, czy nic nie pracuje.
+- **Błąd przy zapisie projektu z tokenem trackera (`ActiveRecord::Encryption`,
+  „Missing Active Record encryption credential")** — brak kluczy szyfrowania
+  na Twojej maszynie. Załóż własne: krok 1 w
+  [Jak skonfigurować](#jak-skonfigurować-raz-na-projekt-5-minut).
+- **Stare review bez tytułu zadania w nagłówku** — tytuły dociągają się przy
+  kolejnych pytaniach do trackera; hurtem: `bin/rails reviews:backfill_task_titles`
+  (wymaga tokena trackera w projekcie).
+- **U kogoś innego review wygląda inaczej niż u mnie** — porównajcie ustawienia projektu
+  (zasady review, wymogi procesu, szablony, nagłówek), model/effort i to, czy
+  wszyscy macie świeży `git pull` z migracjami. Patrz
+  [Co jest wspólne, a co Twoje](#co-jest-wspólne-a-co-twoje).
 - **„no such file or directory" przy starcie review** — zła komenda worktree
   w projekcie; formularz podpowiada podobne skrypty z `bin/` przy zapisie.
 - **Sesja zamilkła** — watchdog przerywa po ciszy (idle timeout) i oznacza run
