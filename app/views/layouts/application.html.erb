@@ -11,6 +11,13 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
+    <%# Bez cache'u stron Turbo: „wstecz" przywracało zapamiętaną kopię, a ta przy
+        nawigacji w ramce #detail bywała kopią INNEGO adresu (lista pod adresem review,
+        select filtra przestawiony już po wyjściu). Każdy adres renderuje się po stronie
+        serwera poprawnie (patrz ViewModeHelper#detail_page), więc źródłem prawdy przy
+        „wstecz" jest serwer — lokalna apka odpowiada w milisekundach. %>
+    <meta name="turbo-cache-control" content="no-cache">
+
     <%# Motyw z localStorage przed pierwszym malowaniem — bez tego strona miga
         systemowym motywem, zanim Stimulus zdąży wystartować. %>
     <script nonce="<%= content_security_policy_nonce %>">

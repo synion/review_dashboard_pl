@@ -4,10 +4,10 @@
     i tak są inne, ale morph nie każe przeglądarce animować od nowa tych,
     które zostały. %>
 <%= turbo_stream.replace "summary", method: :morph do %>
-  <%= render "projects/summary", dashboard: @dashboard %>
+  <%= render "projects/summary", dashboard: current_dashboard %>
 <% end %>
 <%= turbo_stream.replace "queues", method: :morph do %>
-  <%= render "projects/queues", dashboard: @dashboard %>
+  <%= render "projects/queues", dashboard: current_dashboard %>
 <% end %>
 <%= turbo_stream.replace "projects" do %>
   <%= render "projects/grid" %>

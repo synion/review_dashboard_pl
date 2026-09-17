@@ -1,6 +1,6 @@
 <%= turbo_stream_from @project, :reviews %>
 <%# Patrz reviews/show: ta sama ramka co prawa kolumna dashboardu. %>
-<%= turbo_frame_tag "detail" do %>
+<%= detail_page do %>
 <div class="nav-back">
   <%# Poza ramkę: to wyjście z układu master–detail, a nie zmiana jego prawej kolumny. %>
   <%= link_to "← wszystkie projekty", projects_path, data: { turbo_frame: "_top" } %>
@@ -32,14 +32,20 @@
   <% if @project.repo_url.present? %>
     <%= link_to "repo na GitHubie ↗", @project.repo_url, class: "btn btn-small", target: "_blank" %>
   <% end %>
-  <form method="get" class="filter">
-    <select name="status" onchange="this.form.submit()">
+  <%# Jawny adres listy: formularz bez action wysyła się pod adres dokumentu, a ten
+      po nawigacji w ramce bywa adresem review (/reviews/88?status=… pokazywało review).
+      requestSubmit, nie submit(): submit() omija Turbo i przeładowuje całą stronę. %>
+  <%= form_with url: project_reviews_path(@project), method: :get, class: "filter" do %>
+    <% params.permit(*ReviewsController::LIST_PARAMS).except(:status).to_h.compact_blank.each do |name, value| %>
+      <%= hidden_field_tag name, value, id: nil %>
+    <% end %>
+    <select name="status" onchange="this.form.requestSubmit()">
       <option value="">Wszystkie statusy</option>
       <% Review::STATUSES.each do |s| %>
         <option value="<%= s %>" <%= "selected" if params[:status] == s %>><%= review_status_label(Review.new(status: s)) %><%= " (#{@status_counts[s]})" if @status_counts[s] %></option>
       <% end %>
     </select>
-  </form>
+  <% end %>
 </div>
 <table id="reviews">
   <thead>

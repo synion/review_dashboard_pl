@@ -23,4 +23,19 @@ module ViewModeHelper
   # w prawym panelu" na jednokolumnowym układzie to instrukcja do nieistniejącego
   # panelu.
   def opens_hint(what) = split_view? ? "Otwiera #{what} w prawym panelu" : "Otwiera #{what} na osobnej stronie"
+
+  # Treść prawego panelu (lista review, review, nowy review) w trzech wcieleniach.
+  # Zapytanie z ramki dostaje samą ramkę. Pełny adres w dwóch kolumnach — dashboard
+  # z tą treścią w panelu, żeby F5 i „wstecz" nie wypadały z układu. Pełny adres
+  # w układzie klasycznym — gołą treść: ramka poza panelem zmieniałaby przy kliknięciu
+  # tylko siebie, a adres w przeglądarce zostawałby stary.
+  def detail_page(&)
+    if turbo_frame_request?
+      turbo_frame_tag("detail", &)
+    elsif split_view?
+      render(layout: "projects/dashboard", &)
+    else
+      capture(&)
+    end
+  end
 end

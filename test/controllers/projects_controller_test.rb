@@ -194,7 +194,8 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     projects(:webapp).update!(archived_at: Time.current)
     get project_reviews_path(projects(:webapp))
     assert_response :success
-    assert_select "a", text: "+ Nowy review", count: 0
+    # Pasek listy, nie cała strona: w dwóch kolumnach obok stoją karty innych projektów.
+    assert_select ".toolbar.project-links a", text: "+ Nowy review", count: 0
   end
 
   # Bez tego jedyna droga do przywrócenia projektu prowadzi przez /projects

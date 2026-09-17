@@ -1,7 +1,11 @@
 class ReviewsController < ApplicationController
+  include DashboardShell
+
   # `decided_at`, nie `decision`: nagłówek „Decyzja" ma układać po tym, KIEDY
   # decyzja zapadła — alfabet approve/comment/reject nic nie mówi.
   SORTS = %w[created_at updated_at pr_activity_at status decided_at].freeze
+  # Parametry widoku listy — filtr je przenosi, „← wróć do listy" je pamięta.
+  LIST_PARAMS = %i[status sort direction].freeze
   # Status, w który wraca review, gdy po przełączeniu konta ponawiamy krok,
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
@@ -33,6 +37,7 @@ class ReviewsController < ApplicationController
     # „ile tu jest roboty", a nie „ile widzisz po filtrze". Jedno GROUP BY.
     @status_counts = @project.reviews.group(:status).count
     enqueue_github_checks(@project.reviews.due_for_github_check)
+    remember_list_view
   end
 
   # Godzinny cache w github_checked_at znaczy, że re-request zgłoszony tuż po ostatnim
@@ -304,6 +309,14 @@ class ReviewsController < ApplicationController
   private
 
   def enqueue_github_checks(reviews) = Review.enqueue_github_checks(reviews)
+
+  # „← wróć do listy" ma wracać na listę, którą user oglądał (filtr, sortowanie), a nie
+  # na goły widok. W sesji, nie w adresie review: parametry listy doklejone do
+  # /reviews/:id udawałyby filtr strony review. Osobno per projekt.
+  def remember_list_view
+    session[:review_lists] = (session[:review_lists] || {})
+                             .merge(@project.id.to_s => params.permit(*LIST_PARAMS).to_h.compact_blank)
+  end
 
   def set_project
     @project = Project.find(params[:project_id])

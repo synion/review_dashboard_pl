@@ -1,10 +1,10 @@
 class ProjectsController < ApplicationController
+  include DashboardShell
+
   before_action :set_project, only: %i[edit update archive unarchive test_intum]
 
   def index
-    @archived_projects = Project.archived.by_name
-    @counts = review_counts
-    load_dashboard
+    refresh_on_visit
   end
 
   # Przełącznik projektu głównego — switcher u góry strony i radio „główny" na
@@ -13,10 +13,7 @@ class ProjectsController < ApplicationController
   def select
     Project.active.find(params[:project_id]).make_main!
     respond_to do |format|
-      format.turbo_stream do
-        load_dashboard
-        @counts = review_counts
-      end
+      format.turbo_stream { refresh_on_visit }
       # Fallback bez JS — pełny redirect i index policzy wszystko sam.
       format.html { redirect_to projects_path }
     end
@@ -89,27 +86,10 @@ class ProjectsController < ApplicationController
     @project = Project.find(params[:id])
   end
 
-  # Wszystko, czego potrzebują partiale strony wejściowej (_summary, _queues, _grid)
-  # — jedno miejsce dla index i select, żeby odpowiedź turbo_stream nie mogła się
-  # rozjechać z pełnym renderem o brakujący ivar. Same liczby siedzą w Dashboard,
-  # bo z tego samego stanu renderuje kolejki BroadcastDashboardJob; tutaj zostają
-  # tylko efekty uboczne wejścia na stronę.
-  def load_dashboard
-    @dashboard = Dashboard.new
-    @projects = @dashboard.projects
-    @main_project = @dashboard.main_project
+  # Efekty uboczne wejścia na stronę wejściową (dane do renderu dowozi DashboardShell).
+  def refresh_on_visit
     refresh_stale_inboxes
     check_github_statuses
-  end
-
-  def project_params
-    # Puste pole tokena nie kasuje sekretu — niezmiennik siedzi w setterze modelu.
-    params.require(:project).permit(:name, :repo_path, :repo_url, :default_claude_config, :default_model,
-                                    :default_effort, :docs_path, :review_prompt_extra, :process_rules, :task_comment_instructions,
-                                    :worktree_command, :worktree_delete_command, :worktree_url_template,
-                                    :task_url_prefix, :headline_mode,
-                                    :second_reviewer_default, :approve_label_default, :intum_api_token,
-                                    templates: MessageTemplate.families.keys.index_with { Review::DECISIONS })
   end
 
   # Kolejka „czeka na Ciebie" to PR-y CZYJEGOŚ autorstwa, na których wisi moje review.
@@ -120,8 +100,8 @@ class ProjectsController < ApplicationController
   # Odświeżanie obejmuje WSZYSTKIE aktywne projekty, nie tylko główny, żeby
   # przełączenie radia pokazywało świeży stan od razu.
   def refresh_stale_inboxes
-    @projects.select { |project| project.repo_url.present? && project.inbox_stale? }
-             .each { |project| RefreshInboxJob.perform_later(project) }
+    current_dashboard.projects.select { |project| project.repo_url.present? && project.inbox_stale? }
+                     .each { |project| RefreshInboxJob.perform_later(project) }
   end
 
   # Ta strona jest jedynym miejscem, w które user zagląda codziennie — bez tego
@@ -129,20 +109,16 @@ class ProjectsController < ApplicationController
   # aż do wejścia na listę review projektu. Godzinny cache jest wspólny z listą,
   # więc dwa wejścia nie znaczą dwóch wywołań gh.
   def check_github_statuses
-    Review.enqueue_github_checks(Review.where(project: @main_project).due_for_github_check)
+    Review.enqueue_github_checks(Review.where(project: current_dashboard.main_project).due_for_github_check)
   end
 
-  # Dwa zapytania GROUP BY na całą listę zamiast trzech na projekt. „czeka"
-  # i „w toku" liczą tylko outward (selfreview nie woła o uwagę — patrz
-  # Review.outward); „łącznie" liczy wszystko, bo tyle naprawdę jest w projekcie.
-  def review_counts
-    counts = Hash.new { |hash, key| hash[key] = { attention: 0, in_progress: 0, total: 0 } }
-    Review.group(:project_id).count.each { |project_id, number| counts[project_id][:total] = number }
-    Review.outward.group(:project_id, :status).count.each do |(project_id, status), number|
-      bucket = counts[project_id]
-      bucket[:attention] += number if Review::ATTENTION_STATUSES.include?(status)
-      bucket[:in_progress] += number if Review::IN_PROGRESS_STATUSES.include?(status)
-    end
-    counts
+  def project_params
+    # Puste pole tokena nie kasuje sekretu — niezmiennik siedzi w setterze modelu.
+    params.require(:project).permit(:name, :repo_path, :repo_url, :default_claude_config, :default_model,
+                                    :default_effort, :docs_path, :review_prompt_extra, :process_rules, :task_comment_instructions,
+                                    :worktree_command, :worktree_delete_command, :worktree_url_template,
+                                    :task_url_prefix, :headline_mode,
+                                    :second_reviewer_default, :approve_label_default, :intum_api_token,
+                                    templates: MessageTemplate.families.keys.index_with { Review::DECISIONS })
   end
 end

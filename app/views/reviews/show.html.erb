@@ -1,9 +1,9 @@
 <%= turbo_stream_from @review %>
 <%# Ta sama ramka co prawa kolumna dashboardu: wejście z kafla wymienia tylko ją,
-    a wejście adresem (odświeżenie, link z czatu) renderuje stronę normalnie. %>
-<%= turbo_frame_tag "detail" do %>
+    a wejście adresem (odświeżenie, link z czatu) — patrz ViewModeHelper#detail_page. %>
+<%= detail_page do %>
 <div class="nav-back">
-  <%= link_to "← wróć do listy", project_reviews_path(@review.project) %>
+  <%= link_to "← wróć do listy", reviews_list_path(@review.project) %>
   <%= link_to "dashboard", root_path, data: { turbo_frame: "_top" } %>
 </div>
 <div class="pagehead">

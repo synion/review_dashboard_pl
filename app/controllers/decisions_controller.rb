@@ -1,4 +1,6 @@
 class DecisionsController < ApplicationController
+  include DashboardShell
+
   def create
     @review = Review.find(params[:review_id])
     verdict = params[:verdict]

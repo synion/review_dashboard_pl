@@ -91,6 +91,11 @@ module ReviewsHelper
     many
   end
 
+  # Lista review projektu w ostatnio oglądanym widoku — patrz ReviewsController#remember_list_view.
+  def reviews_list_path(project)
+    project_reviews_path(project, session.dig(:review_lists, project.id.to_s) || {})
+  end
+
   # Nagłówek sortujący listy review. Kierunek przełącza się tylko na kolumnie, po
   # której już sortujemy — inaczej kliknięcie w „Aktywność" po wcześniejszym
   # przestawieniu „Daty" na rosnąco dziedziczyłoby ten kierunek i lista otwierałaby

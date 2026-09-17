@@ -1,6 +1,6 @@
-<%= turbo_frame_tag "detail" do %>
+<%= detail_page do %>
 <div class="form-page">
-<div class="nav-back"><%= link_to "← review projektu #{@project.name}", project_reviews_path(@project) %></div>
+<div class="nav-back"><%= link_to "← review projektu #{@project.name}", reviews_list_path(@project) %></div>
 <div class="pagehead">
   <h1>Nowy review — <%= @project.name %></h1>
 </div>
