@@ -1,6 +1,6 @@
-<%= turbo_stream_from @project, :reviews %>
-<%# Patrz reviews/show: ta sama ramka co prawa kolumna dashboardu. %>
+<%# Patrz reviews/show: ta sama ramka co prawa kolumna dashboardu, a strumień w niej. %>
 <%= detail_page do %>
+<%= turbo_stream_from @project, :reviews %>
 <div class="nav-back">
   <%# Poza ramkę: to wyjście z układu master–detail, a nie zmiana jego prawej kolumny. %>
   <%= link_to "← wszystkie projekty", projects_path, data: { turbo_frame: "_top" } %>

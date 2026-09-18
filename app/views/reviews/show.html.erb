@@ -1,7 +1,10 @@
-<%= turbo_stream_from @review %>
 <%# Ta sama ramka co prawa kolumna dashboardu: wejście z kafla wymienia tylko ją,
     a wejście adresem (odświeżenie, link z czatu) — patrz ViewModeHelper#detail_page. %>
 <%= detail_page do %>
+<%# W ramce, nie nad nią: z odpowiedzi na kliknięcie w panelu Turbo bierze samą ramkę,
+    więc subskrypcja stojąca wyżej przepadała i panel stał w miejscu do przeładowania.
+    Znika razem z ramką, gdy panel pokaże co innego — czyli wypisuje się sam. %>
+<%= turbo_stream_from @review %>
 <div class="nav-back">
   <%= link_to "← wróć do listy", reviews_list_path(@review.project) %>
   <%= link_to "dashboard", root_path, data: { turbo_frame: "_top" } %>

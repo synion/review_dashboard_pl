@@ -92,4 +92,14 @@ class DetailNavigationTest < ActionDispatch::IntegrationTest
 
     assert_select "meta[name=turbo-cache-control][content=no-cache]"
   end
+
+  # Strumień poza ramką nie dojeżdża do panelu: Turbo bierze z odpowiedzi samą ramkę,
+  # więc review otwarte kliknięciem stało w miejscu aż do przeładowania strony.
+  test "review i lista otwarte w panelu subskrybują swój strumień" do
+    get review_path(@review), headers: FRAME
+    assert_select "turbo-frame#detail turbo-cable-stream-source"
+
+    get project_reviews_path(@project), headers: FRAME
+    assert_select "turbo-frame#detail turbo-cable-stream-source"
+  end
 end
