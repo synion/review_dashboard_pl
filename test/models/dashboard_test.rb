@@ -32,4 +32,17 @@ class DashboardTest < ActiveSupport::TestCase
     @project.update!(inbox_hidden_labels: %w[WIP])
     assert_not_includes dashboard.attention_reviews.map(&:pr_number), 9002
   end
+
+  test "filtr „Odezwał się” chowa całą grupę, prośby o review zostają" do
+    assert dashboard.inbox_commented_filter?
+    @project.update!(inbox_hide_commented: true)
+    assert_equal [ [ 9001 ], 1 ], [ dashboard.inbox_items.map(&:pr_number), dashboard.hidden_inbox_count ]
+  end
+
+  test "przełącznik „Odezwał się” niewidoczny bez tej grupy i bez włączonego filtra" do
+    inbox_items(:commented).destroy
+    assert_not dashboard.inbox_commented_filter?
+    @project.update!(inbox_hide_commented: true)
+    assert dashboard.inbox_commented_filter?, "włączony filtr musi dać się wyłączyć"
+  end
 end

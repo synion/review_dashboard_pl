@@ -408,7 +408,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     get root_path
 
-    assert_select "#attention .empty", text: /ukrywa filtr labelek/
+    assert_select "#attention .empty", text: /ukrywają filtry/
   end
 
   test "klik w labelkę zapisuje filtr projektu głównego i przerysowuje kolejki" do
@@ -421,6 +421,27 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     %w[summary queues].each do |target|
       assert_match %r{<turbo-stream[^>]*action="replace" target="#{target}"}, response.body
     end
+  end
+
+  test "przełącznik „Odezwał się” zapisuje się i przerysowuje kolejki" do
+    assert_enqueued_with(job: BroadcastDashboardJob) do
+      post toggle_inbox_commented_projects_path, as: :turbo_stream
+    end
+    assert_response :success
+    assert projects(:webapp).reload.inbox_hide_commented?
+    assert_match %r{<turbo-stream[^>]*action="replace" target="queues"}, response.body
+
+    post toggle_inbox_commented_projects_path
+    assert_redirected_to projects_path
+    assert_not projects(:webapp).reload.inbox_hide_commented?
+  end
+
+  test "ukryta grupa „Odezwał się” znika z kolejki, prośby o review zostają" do
+    projects(:webapp).update!(inbox_hide_commented: true)
+    get root_path
+    assert_select "#inbox_commented_filter.label-chip-hidden"
+    assert_select "#inbox_pr_9001"
+    assert_select "#inbox_pr_9002", count: 0
   end
 
   test "klik w labelkę bez JS wraca na stronę główną" do

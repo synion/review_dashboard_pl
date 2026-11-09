@@ -22,6 +22,7 @@ Rails.application.routes.draw do
       post :select
       # Filtr kolejki po labelkach PR-a — należy do projektu głównego, jak sama kolejka.
       post :cycle_inbox_label
+      post :toggle_inbox_commented
     end
     member do
       post :archive

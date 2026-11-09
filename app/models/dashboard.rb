@@ -18,10 +18,18 @@ class Dashboard
   # Widok pokazuje wyłącznie projekt główny — kolejki różnych projektów mieszały
   # się nie do odróżnienia.
   def inbox_items
-    @inbox_items ||= all_inbox_items.select { |item| main_project.inbox_label_visible?(item.pr_labels) }
+    @inbox_items ||= all_inbox_items.select { |item| main_project.inbox_item_visible?(item) }
   end
 
   def hidden_inbox_count = all_inbox_items.size - inbox_items.size
+
+  # Przełącznik „bez Odezwał się" ma sens, gdy w kolejce jest jakieś „odezwał się"
+  # — albo gdy jest włączony (musi dać się go wyłączyć, nawet przy pustej grupie).
+  def inbox_commented_filter?
+    return false unless main_project
+
+    main_project.inbox_hide_commented? || all_inbox_items.any? { |item| item.reason == "commented" }
+  end
 
   # Labelki z kolejki plus te z filtra — zapisany filtr musi dać się zdjąć także wtedy,
   # gdy jego labelka zniknęła z kolejki (inaczej ukryłby PR-y bez przycisku do cofnięcia).

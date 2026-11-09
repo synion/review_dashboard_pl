@@ -37,6 +37,20 @@ class ProjectsController < ApplicationController
     end
   end
 
+  # Przełącznik „Odezwał się po Twoim review": chowa całą grupę, zostają same prośby
+  # o review. Ustawienie projektu głównego, jak filtr labelek — ta sama odpowiedź turbo_stream.
+  def toggle_inbox_commented
+    project = Project.main
+    return head :not_found unless project
+
+    project.update!(inbox_hide_commented: !project.inbox_hide_commented?)
+    BroadcastDashboardJob.perform_later
+    respond_to do |format|
+      format.turbo_stream { render :cycle_inbox_label }
+      format.html { redirect_to projects_path }
+    end
+  end
+
   # Kolejka odświeża się sama co GithubInbox::STALE_AFTER; ten przycisk pomija okno,
   # gdy wiem, że ktoś właśnie poprosił mnie o review i nie chcę czekać.
   def refresh_inbox

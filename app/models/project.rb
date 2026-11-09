@@ -138,6 +138,14 @@ class Project < ApplicationRecord
     inbox_shown_labels.empty? || labels.intersect?(inbox_shown_labels)
   end
 
+  # Pozycja kolejki widoczna po obu filtrach: labelek i „bez Odezwał się" (zostają
+  # same prośby o review — reszta to PR-y, które już ocenione czekają na autora).
+  def inbox_item_visible?(item)
+    return false if inbox_hide_commented? && item.reason == "commented"
+
+    inbox_label_visible?(item.pr_labels)
+  end
+
   def inbox_label_filter? = inbox_shown_labels.any? || inbox_hidden_labels.any?
 
   def archived?

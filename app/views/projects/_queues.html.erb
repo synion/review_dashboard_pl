@@ -10,9 +10,20 @@
       sesja) są niżej, bo to moja robota, a nie cudze oczekiwanie. %>
   <section id="attention" class="queue">
     <h2>Czeka na Twoje review</h2>
-    <% if dashboard.inbox_label_options.any? %>
+    <% if dashboard.inbox_label_options.any? || dashboard.inbox_commented_filter? %>
       <%# Klik przechodzi cyklem: pokaż → ukryj → bez filtra (Project#cycle_inbox_label!). %>
       <div id="inbox_label_filter" class="label-filter">
+        <% if dashboard.inbox_commented_filter? %>
+          <%# Chowa całą grupę „Odezwał się po Twoim review" — zostają same prośby o review.
+              Styl jak ukryta labelka (✕), bo to ten sam rodzaj filtra. %>
+          <% hidden = dashboard.main_project.inbox_hide_commented? %>
+          <%= button_to toggle_inbox_commented_projects_path, id: "inbox_commented_filter",
+                        class: class_names("label-chip", "label-chip-hidden" => hidden),
+                        title: hidden ? "kliknij: pokaż „Odezwał się po Twoim review”" :
+                                        "kliknij: ukryj „Odezwał się po Twoim review”, zostaw same prośby o review" do %>
+            <%= "✕ " if hidden %>Odezwał się po Twoim review
+          <% end %>
+        <% end %>
         <% dashboard.inbox_label_options.each do |label| %>
           <% state = dashboard.main_project.inbox_label_state(label) %>
           <%= button_to cycle_inbox_label_projects_path(label: label),
@@ -37,7 +48,7 @@
         <% elsif dashboard.main_project.repo_url.blank? %>
           Projekt <%= dashboard.main_project.name %> nie ma adresu repo na GitHubie — bez niego nie ma czego pytać.
         <% elsif dashboard.hidden_inbox_count.positive? %>
-          Wszystkie PR-y z kolejki ukrywa filtr labelek.
+          Wszystkie PR-y z kolejki ukrywają filtry.
         <% elsif dashboard.inbox_checked_at.nil? %>
           GitHub jeszcze nie odpytany. Odświeżenie chodzi w tle — wróć tu za chwilę.
         <% else %>
