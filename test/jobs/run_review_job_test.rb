@@ -38,6 +38,20 @@ class RunReviewJobTest < ActiveSupport::TestCase
     assert_includes @review.error_message, "result.json"
   end
 
+  # Ponowione review: result.json poprzedniego przebiegu leży na dysku. Sesja, która
+  # nie zapisała nowego, nie może „skończyć się" starym wynikiem.
+  test "ponowienie bez nowego result.json → failed, nie import starego pliku" do
+    stale = @review.artifacts_dir.join("result.json")
+    File.write(stale, { summary: "Stary przebieg", findings: [ { priority: "minor", title: "Stare", body: "", file: "" } ], playwright: nil }.to_json)
+    File.utime(1.hour.ago.to_time, 1.hour.ago.to_time, stale)
+    factory = ->(_run) { Object.new.tap { |s| s.define_singleton_method(:call) { |_p| "gadanie bez pliku" } } }
+    RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: factory)
+    @review.reload
+    assert_equal({ status: "failed", summary_imported: false },
+                 { status: @review.status, summary_imported: @review.summary == "Stary przebieg" })
+    assert_includes @review.error_message, "result.json"
+  end
+
   test "sesja rzuca Failed → failed" do
     factory = ->(_run) { Object.new.tap { |s| s.define_singleton_method(:call) { |_p| raise ClaudeSessionRunner::Failed, "timeout" } } }
     RunReviewJob.perform_now(@review, github: FakeGithubClient.new, session_factory: factory)

@@ -61,6 +61,19 @@ class FollowupReviewJobTest < ActiveSupport::TestCase
     assert_not_includes prompts.sole, "Kontekst poprzedniego review", "wznowiona sesja niesie własną historię"
   end
 
+  # Followup czyta result.json poprzedniego przebiegu, więc plik zostaje na dysku —
+  # sesja, która go nie nadpisała, nie może przywrócić starych znalezisk.
+  test "followup bez nadpisania result.json → failed, nie import starego pliku" do
+    stale = @review.artifacts_dir.join("result.json")
+    File.write(stale, { summary: "Stary przebieg", findings: [], playwright: nil }.to_json)
+    File.utime(1.hour.ago.to_time, 1.hour.ago.to_time, stale)
+    factory = ->(_run) { Object.new.tap { |s| s.define_singleton_method(:call) { |_p| "gadanie bez pliku" } } }
+    FollowupReviewJob.perform_now(@review, "sprawdź jeszcze raz", github: FakeGithubClient.new, session_factory: factory)
+    @review.reload
+    assert_equal({ status: "failed", summary: "Stare podsumowanie" }, { status: @review.status, summary: @review.summary })
+    assert_includes @review.error_message, "result.json"
+  end
+
   test "kolejny followup wznawia sesję poprzedniego followupu" do
     succeeded_run("followup", "sess-f1")
     prompts = []

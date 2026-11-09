@@ -20,7 +20,7 @@ class FollowupReviewJob < ApplicationJob
     )
     return unless review.still_reviewing?
 
-    ReviewResultImporter.call(review)
+    ReviewResultImporter.call(review, written_after: run.created_at)
     review.mark_reviewed!
   rescue StandardError => e
     review.fail!(e.message) if review.still_reviewing?

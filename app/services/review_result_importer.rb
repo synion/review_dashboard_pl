@@ -5,9 +5,17 @@
 class ReviewResultImporter
   Missing = Class.new(StandardError)
 
-  def self.call(review)
+  # `written_after`: start sesji, której wynik czytamy. result.json poprzedniego
+  # przebiegu zostaje na dysku (followup go czyta), więc sama obecność pliku nie
+  # dowodzi, że ta sesja go zapisała — bez tego ponowione review, które nic nie
+  # zapisało, „kończyło się" starymi znaleziskami. Próg w pełnych sekundach, bo
+  # część systemów plików trzyma mtime z sekundową dokładnością.
+  def self.call(review, written_after: nil)
     path = review.artifacts_dir.join("result.json")
     raise Missing, "Sesja nie zapisała #{path} — review niedokończony" unless File.exist?(path)
+    if written_after && File.mtime(path) < written_after.floor
+      raise Missing, "Sesja nie zapisała nowego #{path} — na dysku jest wynik poprzedniego przebiegu"
+    end
 
     raw = File.read(path)
     import(review, JSON.parse(raw), raw: raw)

@@ -47,10 +47,12 @@ class OrphanedRunsCleanup
 
   # Sesja claude przeżywa restart apki (własny pgroup) i potrafi dokończyć
   # review zapisując result.json — wtedy odzyskujemy wynik zamiast go gubić.
+  # Tylko plik zapisany po starcie przerwanego runa: starszy to wynik poprzedniego
+  # przebiegu, a nie dokończona praca.
   def self.recover_from_disk(review)
     return false unless review.status == "reviewing" && review.result_on_disk?
 
-    ReviewResultImporter.call(review)
+    ReviewResultImporter.call(review, written_after: review.last_lifecycle_run&.created_at)
     review.mark_reviewed!
     true
   rescue StandardError

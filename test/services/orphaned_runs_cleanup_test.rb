@@ -77,6 +77,23 @@ class OrphanedRunsCleanupTest < ActiveSupport::TestCase
     FileUtils.rm_rf(@review.artifacts_dir)
   end
 
+  # Restart w trakcie ponowionego review: na dysku leży plik poprzedniego przebiegu,
+  # starszy niż przerwany run — to nie jest wynik do odzyskania.
+  test "reviewing ze starym result.json sprzed ostatniego runa failuje zamiast go odzyskać" do
+    @review.update!(status: "reviewing")
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    stale = @review.artifacts_dir.join("result.json")
+    File.write(stale, { summary: "Stary przebieg", findings: [], playwright: nil }.to_json)
+    File.utime(1.hour.ago.to_time, 1.hour.ago.to_time, stale)
+    @review.claude_runs.create!(kind: "review", claude_config: "/x", status: "running", supervisor_pid: nil)
+    OrphanedRunsCleanup.call
+    @review.reload
+    assert_equal({ status: "failed", summary_imported: false },
+                 { status: @review.status, summary_imported: @review.summary == "Stary przebieg" })
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
   # Przy boocie broadcast potrafi się wywrócić (render partiala przed załadowaniem routes).
   # Zatrzymany na pierwszym runie cleanup zostawiał gotowe review w „reviewing" na zawsze.
   test "błąd broadcastu nie przerywa sprzątania ani odzyskania wyniku z dysku" do

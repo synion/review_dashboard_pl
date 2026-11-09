@@ -10,6 +10,7 @@ class RunReviewJob < ApplicationJob
     # i odpowiedzi autora, a review, które ich nie widzi, zgłasza rzecz świeżo
     # wyjaśnioną. Pobranie jest odporne na padnięty `gh` (patrz PrSnapshot.refresh).
     discussion = PrDiscussion.for(review, client: github)
+    started_at = Time.current
     attempt = 0
     begin
       attempt += 1
@@ -24,7 +25,7 @@ class RunReviewJob < ApplicationJob
     end
     return unless review.still_reviewing?
 
-    ReviewResultImporter.call(review)
+    ReviewResultImporter.call(review, written_after: started_at)
     review.mark_reviewed!
   rescue StandardError => e
     review.fail!(e.message) if review.still_reviewing?
