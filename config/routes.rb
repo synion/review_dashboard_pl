@@ -46,6 +46,7 @@ Rails.application.routes.draw do
       post :retry_run
       post :refresh_task_description
       post :refresh_task_fit
+      post :restart_task_fit
       post :remove_worktree
       post :check_worktree_health
       post :reimport

@@ -6,7 +6,12 @@ class TaskFitJob < ApplicationJob
   queue_as :default
 
   def perform(review, session_factory: default_session_factory, github: GithubClient.new)
-    return unless review.task_fit_possible?
+    unless review.task_fit_possible?
+      # Pracuje inna sesja - status należy do niej. Inaczej „queued" zostałby na
+      # zawsze (panel „Sprawdzam…" bez końca), bo nikt inny go już nie zdejmie.
+      review.update!(task_fit_status: "failed") if review.task_fit_status == "queued" && !review.task_fit_in_progress?
+      return
+    end
 
     review.update!(task_fit_status: "running")
     run = review.claude_runs.create!(kind: "task_fit", claude_config: review.effective_claude_config)
@@ -22,6 +27,22 @@ class TaskFitJob < ApplicationJob
     # Poprzedni werdykt zostaje (stary wynik jest lepszy niż żaden), status mówi,
     # że to nie jest aktualne; powód błędu panel czyta z runa (task_fit_error).
     Rails.logger.warn("TaskFitJob review #{review.id}: #{e.message}")
-    review.update!(task_fit_status: "failed") if Review.exists?(review.id)
+    # Błąd przed startem sesji (np. padnięty `gh` przy snapshocie) zostawiał run
+    # „pending" na zawsze, a ten blokuje każdą kolejną ocenę (task_fit_in_progress?).
+    run.update!(status: "failed", finished_at: Time.current, error_message: e.message) if run&.status == "pending"
+    mark_failed(review, run) if Review.exists?(review.id)
+  end
+
+  private
+
+  # Po restarcie (Review#restart_task_fit!) ubita stara sesja kończy się błędem już
+  # PO zakolejkowaniu nowej oceny - jej „failed" nie może zamazać „queued"/„running"
+  # następczyni. Status jest nasz tylko, gdy wciąż mówi „running" i nie ma nowszego runa.
+  def mark_failed(review, run)
+    review.reload
+    return unless review.task_fit_status == "running"
+    return if run && review.claude_runs.where(kind: "task_fit").where("id > ?", run.id).exists?
+
+    review.update!(task_fit_status: "failed")
   end
 end

@@ -57,4 +57,38 @@ class TaskFitJobTest < ActiveSupport::TestCase
     assert_empty session.prompts
     assert_empty @review.claude_runs
   end
+
+  # Padnięty `gh` przed startem sesji zostawiał run „pending" na zawsze, a ten
+  # blokował każdą kolejną ocenę (task_fit_in_progress?) — bez przycisku w panelu.
+  test "błąd przed startem sesji: run nie zostaje pending" do
+    PrSnapshot.stub(:refresh, ->(*) { raise "gh padł" }) do
+      TaskFitJob.perform_now(@review, github: FakeGithubClient.new, session_factory: ->(_run) { FakeSession.new(@review, nil) })
+    end
+    @review.reload
+    assert_equal [ "failed", "failed" ], [ @review.task_fit_status, @review.claude_runs.sole.status ]
+    assert_includes @review.task_fit_error, "gh padł"
+    assert_not @review.task_fit_in_progress?
+  end
+
+  # Zakolejkowana ocena, której nie da się już wykonać (np. link do zadania stał się
+  # niepewny), wisiała w „queued" — panel pokazywał „Sprawdzam…" bez końca.
+  test "niemożliwa ocena zdejmuje queued zamiast go zostawić" do
+    @review.update!(branch: nil)
+    run_job("evidence_found" => true)
+    assert_equal "failed", @review.task_fit_status
+    assert_empty @review.claude_runs
+  end
+
+  # Restart ubija starą sesję i kolejkuje nową; job starej sesji kończy się błędem
+  # dopiero potem i nie może zamazać „queued" nowej oceny.
+  test "ubita stara sesja nie nadpisuje statusu zrestartowanej oceny" do
+    restart_during_session = Object.new
+    review = @review
+    restart_during_session.define_singleton_method(:call) do |_prompt|
+      review.restart_task_fit!
+      raise ClaudeSessionRunner::Failed, "Przerwano ręcznie"
+    end
+    TaskFitJob.perform_now(@review, github: FakeGithubClient.new, session_factory: ->(_run) { restart_during_session })
+    assert_equal "queued", @review.reload.task_fit_status
+  end
 end

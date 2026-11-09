@@ -13,6 +13,9 @@
   <div class="task-fit-banner task-fit-pending">
     <strong>Sprawdzam zgodność z zadaniem…</strong>
     <div id="review_<%= review.id %>_side_progress"><%= render "reviews/task_progress", review: review %></div>
+    <%# Sesja potrafi zawisnąć (albo zginąć z workerem) - bez tego jedynym wyjściem był restart apki. %>
+    <%= button_to "↻ Restartuj ocenę zgodności", restart_task_fit_review_path(review), class: "btn",
+                  form: { data: { turbo_confirm: "Przerwać bieżącą ocenę zgodności i uruchomić nową sesję?" } } %>
   </div>
 <% elsif review.task_fit_status == "failed" && verdict.nil? %>
   <div class="task-fit-banner task-fit-failed">

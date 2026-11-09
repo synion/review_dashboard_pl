@@ -1375,6 +1375,41 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to review_path(review)
   end
 
+  # Wyjście awaryjne z zawieszonej oceny: „Sprawdzam…" bez końca, a refresh odpowiada
+  # „już trwa". Restart ubija sesję, zamyka wiszące runy i kolejkuje ocenę od nowa.
+  test "restart_task_fit ubija wiszącą sesję i kolejkuje ocenę od nowa" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "b", task_fit_status: "running",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    stuck = review.claude_runs.create!(kind: "task_fit", claude_config: "/x", status: "running", pid: 999_999)
+    pending = review.claude_runs.create!(kind: "task_fit", claude_config: "/x", status: "pending")
+    killed = []
+    CommandRunner.stub(:kill_group, ->(pid, **) { killed << pid }) do
+      assert_enqueued_with(job: TaskFitJob) { post restart_task_fit_review_path(review) }
+    end
+    assert_equal [ 999_999 ], killed
+    assert_equal %w[aborted aborted], [ stuck.reload.status, pending.reload.status ]
+    assert_equal "queued", review.reload.task_fit_status
+    assert_redirected_to review_path(review)
+  end
+
+  test "restart_task_fit, gdy ocena niemożliwa: failed zamiast wiecznego spinnera" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: nil, task_fit_status: "running",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    assert_no_enqueued_jobs(only: TaskFitJob) { post restart_task_fit_review_path(review) }
+    assert_equal "failed", review.reload.task_fit_status
+    assert flash[:alert].present?
+  end
+
+  test "baner „Sprawdzam zgodność” ma przycisk restartu" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "b", task_fit_status: "running",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" } ] })
+    get review_path(review)
+    assert_select ".task-fit-pending form[action='#{restart_task_fit_review_path(review)}']"
+  end
+
   test "refresh_task_fit bez listy AC odsyła z alertem" do
     review = reviews(:pr_review)
     review.update!(status: "reviewed", branch: "b")

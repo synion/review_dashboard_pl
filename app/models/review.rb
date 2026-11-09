@@ -581,6 +581,21 @@ class Review < ApplicationRecord
     true
   end
 
+  # Wyjście awaryjne z zawieszonej oceny zgodności: sesja potrafi wisieć do limitu
+  # (30 min), a run osierocony przez restart workera blokuje enqueue_task_fit! na
+  # zawsze. Ubijamy proces, zamykamy wszystkie runy w locie i kolejkujemy od nowa.
+  # Gdy ocena jest niemożliwa (brak brancha, niepewny link) - „failed" zamiast spinnera.
+  def restart_task_fit!
+    claude_runs.where(kind: "task_fit", status: %w[pending running]).find_each do |run|
+      CommandRunner.kill_group(run.pid) if run.pid
+      run.update!(status: "aborted", finished_at: Time.current, error_message: "Zrestartowane ręcznie")
+    end
+    return true if enqueue_task_fit!
+
+    update!(task_fit_status: "failed")
+    false
+  end
+
   # Opis zadania widział `task_comments_seen` komentarzy; od tego czasu w zadaniu
   # jest `task_comments_latest`. Różnica = ustalenia, których review nie zna.
   def task_comments_stale?

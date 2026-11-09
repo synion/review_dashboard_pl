@@ -10,7 +10,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description refresh_task_fit remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings open_terminal override_status]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description refresh_task_fit restart_task_fit remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings open_terminal override_status]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -213,6 +213,16 @@ class ReviewsController < ApplicationController
     return redirect_to(@review, alert: "Bez brancha nie ma czego czytać") unless @review.enqueue_task_fit!
 
     redirect_to @review, notice: "Sprawdzam zgodność z zadaniem świeżą sesją…"
+  end
+
+  # Restart zawieszonej oceny zgodności - refresh_task_fit odmawia, gdy status mówi
+  # „trwa", a bez tego jedynym wyjściem był restart całej aplikacji.
+  def restart_task_fit
+    if @review.restart_task_fit!
+      redirect_to @review, notice: "Zrestartowano ocenę zgodności - nowa sesja w kolejce"
+    else
+      redirect_to @review, alert: "Nie da się teraz ocenić zgodności (brak brancha, listy AC albo niepewny link do zadania)"
+    end
   end
 
   # Awaryjna naprawa statusu, gdy cykl skłamał (przypadkowy start review, fałszywy
