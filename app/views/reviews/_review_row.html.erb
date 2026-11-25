@@ -1,4 +1,5 @@
 <tr id="review_row_<%= review.id %>">
+  <td class="seen-cell"><%= render "shared/seen_check", key: "review-#{review.id}" %></td>
   <td class="date-cell"><%= l review.created_at, format: :short %></td>
   <td class="activity-cell"><%= review_last_activity(review) %></td>
   <td class="pr-activity-cell"><%= pr_activity_badge(review) %></td>

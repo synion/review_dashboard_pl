@@ -594,3 +594,10 @@ code.inline { background: var(--line-soft); padding: 2px 6px; border-radius: 4px
 .dash-tab.is-active { color: var(--fg); border-bottom-color: var(--accent); }
 .qitem.q-own { border-left-color: var(--accent); }
 .status-own { background: light-dark(#dbeafe, #1e3a8a); color: var(--accent-strong); }
+
+/* Ptaszek „przejrzane" (shared/_seen_check) — odhaczony kafel/wiersz blednie,
+   ale zostaje klikalny: to tylko znacznik dla oka, nie stan review. */
+.seen-check { width: 15px; height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent); }
+table#reviews .seen-cell { width: 1%; padding-right: 0; }
+.qitem.is-seen, tr.is-seen { opacity: .45; }
+.qitem.is-seen:hover, tr.is-seen:hover { opacity: .8; }

@@ -6,6 +6,7 @@
 <article class="qitem qitem-open q-inbox q-<%= item.reason %>" id="inbox_pr_<%= item.pr_number %>"
          data-state="<%= inbox_item_state(item, review, dashboard) %>">
   <div class="qtop">
+    <%= render "shared/seen_check", key: review ? "review-#{review.id}" : "pr-#{item.project_id}-#{item.pr_number}" %>
     <span class="status-badge status-<%= item.reason %>"><%= item.label %></span>
     <%= link_to item.project.name, project_reviews_path(item.project), class: "qproj",
                 data: { turbo_frame: detail_frame } %>

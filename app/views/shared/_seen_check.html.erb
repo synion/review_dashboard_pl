@@ -1,0 +1,6 @@
+<%# Prywatny „ptaszek" do odhaczania przy przeglądaniu listy po kolei. Celowo NIC nie
+    zapisuje — stan żyje w pamięci karty (seen_check_controller.js): przetrwa
+    podmianę kafla z broadcastu, a znika po przeładowaniu strony. %>
+<input type="checkbox" class="seen-check" title="odhacz dla siebie — nic się nie zapisuje"
+       aria-label="odhacz dla siebie"
+       data-controller="seen-check" data-seen-check-key-value="<%= key %>" data-action="seen-check#toggle">

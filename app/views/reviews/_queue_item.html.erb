@@ -7,6 +7,7 @@
 <article class="qitem qitem-open q-<%= review.status %>" id="review_queue_<%= review.id %>"
          data-state="<%= queue_item_state(review, dashboard) %>">
   <div class="qtop">
+    <%= render "shared/seen_check", key: "review-#{review.id}" %>
     <span class="status-badge status-<%= review.status %>"><%= review_status_label(review) %></span>
     <%= link_to review.project.name, project_reviews_path(review.project), class: "qproj",
                 data: { turbo_frame: detail_frame } %>
