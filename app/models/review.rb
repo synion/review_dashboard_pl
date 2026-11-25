@@ -216,6 +216,19 @@ class Review < ApplicationRecord
   # liczników „czeka na Ciebie" na stronie wejściowej.
   scope :outward, -> { where.not(SELF_REVIEW_SQL) }
 
+  # Wyszukiwarka listy review: fragment brancha, tytułu zadania/PR-a albo
+  # wklejony link (PR lub zadanie). LIKE w SQLite nie rozróżnia wielkości liter
+  # tylko dla ASCII — „Ą" vs „ą" się nie złapie, ale tytuły zwykle wkleja się
+  # z tego samego źródła. sanitize_sql_like, żeby „_" w branchu nie był jokerem.
+  SEARCH_COLUMNS = %w[branch task_title pr_title pr_url task_url].freeze
+  def self.search(query)
+    query = query.to_s.strip
+    return all if query.empty?
+
+    pattern = "%#{sanitize_sql_like(query)}%"
+    where(SEARCH_COLUMNS.map { |column| "#{column} LIKE :pattern ESCAPE '\\'" }.join(" OR "), pattern: pattern)
+  end
+
   # prepend: true — callbacki dependent: :destroy z has_many wyżej kasują
   # claude_runs wcześniej; bez prependa nie byłoby już czego ubijać.
   before_destroy :halt_running_processes, prepend: true

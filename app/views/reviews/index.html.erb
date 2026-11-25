@@ -35,6 +35,13 @@
   <%# Jawny adres listy: formularz bez action wysyła się pod adres dokumentu, a ten
       po nawigacji w ramce bywa adresem review (/reviews/88?status=… pokazywało review).
       requestSubmit, nie submit(): submit() omija Turbo i przeładowuje całą stronę. %>
+  <%# Szukanie po branchu, tytule zadania/PR-a albo wklejonym linku. Enter wysyła;
+      pozostałe filtry jadą ukrytymi polami, żeby szukanie ich nie zerowało. %>
+  <%= form_with url: project_reviews_path(@project), method: :get, class: "filter review-search", role: "search" do %>
+    <%= hidden_list_params(params.permit(*ReviewsController::LIST_PARAMS).except(:q).to_h.compact_blank) %>
+    <input type="search" name="q" value="<%= @query %>" placeholder="Szukaj: branch, zadanie, PR, link…"
+           aria-label="Szukaj review" autocomplete="off">
+  <% end %>
   <% if @tasklist_options.any? %>
     <%= render "shared/tasklist_picker", id: "reviews_tasklist_filter", options: @tasklist_options,
                selected_ids: @tasklist_ids, url: project_reviews_path(@project), method: :get,
@@ -80,7 +87,10 @@
     filtr statusu, o którym łatwo zapomnieć. %>
 <% if @reviews.empty? %>
   <p class="empty">
-    <% if @tasklist_ids.any? %>
+    <% if @query.present? %>
+      Nic nie pasuje do „<%= @query %>”<%= " przy obecnych filtrach" if params[:status].present? || @tasklist_ids.any? %>.
+      <%= link_to "Wyczyść szukanie", project_reviews_path(@project, params.permit(*ReviewsController::LIST_PARAMS).except(:q).to_h.compact_blank) %>
+    <% elsif @tasklist_ids.any? %>
       Żadne review<%= " o statusie „#{params[:status]}”" if params[:status].present? %> nie jest na wybranych listach zadań.
       <%= link_to "Pokaż wszystkie", project_reviews_path(@project, params.permit(*ReviewsController::LIST_PARAMS).except(:tasklist_ids).to_h.compact_blank) %>
     <% elsif params[:status].present? %>

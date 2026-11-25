@@ -51,6 +51,31 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/\Adziś \d\d:\d\d\z/, css_select("tr#review_row_#{review.id} td.activity-cell").text)
   end
 
+  test "index szuka po branchu, tytule zadania, tytule PR-a i linku PR-a" do
+    pr = reviews(:pr_review)
+    task = reviews(:task_only)
+    pr.update_columns(branch: "feature/kasa_fiskalna", pr_title: "Nowy eksport JPK")
+    task.update_columns(task_title: "Poprawka rabatów")
+
+    { "kasa_fis" => pr, "jpk" => pr, "pull/1234" => pr, "POPRAWKA" => task, "  rabat " => task,
+      "tasks.example.com/555" => task }.each do |query, expected|
+      get project_reviews_path(@project, q: query)
+      rows = css_select("table#reviews tbody tr").map { |row| row["id"] }
+      assert_equal [ "review_row_#{expected.id}" ], rows, "q=#{query}"
+    end
+  end
+
+  test "szukanie traktuje _ i % dosłownie i zachowuje się w linkach sortowania" do
+    reviews(:pr_review).update_columns(branch: "fix-1")
+    get project_reviews_path(@project, q: "fix_1")
+    assert_select "table#reviews tbody tr", count: 0
+    assert_select "p.empty", /Nic nie pasuje do „fix_1”/
+
+    get project_reviews_path(@project, q: "fix-1", status: "created")
+    assert_select "table#reviews tbody tr", count: 1
+    assert_select "th a[href*='q=fix-1'][href*='status=created']", minimum: 1
+  end
+
   test "index sortuje po ostatniej aktywności" do
     stary = reviews(:pr_review)
     stary.update_columns(created_at: 1.hour.ago, updated_at: 8.days.ago)

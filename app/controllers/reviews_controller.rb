@@ -5,7 +5,7 @@ class ReviewsController < ApplicationController
   # decyzja zapadła — alfabet approve/comment/reject nic nie mówi.
   SORTS = %w[created_at updated_at pr_activity_at status decided_at].freeze
   # Parametry widoku listy — filtr je przenosi, „← wróć do listy" je pamięta.
-  LIST_PARAMS = [ :status, :sort, :direction, { tasklist_ids: [] } ].freeze
+  LIST_PARAMS = [ :status, :sort, :direction, :q, { tasklist_ids: [] } ].freeze
   # Status, w który wraca review, gdy po przełączeniu konta ponawiamy krok,
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
@@ -18,6 +18,8 @@ class ReviewsController < ApplicationController
     # z projektu; bez tego lista robi zapytanie na każdy wiersz.
     @reviews = @project.reviews.includes(:project)
     @reviews = @reviews.where(status: params[:status]) if params[:status].present?
+    @query = params[:q].to_s.strip
+    @reviews = @reviews.search(@query)
     # @sort/@direction, nie zmienne lokalne: nagłówki tabeli muszą wiedzieć, po czym
     # naprawdę sortujemy, żeby przełączać kierunek tylko na aktywnej kolumnie.
     # Powtórzenie tego wyliczenia w helperze rozjeżdżałoby się przy sort=bzdura.

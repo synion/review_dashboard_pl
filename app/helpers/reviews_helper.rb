@@ -111,7 +111,7 @@ module ReviewsHelper
   def review_sort_link(project, label, column)
     direction = @sort == column && @direction != :asc ? "asc" : "desc"
     link_to label, project_reviews_path(project, sort: column, direction: direction, status: params[:status],
-                                                tasklist_ids: @tasklist_ids.presence)
+                                                tasklist_ids: @tasklist_ids.presence, q: @query.presence)
   end
 
   # Ostatnia aktywność = `updated_at`: każdy realny ruch (start review, followup,
