@@ -48,4 +48,16 @@ class FindingTest < ActiveSupport::TestCase
     assert_equal [ gate ], review.findings.from_task_fit.to_a
     assert_not review.findings.build(priority: "minor", title: "c", source: "bzdura").valid?
   end
+
+  test "active pomija tylko znaleziska usunięte po uzgodnieniu" do
+    review = reviews(:pr_review)
+    kept = review.findings.create!(priority: "minor", title: "a", body: "b", resolution: "kept")
+    plain = review.findings.create!(priority: "minor", title: "c", body: "d")
+    dropped = review.findings.create!(priority: "minor", title: "e", body: "f", resolution: "dropped")
+    assert_includes review.findings.active, kept
+    assert_includes review.findings.active, plain
+    refute_includes review.findings.active, dropped
+    assert dropped.dropped?
+    assert_equal "usunięte po uzgodnieniu", dropped.resolution_label
+  end
 end

@@ -9,6 +9,10 @@
   <%# Czas oczekiwania odróżnia normalną kolejkę od joba, który nigdy nie ruszy. %>
   <p class="progress-line">W kolejce od: <%= l review.updated_at, format: :short %></p>
   <%# Wyjście awaryjne z zakleszczenia: „Przerwij" nie ma tu czego zabić, a job,
-      który przepadł (restart workera, błąd kolejkowania), nie odblokuje się sam. %>
-  <%= button_to "Ponów", retry_run_review_path(review), class: "btn" %>
+      który przepadł (restart workera, błąd kolejkowania), nie odblokuje się sam.
+      Nie przy uzgodnieniu: „Ponów" puściłby od nowa review, a job uzgodnienia czeka
+      w kolejce i po starcie i tak oddałby status sprzed kliknięcia. %>
+  <% unless review.reconcile_in_progress? %>
+    <%= button_to "Ponów", retry_run_review_path(review), class: "btn" %>
+  <% end %>
 <% end %>

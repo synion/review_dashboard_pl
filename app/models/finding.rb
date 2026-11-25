@@ -33,20 +33,34 @@ class Finding < ApplicationRecord
   # result.json zdejmowałby czerwone światło z niespełnionego AC.
   SOURCES = %w[review task_fit].freeze
 
+  # Los znaleziska po uzgodnieniu review z werdyktami weryfikatora i zgodnością
+  # z zadaniem. `dropped` znika z aktywnej listy, ale zostaje w bazie z uzasadnieniem
+  # w `resolution_note`. nil znaczy „uzgodnienie jeszcze nie ruszało tego znaleziska".
+  RESOLUTIONS = %w[dropped kept downgraded].freeze
+  RESOLUTION_LABELS = { "dropped" => "usunięte po uzgodnieniu", "kept" => "zostawione mimo weryfikacji",
+                        "downgraded" => "obniżony priorytet" }.freeze
+
   belongs_to :review
 
   scope :from_review, -> { where(source: "review") }
   scope :from_task_fit, -> { where(source: "task_fit") }
+  # `resolution != 'dropped'` samo pomija NULL-e, stąd jawne IS NULL.
+  scope :active, -> { where(resolution: nil).or(where.not(resolution: "dropped")) }
 
   validates :priority, inclusion: { in: PRIORITIES }
   validates :source, inclusion: { in: SOURCES }
   validates :title, presence: true
   validates :fix_status, inclusion: { in: FIX_STATUSES }, allow_nil: true
   validates :verdict, inclusion: { in: VERDICTS }, allow_nil: true
+  validates :resolution, inclusion: { in: RESOLUTIONS }, allow_nil: true
 
   def fix_label = FIX_LABELS[fix_status]
 
   def verdict_label = VERDICT_LABELS[verdict]
+
+  def resolution_label = RESOLUTION_LABELS[resolution]
+
+  def dropped? = resolution == "dropped"
 
   def refuted? = verdict == "refuted"
 

@@ -10,7 +10,7 @@ class ReviewsController < ApplicationController
   # który padł. Klucz to `kind` ostatniego runa; brak runa = ponawiamy describe.
   REQUEUE_STATUSES = { "review" => "reviewing", "followup" => "reviewing", "describe" => "describing" }.freeze
 
-  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description refresh_task_fit restart_task_fit remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings open_terminal override_status]
+  before_action :set_review, only: %i[show destroy start abort retry_run refresh_task_description refresh_task_fit restart_task_fit remove_worktree check_worktree_health reimport switch_config compact verify_fixes verify_findings reconcile open_terminal override_status]
   before_action :set_project, only: %i[index new create recheck_github]
 
   def index
@@ -102,6 +102,26 @@ class ReviewsController < ApplicationController
     claude_config = nil unless claude_config && Review.claude_config?(claude_config)
     VerifyFindingsJob.perform_later(@review, model: model, effort: effort, claude_config: claude_config)
     redirect_to review_path(@review), notice: "Weryfikuję zasadność uwag świeżą sesją…"
+  end
+
+  # Wznowiona sesja review rozstrzyga sporne uwagi i punkty zgodności. Tylko z
+  # przycisku — nic nie startuje tego samo.
+  def reconcile
+    unless @review.reconcilable?
+      return redirect_to review_path(@review), alert: "Nie ma czego uzgadniać albo trwa inna sesja"
+    end
+
+    # Patrz #compact — status zmieniamy od razu, a job go nie ustawia; poprzedni
+    # wraca w jego ensure. Run zakładamy tu, nie w jobie: trzyma poprzedni status
+    # trwale, więc restart z jobem jeszcze w kolejce da się rozpoznać i odkręcić.
+    run = @review.transaction do
+      previous_status = @review.status
+      @review.update!(status: "reviewing")
+      @review.claude_runs.create!(kind: "reconcile", claude_config: @review.effective_claude_config,
+                                  previous_status: previous_status)
+    end
+    ReconcileReviewJob.perform_later(@review, run.id)
+    redirect_to review_path(@review), notice: "Uzgadniam wynik wznowioną sesją review…"
   end
 
   def new

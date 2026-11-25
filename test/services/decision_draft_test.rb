@@ -138,4 +138,12 @@ class DecisionDraftTest < ActiveSupport::TestCase
     @review.project.update_columns(templates: { "decision" => { "approve" => "{{#otwarty}} bez końca" } })
     assert_equal "## ✅ Approve\n\nZmiana wygląda dobrze.\n\n**Zatwierdzam - nie wstrzymuję merge'a.**\n", DecisionDraft.new(@review).for("approve")
   end
+
+  test "usunięte po uzgodnieniu znalezisko nie trafia do szkicu dla autora, zostawione tak" do
+    @review.findings.create!(priority: "critical", title: "Nil w VAT", body: "x", verdict: "refuted", resolution: "dropped")
+    @review.findings.create!(priority: "important", title: "Brak testu", body: "x", verdict: "refuted", resolution: "kept")
+    reject = DecisionDraft.new(@review).for("reject")
+    assert_not_includes reject, "Nil w VAT"
+    assert_includes reject, "Brak testu"
+  end
 end

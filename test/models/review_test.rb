@@ -457,6 +457,16 @@ class ReviewTest < ActiveSupport::TestCase
     assert_not review.reload.fixes_verifiable?
   end
 
+  test "should not count dropped findings as something to verify after fixes" do
+    review = reviews(:pr_review)
+    review.update!(status: "decided", decision: "reject", decision_head_sha: "aaa1111", branch: "sl-fix-vat")
+    review.findings.create!(priority: "minor", title: "literówka", body: "x", resolution: "dropped")
+    assert_not review.reload.fixes_verifiable?
+
+    review.findings.create!(priority: "minor", title: "nazwa", body: "x", resolution: "kept")
+    assert review.reload.fixes_verifiable?
+  end
+
   test "should summarise fix verdicts for the findings header" do
     review = reviews(:pr_review)
     review.findings.create!(priority: "critical", title: "a", body: "x", fix_status: "implemented")
@@ -529,6 +539,35 @@ class ReviewTest < ActiveSupport::TestCase
 
     review.update!(status: "reviewed", branch: nil)
     assert_not review.findings_verifiable?, "bez brancha sesja nie ma czego czytać"
+  end
+
+  test "reconcilable? wymaga materiału do uzgodnienia i spokoju" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+    review.findings.create!(priority: "critical", title: "nil", body: "x", verdict: "confirmed")
+    review.update_columns(task_fit_status: "ready", task_fit: { "verdict" => "fits" })
+    assert_not review.reload.reconcilable?, "bez werdyktów obalających i z task_fit fits nie ma czego uzgadniać"
+
+    review.findings.create!(priority: "minor", title: "b", body: "x", verdict: "refuted")
+    assert review.reload.reconcilable?
+
+    review.update!(status: "reviewing")
+    assert_not review.reconcilable?, "w trakcie review nie uzgadniamy"
+
+    review.update!(status: "reviewed")
+    run = review.claude_runs.create!(kind: "verify_findings", claude_config: "/Users/dev/.claude")
+    assert_not review.reconcilable?, "trwa weryfikacja"
+    run.update!(status: "succeeded")
+
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/Users/dev/.claude")
+    assert_not review.reload.reconcilable?, "trwa uzgodnienie"
+  end
+
+  test "reconcilable? z samego task_fit partial" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+    review.update_columns(task_fit_status: "ready", task_fit: { "verdict" => "partial" })
+    assert review.reload.reconcilable?
   end
 
   test "should block a second verification while one is pending" do
@@ -614,6 +653,31 @@ class ReviewTest < ActiveSupport::TestCase
 
     review.update!(task_fit_status: "ready")
     assert_equal "misses", review.task_fit_verdict
+  end
+
+  test "task_fit_items i werdykt idą z nakładki, oryginał zostaje dostępny" do
+    review = reviews(:pr_review)
+    review.update!(task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "x" }, { "id" => "ac2", "text" => "y" } ] },
+                   task_fit_status: "ready",
+                   task_fit: { "verdict" => "misses",
+                               "criteria" => [ { "id" => "ac1", "status" => "unmet", "note" => "brak" },
+                                               { "id" => "ac2", "status" => "unverifiable", "needed_evidence" => "log" } ] })
+    review.update!(task_fit_reconciliation: {
+      "changes" => { "ac1" => { "from" => "unmet", "to" => "met", "note" => "app/x.rb:4" } },
+      "evidence_found" => nil, "verdict" => "fits", "at" => Time.current.iso8601 })
+
+    item = review.task_fit_items.find { |i| i["id"] == "ac1" }
+    assert_equal [ "met", "app/x.rb:4", "unmet" ], item.values_at("status", "note", "reconciled_from")
+    assert_equal "fits", review.task_fit_verdict
+    assert_equal "misses", review.task_fit_original_verdict
+    assert_equal "unmet", review.task_fit_original_items.find { |i| i["id"] == "ac1" }["status"]
+    assert_equal [ "ac2" ], review.task_fit_manual_checks.map { |c| c["id"] }
+
+    review.update!(task_fit_status: "running")
+    assert_nil review.task_fit_verdict
+    assert_equal review.task_fit_original_items, review.task_fit_items
+    review.update!(task_fit_status: "skipped")
+    assert_equal review.task_criteria_list, review.task_fit_items
   end
 
   # Miękka bramka: override tylko gdy jest lista AC, a wynik jest czerwony albo go nie ma.

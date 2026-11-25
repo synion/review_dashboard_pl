@@ -45,6 +45,19 @@ class TaskFitImporter
     new(review, data).import
   end
 
+  def self.verdict_for(items, evidence_found)
+    return "misses" if !evidence_found || items.any? { |i| Review.task_fit_status_blocking?(i["status"]) }
+    return "partial" if items.any? { |i| i["status"] == "unverifiable" }
+
+    "fits"
+  end
+
+  def self.findings_attributes(items, result)
+    findings = items.filter_map { |item| finding_for(item) }
+    findings.unshift(premise_finding(result)) unless result["evidence_found"]
+    findings
+  end
+
   def initialize(review, data)
     @review = review
     @data = data
@@ -58,12 +71,13 @@ class TaskFitImporter
                "criteria" => items.select { |i| i["kind"] == "criterion" },
                "traps" => items.select { |i| i["kind"] == "trap" },
                "process" => items.select { |i| i["kind"] == "process" },
-               "verdict" => verdict_for(items, evidence_found) }
+               "verdict" => self.class.verdict_for(items, evidence_found) }
 
     @review.transaction do
       @review.findings.from_task_fit.destroy_all
-      findings_for(items, result).each { |attrs| @review.findings.create!(attrs.merge(source: "task_fit")) }
-      @review.update!(task_fit: result, task_fit_status: "ready", task_fit_checked_at: Time.current)
+      self.class.findings_attributes(items, result).each { |attrs| @review.findings.create!(attrs.merge(source: "task_fit")) }
+      @review.update!(task_fit: result, task_fit_status: "ready", task_fit_checked_at: Time.current,
+                      task_fit_reconciliation: nil) # nowy wynik unieważnia nakładkę z uzgodnienia
     end
   end
 
@@ -83,20 +97,7 @@ class TaskFitImporter
     end
   end
 
-  def verdict_for(items, evidence_found)
-    return "misses" if !evidence_found || items.any? { |i| Review.task_fit_status_blocking?(i["status"]) }
-    return "partial" if items.any? { |i| i["status"] == "unverifiable" }
-
-    "fits"
-  end
-
-  def findings_for(items, result)
-    findings = items.filter_map { |item| finding_for(item) }
-    findings.unshift(premise_finding(result)) unless result["evidence_found"]
-    findings
-  end
-
-  def finding_for(item)
+  def self.finding_for(item)
     template = TEMPLATES[item["status"]] or return
 
     { priority: template[:priority],
@@ -104,7 +105,7 @@ class TaskFitImporter
       body: body(item["note"], template[:consequence], item["needed_evidence"] || template[:fix]) }
   end
 
-  def premise_finding(result)
+  def self.premise_finding(result)
     { priority: "critical", title: "Przyczyna z PR-a jest hipotezą bez dowodu",
       body: body("PR zakłada przyczynę „#{result["assumed_cause"]}” dla objawu „#{result["symptom"]}”, " \
                  "ale w zadaniu ani na PR-ze nie ma dowodu, że to ta przyczyna.",
@@ -112,7 +113,7 @@ class TaskFitImporter
                  result["evidence"].presence || "Autor ma dołączyć do zadania dowód na przyczynę (log, repro, odpowiedź systemu).") }
   end
 
-  def body(problem, consequence, fix)
+  def self.body(problem, consequence, fix)
     "**Problem:** #{problem}\n\n**Co się stanie:** #{consequence}\n\n**Jak naprawić:** #{fix}"
   end
 end

@@ -63,6 +63,13 @@ class PromptBuilder
                                discussion: discussion)
   end
 
+  # Uzgodnienie wyniku review z werdyktami weryfikacji i wynikiem zgodności. Wznawia
+  # sesję review, gdy się da (zna kod, który oceniała); `resumed` z joba jak w followupie,
+  # bo świeża sesja bez kontekstu rozstrzygałaby spory w ciemno.
+  def self.reconcile(review, resumed:)
+    render("reconcile", review, force_context: !resumed, resumed: resumed)
+  end
+
   # Bez cache'owania _style.md: prompt renderujemy kilka razy na review, a edycja
   # zasad ma działać bez restartu apki.
   #

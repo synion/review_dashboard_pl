@@ -210,6 +210,6 @@ class DecisionDraft
   # order(:priority) alfabetycznie daje critical < important < minor - to jest
   # kolejność, o którą chodzi.
   def code_findings
-    @code_findings ||= @review.findings.from_review.order(:priority, :id).to_a
+    @code_findings ||= @review.findings.from_review.active.order(:priority, :id).to_a
   end
 end

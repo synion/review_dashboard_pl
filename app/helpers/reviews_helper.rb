@@ -210,9 +210,13 @@ module ReviewsHelper
     "ctx-ok"
   end
 
-  # Compact pożycza status „reviewing", żeby dostać panel postępu i „Przerwij" —
-  # bez tego panel pisałby „Review w toku" o kompakcji trwającej pół minuty.
+  # Compact i uzgodnienie pożyczają status „reviewing", żeby dostać panel postępu
+  # i „Przerwij" — bez tego panel pisałby „Review w toku" o czymś zupełnie innym.
+  # Uzgodnienie po rodzaju runa, nie po ostatnim runie: w trakcie mógł wystartować
+  # run poboczny (task_fit, opis zadania) i przykryć je jako „ostatni".
   def in_progress_title(review)
+    return "Uzgadniam wynik…" if review.reconcile_in_progress?
+
     run = review.last_claude_run
     return "Kompaktuję sesję…" if run&.kind == "compact" && run.status.in?(%w[pending running])
 

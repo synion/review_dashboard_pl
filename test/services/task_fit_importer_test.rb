@@ -121,4 +121,16 @@ class TaskFitImporterTest < ActiveSupport::TestCase
     assert_equal [ { "id" => "ac1", "text" => "Kod 2FA przez SMS dochodzi do klienta", "needed_evidence" => "dowód-ac1" } ],
                  @review.task_fit_manual_checks
   end
+
+  test "nowy wynik zgodności kasuje nakładkę z uzgodnienia" do
+    @review.update!(task_fit_reconciliation: { "changes" => {}, "verdict" => "fits" })
+    import
+    assert_nil @review.task_fit_reconciliation
+  end
+
+  test "verdict_for: brak dowodu na przyczynę daje misses" do
+    assert_equal "misses", TaskFitImporter.verdict_for([ { "status" => "met" } ], false)
+    assert_equal "partial", TaskFitImporter.verdict_for([ { "status" => "unverifiable" } ], true)
+    assert_equal "fits", TaskFitImporter.verdict_for([ { "status" => "met" } ], true)
+  end
 end

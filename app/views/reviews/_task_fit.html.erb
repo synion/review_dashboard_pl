@@ -4,6 +4,10 @@
     Stany: brak listy AC (none), sesja w toku (pending), padła (failed), werdykt. %>
 <% verdict = review.task_fit_verdict %>
 <% manual = review.task_fit_manual_checks %>
+<%# Linie „co zmieniło uzgodnienie”: tylko przy gotowym wyniku, jak sam task_fit_items. %>
+<% reconciliation = review.task_fit_status == "ready" ? review.task_fit_reconciliation : nil %>
+<% evidence_change = reconciliation&.dig("evidence_found") %>
+<% verdict_changed = review.task_fit_original_verdict != verdict %>
 <% if !review.task_fit_gate? %>
   <div class="task-fit-banner task-fit-none">
     <strong>Zgodność z zadaniem niesprawdzona</strong>
@@ -43,6 +47,12 @@
     <% if review.task_fit_status == "failed" %>
       <span class="task-fit-sub">ostatnia ocena padła, to jest poprzedni wynik</span>
     <% end %>
+    <% if verdict_changed %>
+      <p class="task-fit-sub reconcile-note">task_fit: <%= Review::TASK_FIT_LABELS[review.task_fit_original_verdict] %> → po uzgodnieniu: <%= Review::TASK_FIT_LABELS[verdict] %></p>
+    <% end %>
+    <% if evidence_change && evidence_change["from"] != evidence_change["to"] %>
+      <p class="task-fit-sub reconcile-note">task_fit, dowód: <%= evidence_change["from"] ? "jest" : "brak" %> → po uzgodnieniu: <%= evidence_change["to"] ? "jest" : "brak" %><%= " — #{evidence_change["note"]}" if evidence_change["note"].present? %></p>
+    <% end %>
     <% if manual.any? %>
       <ul class="task-fit-manual">
         <% manual.each do |check| %>
@@ -59,7 +69,7 @@
     <div class="task-fit-premise">
       <p><strong>Objaw</strong> - <%= review.task_fit["symptom"] %></p>
       <p><strong>Przyczyna wg PR-a</strong> - <%= review.task_fit["assumed_cause"] %></p>
-      <p><strong>Dowód</strong> - <%= review.task_fit["evidence_found"] ? "" : "BRAK. " %><%= review.task_fit["evidence"] %></p>
+      <p><strong>Dowód</strong> - <%= (evidence_change ? evidence_change["to"] : review.task_fit["evidence_found"]) ? "" : "BRAK. " %><%= review.task_fit["evidence"] %></p>
     </div>
     <ul class="task-fit-items">
       <% review.task_fit_items.each do |item| %>
@@ -67,7 +77,9 @@
         <li class="task-fit-item task-fit-item-<%= item["status"].to_s.tr("/", "_") %>">
           <span class="status-badge checklist-status-<%= item["status"].to_s.tr("/", "_") %>"><%= task_fit_status_label(item["status"]) %></span>
           <strong><%= item["text"] %></strong>
-          <% if item["note"].present? %><div class="muted"><%= item["note"] %></div><% end %>
+          <% if item["reconciled_from"] %>
+            <div class="muted reconcile-note">task_fit: <%= task_fit_status_label(item["reconciled_from"]) %> → po uzgodnieniu: <%= task_fit_status_label(item["status"]) %><%= " — #{item["note"]}" if item["note"].present? %></div>
+          <% elsif item["note"].present? %><div class="muted"><%= item["note"] %></div><% end %>
           <% if item["needed_evidence"].present? %><div class="muted">Do zdobycia: <%= item["needed_evidence"] %></div><% end %>
         </li>
       <% end %>

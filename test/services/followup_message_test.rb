@@ -40,4 +40,13 @@ class FollowupMessageTest < ActiveSupport::TestCase
     @review.project.update!(templates: { "followup" => { "reject" => "Sprawdź od nowa: {{findings_list}}" } })
     assert_equal "Sprawdź od nowa: - **[critical]** Nil w VAT (a.rb:1)\n- **[minor]** Literówka", FollowupMessage.new(@review).check_fixes
   end
+
+  test "usunięte po uzgodnieniu znalezisko nie wraca do autora we followupie, zostawione tak" do
+    @review.update!(decision: "reject")
+    @review.findings.find_by!(title: "Nil w VAT").update!(resolution: "dropped")
+    @review.findings.find_by!(title: "Literówka").update!(resolution: "kept")
+    message = FollowupMessage.new(@review).check_fixes
+    assert_not_includes message, "Nil w VAT"
+    assert_includes message, "Literówka"
+  end
 end

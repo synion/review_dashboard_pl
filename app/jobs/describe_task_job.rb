@@ -47,7 +47,7 @@ class DescribeTaskJob < ApplicationJob
 
     criteria = JSON.parse(File.read(path)).slice(*Review::TASK_FIT_SECTIONS.keys)
     attrs = { task_criteria: criteria }
-    attrs.merge!(task_fit: nil, task_fit_status: "skipped") if criteria != review.task_criteria
+    attrs.merge!(task_fit: nil, task_fit_status: "skipped", task_fit_reconciliation: nil) if criteria != review.task_criteria
     attrs
   rescue JSON::ParserError => e
     Rails.logger.warn("DescribeTaskJob review #{review.id}: zepsuty #{CRITERIA_FILE} (#{e.message})")

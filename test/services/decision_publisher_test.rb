@@ -113,4 +113,16 @@ class DecisionPublisherTest < ActiveSupport::TestCase
     error = assert_raises(GithubClient::Error) { publish(inline: true, client: client) }
     assert_includes error.message, "your own pull request"
   end
+
+  test "usunięte po uzgodnieniu znalezisko nie dostaje pinezki, zostawione dostaje" do
+    @review.findings.find_by!(title: "Nil w VAT").update!(resolution: "dropped")
+    @review.findings.find_by!(title: "Nazwa zmiennej").update!(resolution: "kept")
+    client = FakeClient.new
+    publish(inline: true, client: client)
+
+    comments = client.submitted.first[:comments]
+    assert_equal 1, comments.size
+    assert_includes comments.first[:body], "Nazwa zmiennej"
+    assert_not_includes comments.map { |c| c[:body] }.join, "Nil w VAT"
+  end
 end

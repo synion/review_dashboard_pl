@@ -18,6 +18,20 @@
     </p>
     <%= render "reviews/verify_findings_modal", review: review %>
   <% end %>
+  <% if review.reconcilable? %>
+    <%= button_to review.reconciled? ? "🤝 Uzgodnij ponownie" : "🤝 Uzgodnij wynik z weryfikacją i zgodnością",
+          reconcile_review_path(review), class: "btn" %>
+    <p class="muted">wznowiona sesja review rozstrzyga sporne uwagi i punkty zgodności; decyzja dostaje jeden spójny wynik</p>
+  <% end %>
+  <% last_reconcile = review.last_reconcile_run %>
+  <% if last_reconcile && !review.reconcile_in_progress? %>
+    <% reconciled_at = l(last_reconcile.finished_at || last_reconcile.created_at, format: :short) %>
+    <% if last_reconcile.status == "succeeded" %>
+      <p class="muted">🤝 uzgodnione <%= reconciled_at %></p>
+    <% else %>
+      <p class="muted">🤝 ostatnie uzgodnienie <%= reconciled_at %> padło: <%= last_reconcile.error_message.presence || last_reconcile.status %></p>
+    <% end %>
+  <% end %>
   <% if verdict_summary.any? %>
     <p class="muted">Weryfikacja zasadności:
       <%= Finding::VERDICT_LABELS.filter_map { |verdict, label| "#{verdict_summary[verdict]} #{label}" if verdict_summary[verdict] }.join(" · ") %>

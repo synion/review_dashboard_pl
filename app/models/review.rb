@@ -108,7 +108,7 @@ class Review < ApplicationRecord
   # Sesje, do których się wraca przez `--resume`. `describe` jest osobną, krótką
   # sesją, której nikt nigdy nie wznawia — jej kontekst nie mówi nic o tym, czy
   # zmieści się kolejny followup.
-  RESUMABLE_KINDS = %w[review followup compact].freeze
+  RESUMABLE_KINDS = %w[review followup compact reconcile].freeze
 
   # Odczyt zapełnienia okna. Trzy stany, nie dwa: brak sesji (nil z context_usage),
   # sesja bez pomiaru (measured? == false) i pomiar — widok mówi w każdym co innego.
@@ -333,7 +333,7 @@ class Review < ApplicationRecord
   # czego porównać (review z samego zadania).
   def fixes_verifiable?
     status.in?(%w[decided waiting_review]) && pr_url.present? && branch.present? &&
-      decision_head_sha.present? && findings.any?
+      decision_head_sha.present? && findings.active.any?
   end
 
   # Rozkład werdyktów do nagłówka sekcji; pusty hash, gdy nic jeszcze nie sprawdzono.
@@ -349,6 +349,29 @@ class Review < ApplicationRecord
   def findings_verifiable?
     status.in?(FOLLOWUPABLE_STATUSES) && branch.present? && findings.any? &&
       !findings_verification_in_progress?
+  end
+
+  # Jest co uzgadniać (obalone/sporne znaleziska albo zgodność z zadaniem poniżej „fits")
+  # i nic innego nie pisze po wyniku review.
+  def reconcilable?
+    status.in?(FOLLOWUPABLE_STATUSES) && branch.present? &&
+      !findings_verification_in_progress? && !task_fit_in_progress? && !reconcile_in_progress? &&
+      (findings.from_review.where(verdict: %w[refuted disputed]).exists? ||
+        task_fit_original_verdict.in?(%w[partial misses]))
+  end
+
+  def reconcile_in_progress?
+    claude_runs.exists?(kind: "reconcile", status: %w[pending running])
+  end
+
+  # Wynik ostatniego uzgodnienia. Nieudane nie rusza statusu review (jak compact),
+  # więc to jedyne miejsce, w którym widać, że się nie powiodło i dlaczego.
+  def last_reconcile_run
+    claude_runs.where(kind: "reconcile").order(:id).last
+  end
+
+  def reconciled?
+    claude_runs.exists?(kind: "reconcile", status: "succeeded")
   end
 
   # Weryfikacja chodzi cyklem pobocznym i nie zmienia statusu review — bez tego
@@ -512,11 +535,30 @@ class Review < ApplicationRecord
   # ZAWSZE z opisu zadania, a wynik sesji tylko nakładamy statusem: sesja potrafi
   # zwrócić sekcję krótszą niż lista AC, a punkt, którego nie widać, nikogo nie zatrzyma.
   # Dzięki temu widok, bramka approve i snapshot decyzji chodzą po identycznej liście.
-  def task_fit_items
-    return task_criteria_list unless task_fit_verdict
+  def task_fit_original_items
+    return task_criteria_list unless task_fit_original_verdict
 
     answers = TASK_FIT_SECTIONS.keys.flat_map { |key| Array(task_fit[key]) }.index_by { |item| item["id"].to_s }
     task_criteria_list.map { |item| item.merge(answers[item["id"].to_s] || {}) }
+  end
+
+  # Punkty po uzgodnieniu: oryginał z nałożonymi zmianami statusu. Zmieniony punkt
+  # niesie `reconciled_from` (status sprzed zmiany), żeby widok pokazał, co się zmieniło.
+  def task_fit_items
+    return task_fit_original_items unless task_fit_status == "ready"
+
+    changes = task_fit_reconciliation&.dig("changes") || {}
+    task_fit_original_items.map do |item|
+      change = changes[item["id"].to_s]
+      change ? Review.apply_task_fit_change(item, change).merge("reconciled_from" => change["from"]) : item
+    end
+  end
+
+  # Zmiana punktu z uzgodnienia. needed_evidence mówi, czego brakuje do rozstrzygnięcia -
+  # przy rozstrzygniętym punkcie jest nieaktualne i podpowiadałoby autorowi zły krok.
+  def self.apply_task_fit_change(item, change)
+    changed = item.merge("status" => change["to"], "note" => change["note"])
+    task_fit_status_unverifiable?(change["to"]) ? changed : changed.except("needed_evidence")
   end
 
   # Statusy, które sesja rozstrzygnęła na zielono albo uznała za niedotyczące -
@@ -534,8 +576,8 @@ class Review < ApplicationRecord
   def task_fit_manual_checks
     return [] unless task_fit_verdict
 
-    Array(task_fit["criteria"]).select { |c| c["status"] == "unverifiable" }
-                               .map { |c| c.slice("id", "text", "needed_evidence") }
+    task_fit_items.select { |i| i["kind"] == "criterion" && i["status"] == "unverifiable" }
+                  .map { |i| i.slice("id", "text", "needed_evidence") }
   end
 
   # Bramka zgodności istnieje tylko wtedy, gdy opis zadania dał listę AC. Bez niej
@@ -546,8 +588,16 @@ class Review < ApplicationRecord
 
   # Werdykt tylko z gotowego wyniku: po odświeżeniu opisu albo w trakcie sesji
   # stary werdykt odnosiłby się do innej listy AC.
-  def task_fit_verdict
+  def task_fit_original_verdict
     task_fit&.dig("verdict") if task_fit_status == "ready"
+  end
+
+  # Werdykt po uzgodnieniu (nakładka), a bez niej - oryginalny. Ta sama zasada
+  # gotowości: nakładka nie przeżywa unieważnienia wyniku.
+  def task_fit_verdict
+    return unless task_fit_status == "ready"
+
+    task_fit_reconciliation&.dig("verdict") || task_fit_original_verdict
   end
 
   def task_fit_in_progress?
@@ -710,8 +760,10 @@ class Review < ApplicationRecord
   # (review/followup/compact). Sesja poboczna (describe_task, komentarz) statusu
   # nie dotyka i może chodzić dalej — to często właśnie podczas jej zwisu user
   # chce status prostować, więc szeroki guard zamykałby wyjście awaryjne.
+  # Uzgodnienie czekające w kolejce też się liczy: jego ensure i tak nadpisze status
+  # tym sprzed kliknięcia, więc ręczna zmiana zniknęłaby po cichu.
   def status_overridable?
-    running_review_run.nil?
+    running_review_run.nil? && !reconcile_in_progress?
   end
 
   # Sesja, którą pokazuje panel postępu. Świadomie tylko „running": zakończony run
@@ -725,13 +777,13 @@ class Review < ApplicationRecord
   # szerokie (abort i guard przy przełączaniu konta mają widzieć KAŻDĄ pracującą sesję),
   # a te dwie metody odpowiadają na węższe pytanie „co pokazać w tej karcie".
   def running_review_run
-    claude_runs.where(status: "running", kind: ClaudeRun::LIFECYCLE_KINDS + [ "compact" ]).order(:id).last
+    claude_runs.where(status: "running", kind: ClaudeRun::LIFECYCLE_KINDS + ClaudeRun::REVIEW_PANEL_KINDS).order(:id).last
   end
 
   # Cykl poboczny (opis zadania, komentarz do zadania, weryfikacja poprawek) — bez filtra
   # statusu, bo karta ma odróżnić „czeka w kolejce" od „pracuje".
   def side_claude_run
-    claude_runs.where.not(kind: ClaudeRun::LIFECYCLE_KINDS + [ "compact" ]).order(:id).last
+    claude_runs.where.not(kind: ClaudeRun::LIFECYCLE_KINDS + ClaudeRun::REVIEW_PANEL_KINDS).order(:id).last
   end
 
   # Wszystkie sesje, do których da się wrócić — najnowsza pierwsza. Świadomie nie

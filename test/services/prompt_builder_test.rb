@@ -14,7 +14,7 @@ class PromptBuilderTest < ActiveSupport::TestCase
   test "każdy szablon promptu wstawia wspólne zasady pisania" do
     templates = Dir.glob(PromptBuilder::TEMPLATES_DIR.join("*.md.erb"))
                    .reject { |path| File.basename(path).start_with?("_") }
-    assert_equal 9, templates.size
+    assert_equal 10, templates.size
     templates.each do |path|
       assert_includes File.read(path), "<%= style %>", "#{File.basename(path)} nie wstawia zasad pisania"
     end
@@ -559,5 +559,163 @@ class PromptBuilderTest < ActiveSupport::TestCase
     assert_includes prompt, "CHANGES_REQUESTED"
     assert_includes prompt, "PR nie dotyka przyczyny"
     assert_not_includes prompt, "LGTM"
+  end
+
+  # ---- Uzgodnienie wyniku review z weryfikacją i zgodnością
+
+  def reconcile_review
+    review = reviews(:pr_review)
+    review.update!(summary: "**Krótko:** approve, jedna poprawka.",
+                   task_criteria: { "criteria" => [ { "id" => "ac1", "text" => "Kod dochodzi do klienta" } ],
+                                    "traps" => [ { "id" => "t1", "text" => "Czy autor odczytał log" } ] },
+                   task_fit_status: "ready",
+                   task_fit: { "verdict" => "misses", "symptom" => "SMS nie dochodzi", "assumed_cause" => "zła kolejka",
+                               "evidence" => "brak logu", "evidence_found" => false,
+                               "criteria" => [ { "id" => "ac1", "status" => "unmet", "note" => "kod omija kolejkę",
+                                                 "needed_evidence" => "log z bramki SMS" } ],
+                               "traps" => [ { "id" => "t1", "status" => "open", "note" => "brak odniesienia" } ] })
+    review
+  end
+
+  test "prompt uzgodnienia niesie notatki weryfikatora, punkty zgodności i ścieżkę wyniku" do
+    review = reconcile_review
+    refuted = review.findings.create!(priority: "important", title: "Nil w kalkulacji", body: "Problem: nil",
+                                      file_location: "app/a.rb:3", verdict: "refuted", verdict_note: "guard w app/a.rb:3")
+    disputed = review.findings.create!(priority: "minor", title: "Nazwa metody", body: "Problem: nazwa",
+                                       verdict: "disputed", verdict_note: "kwestia gustu")
+    confirmed = review.findings.create!(priority: "critical", title: "Brak walidacji", body: "Problem: walidacja",
+                                        verdict: "confirmed", verdict_note: "potwierdzam")
+
+    prompt = PromptBuilder.reconcile(review, resumed: true)
+
+    assert_includes prompt, "id #{refuted.id} "
+    assert_includes prompt, "guard w app/a.rb:3"
+    assert_includes prompt, "id #{disputed.id} "
+    assert_includes prompt, "kwestia gustu"
+    assert_not_includes prompt, "id #{confirmed.id} "
+    assert_not_includes prompt, "potwierdzam"
+    assert_includes prompt, "id ac1"
+    assert_includes prompt, "Kod dochodzi do klienta"
+    assert_includes prompt, "kod omija kolejkę"
+    assert_includes prompt, "log z bramki SMS"
+    assert_includes prompt, "SMS nie dochodzi"
+    assert_includes prompt, "**Krótko:** approve, jedna poprawka."
+    assert_includes prompt, "task_fit_changes"
+    assert_includes prompt, review.artifacts_dir.join("reconcile.json").to_s
+    assert_includes prompt, "masz pełny kontekst poprzedniej sesji"
+    assert_includes prompt, "Nie kończ odpowiedzi, dopóki działa cokolwiek w tle"
+    assert_includes prompt, File.read(PromptBuilder::STYLE_PATH).lines.first.strip
+    assert_not_includes prompt, "Kontekst poprzedniego review"
+  end
+
+  # Sesja ocenia oryginalny wynik zgodności, nie nakładkę z poprzedniego uzgodnienia -
+  # inaczej drugie uzgodnienie potwierdzałoby własne zmiany zamiast je sprawdzić.
+  test "prompt uzgodnienia pokazuje oryginalne statusy zgodności, nie nakładkę" do
+    review = reconcile_review
+    review.update!(task_fit_reconciliation: { "changes" => { "ac1" => { "from" => "unmet", "to" => "met", "note" => "NAKŁADKA" } } })
+
+    prompt = PromptBuilder.reconcile(review, resumed: true)
+
+    assert_includes prompt, "kod omija kolejkę"
+    assert_not_includes prompt, "NAKŁADKA"
+  end
+
+  test "świeża sesja uzgodnienia dostaje kontekst i polecenie przeczytania result.json" do
+    review = reconcile_review
+    FileUtils.mkdir_p(review.artifacts_dir)
+    File.write(review.artifacts_dir.join("result.json"), "{}")
+
+    prompt = PromptBuilder.reconcile(review, resumed: false)
+
+    assert_includes prompt, review.artifacts_dir.join("result.json").to_s
+    assert_includes prompt, "Kontekst poprzedniego review"
+    assert_not_includes prompt, "masz pełny kontekst poprzedniej sesji"
+  ensure
+    FileUtils.rm_rf(review.artifacts_dir) if review
+  end
+
+  test "uzgodnienie bez wyniku zgodności nie niesie sekcji o punktach" do
+    review = reviews(:pr_review)
+    review.findings.create!(priority: "minor", title: "x", body: "y", verdict: "refuted", verdict_note: "z")
+
+    prompt = PromptBuilder.reconcile(review, resumed: true)
+
+    assert_not_includes prompt, "## Zgodność z zadaniem"
+  end
+
+  # TaskFitImporter.verdict_for daje „misses” nie tylko za niespełnione AC - także za otwartą
+  # pułapkę, brak w procesie i brak dowodu na przyczynę. Krótko musi iść tą samą regułą.
+  test "prompt uzgodnienia niesie pełną regułę Krótko zgodną z werdyktem zgodności" do
+    prompt = PromptBuilder.reconcile(reconcile_review, resumed: true)
+    rule = prompt[/^- `\*\*Krótko:\*\*`.*?(?=^- [^ ])/m]
+    assert rule, "brak reguły Krótko"
+    [ "AC `unmet`", "pułapka `open`", "wymóg procesu `missing`", "`evidence_found`", "„Nie rozwiązuje zadania: …”",
+      "`unverifiable`", "„Do ręcznego sprawdzenia: …”", "approve" ].each { |fragment| assert_includes rule, fragment }
+  end
+
+  # Drugie uzgodnienie nie może rozstrzygać w ciemno: musi widzieć, co postanowiło pierwsze.
+  test "prompt uzgodnienia pokazuje poprzednie rozstrzygnięcie znaleziska" do
+    review = reconcile_review
+    review.findings.create!(priority: "minor", title: "Nil", body: "x", verdict: "refuted", verdict_note: "guard",
+                            resolution: "dropped", resolution_note: "guard w a.rb:3 to łapie")
+    prompt = PromptBuilder.reconcile(review, resumed: true)
+    assert_includes prompt, "**Poprzednie rozstrzygnięcie:** `dropped` — guard w a.rb:3 to łapie"
+    assert_includes prompt, "musi znów pojawić się w `summary`"
+  end
+
+  # note zmiany punktu ląduje w decyzji przy punkcie (DecisionDraft#note_suffix).
+  test "prompt uzgodnienia każe pisać note zmiany punktu jako dowód dla autora, bez sporu" do
+    prompt = PromptBuilder.reconcile(reconcile_review, resumed: true)
+    assert_includes prompt, "`note` zmiany punktu trafia do autora PR-a"
+  end
+
+  # Przykład do skopiowania przeszedłby przez importer jako zmiana ac1 na „met” z notatką „dowód: …”.
+  test "przykład JSON w prompcie uzgodnienia nie niesie gotowych zmian do skopiowania" do
+    prompt = PromptBuilder.reconcile(reconcile_review, resumed: true)
+    example = JSON.parse(prompt[/```json\n(.*?)```/m, 1])
+    assert_equal({ "findings" => [], "task_fit_changes" => [] }, example.except("summary"))
+  end
+
+  # Followup przepisuje cały result.json, a ten dalej trzyma znaleziska sprzed uzgodnienia.
+  test "followup nie przywraca znalezisk usuniętych po uzgodnieniu" do
+    review = reviews(:pr_review)
+    review.update!(summary: "S")
+    review.findings.create!(priority: "minor", title: "Usunięta uwaga", body: "x", resolution: "dropped")
+    review.findings.create!(priority: "minor", title: "Zostawiona uwaga", body: "x", resolution: "kept")
+
+    fresh = PromptBuilder.followup(review, "sprawdź", resumed: false)
+    context = fresh[/## Kontekst poprzedniego review.*?(?=Reviewer \(człowiek\))/m]
+    assert_not_includes context, "Usunięta uwaga"
+    assert_includes context, "Zostawiona uwaga"
+
+    prompt = PromptBuilder.followup(review, "sprawdź", resumed: true)
+    assert_includes prompt, "usunięte po uzgodnieniu"
+    assert_includes prompt, "  - Usunięta uwaga"
+    assert_not_includes prompt, "  - Zostawiona uwaga"
+  end
+
+  test "verify_fixes pomija usunięte po uzgodnieniu znaleziska, zostawione zostają" do
+    review = reviews(:pr_review)
+    review.update!(decision_head_sha: "aaa1111", branch: "sl-fix")
+    review.findings.create!(priority: "critical", title: "Usunięta uwaga", body: "x", resolution: "dropped")
+    review.findings.create!(priority: "minor", title: "Zostawiona uwaga", body: "x", resolution: "kept")
+
+    _, list = PromptBuilder.verify_fixes(review).split("## Znaleziska do sprawdzenia")
+    assert_not_includes list, "Usunięta uwaga"
+    assert_includes list, "Zostawiona uwaga"
+  end
+
+  test "self_fix pomija usunięte, a obaloną uwagę zostawioną po uzgodnieniu zachowuje" do
+    review = reviews(:pr_review)
+    review.findings.create!(priority: "critical", title: "Usunięta uwaga", body: "x", resolution: "dropped")
+    review.findings.create!(priority: "minor", title: "Obalona i zostawiona", body: "x", verdict: "refuted", resolution: "kept")
+    review.findings.create!(priority: "minor", title: "Obalona i obniżona", body: "x", verdict: "refuted", resolution: "downgraded")
+    review.findings.create!(priority: "minor", title: "Obalona bez uzgodnienia", body: "x", verdict: "refuted")
+
+    prompt = PromptBuilder.self_fix(review)
+    assert_not_includes prompt, "Usunięta uwaga"
+    assert_not_includes prompt, "Obalona bez uzgodnienia"
+    assert_includes prompt, "Obalona i zostawiona"
+    assert_includes prompt, "Obalona i obniżona"
   end
 end

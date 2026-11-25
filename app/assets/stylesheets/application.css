@@ -374,7 +374,8 @@ table#reviews td.pr-activity-cell .pr-activity-fresh { color: var(--warn); font-
 .finding-critical { border-color: var(--danger); }
 .finding-important { border-color: var(--warn); }
 /* Obalone znalezisko zostaje widoczne (decyzja należy do człowieka), ale schodzi na dalszy plan. */
-.finding-refuted { opacity: 0.55; }
+.finding-refuted, .finding-dropped { opacity: 0.55; }
+.reconcile-note { margin: 4px 0; }
 
 .modal { border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; max-width: 460px; background: var(--card-bg, #fff); }
 .modal::backdrop { background: rgba(0, 0, 0, 0.35); }

@@ -29,7 +29,7 @@ class DecisionPublisher
 
   # [komentarze, dopisek do komunikatu]. Brak znalezisk = nie ma po co pytać o diff.
   def inline_comments(verdict)
-    findings = @review.findings.order(:priority).to_a
+    findings = @review.findings.active.order(:priority).to_a
     return [ [], "" ] if findings.empty?
 
     diff = @client.pr_diff(@review.pr_url, repo_dir: repo_dir)

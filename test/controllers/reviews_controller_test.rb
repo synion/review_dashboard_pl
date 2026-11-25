@@ -532,6 +532,24 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", retry_run_review_path(review), count: 0
   end
 
+  test "panel uzgodnienia w kolejce mówi o uzgadnianiu i nie proponuje Ponów" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewing", description: "OPIS")
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "pending", previous_status: "reviewed")
+    get review_path(review)
+    assert_select "h2", text: "Uzgadniam wynik…"
+    assert_select "form[action=?]", retry_run_review_path(review), count: 0
+  end
+
+  test "panel pokazuje postęp pracującego uzgodnienia" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewing", description: "OPIS")
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running", last_message: "Czytam invoice.rb")
+    get review_path(review)
+    assert_select ".progress-line", text: /Czytam invoice\.rb/
+    assert_select ".progress-line", text: /Czeka w kolejce/, count: 0
+  end
+
   test "panel nie pokazuje wiadomości zakończonej sesji jako bieżącego postępu" do
     review = reviews(:pr_review)
     review.update!(status: "reviewing")
@@ -1287,6 +1305,66 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Nie ma czego weryfikować/, flash[:alert])
   end
 
+  # Uzgodnienie: wznowiona sesja review rozstrzyga sporne uwagi — tylko z przycisku.
+  # Run powstaje od razu, nie w jobie: po restarcie z jobem w kolejce sprzątanie musi
+  # wiedzieć, że „reviewing" jest pożyczone przez uzgodnienie i do czego je oddać.
+  test "reconcile przestawia status na reviewing, zakłada run z poprzednim statusem i kolejkuje job" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x",
+                            verdict: "refuted", verdict_note: "guard w invoice.rb:80")
+
+    post reconcile_review_path(review)
+    run = review.claude_runs.where(kind: "reconcile").sole
+    assert_enqueued_with(job: ReconcileReviewJob, args: [ review, run.id ])
+    assert_redirected_to review_path(review)
+    assert_equal [ "reviewing", "pending", "reviewed" ], [ review.reload.status, run.status, run.previous_status ]
+  end
+
+  test "reconcile odmawia, gdy nie ma czego uzgadniać" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat")
+
+    assert_no_enqueued_jobs only: ReconcileReviewJob do
+      post reconcile_review_path(review)
+    end
+    assert_redirected_to review_path(review)
+    assert_match(/Nie ma czego uzgadniać/, flash[:alert])
+    assert_equal "reviewed", review.reload.status
+  end
+
+  test "przycisk uzgodnienia pokazuje się tylko, gdy jest co uzgadniać" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x", verdict: "confirmed")
+
+    get review_path(review)
+    assert_select "form[action=?]", reconcile_review_path(review), count: 0
+
+    review.findings.first.update!(verdict: "refuted", verdict_note: "guard")
+    get review_path(review)
+    assert_select "form[action=?]", reconcile_review_path(review)
+    assert_select "button", text: /Uzgodnij wynik z weryfikacją i zgodnością/
+  end
+
+  # Nieudane uzgodnienie nie rusza statusu review — jedyny ślad to linia przy przycisku.
+  test "panel pokazuje wynik ostatniego uzgodnienia przy przycisku" do
+    review = reviews(:pr_review)
+    review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK")
+    review.findings.create!(priority: "critical", title: "nil", body: "x", verdict: "refuted", verdict_note: "guard")
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "failed",
+                               error_message: "Sesja nie zapisała reconcile.json", finished_at: Time.current)
+    get review_path(review)
+    assert_select "p.muted", text: /ostatnie uzgodnienie .* padło: Sesja nie zapisała reconcile\.json/
+    assert_select "button", text: /Uzgodnij wynik z weryfikacją i zgodnością/
+
+    review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "succeeded", finished_at: Time.current)
+    get review_path(review)
+    assert_select "p.muted", text: /uzgodnione \S/
+    assert_select "p.muted", text: /padło/, count: 0
+    assert_select "button", text: /Uzgodnij ponownie/
+  end
+
   test "should show the verdict badges and gray out refuted findings" do
     review = reviews(:pr_review)
     review.update!(status: "reviewed", branch: "sl-fix-vat", summary: "OK",
@@ -1415,6 +1493,50 @@ class ReviewsControllerTest < ActionDispatch::IntegrationTest
     review.update!(status: "reviewed", branch: "b")
     assert_no_enqueued_jobs(only: TaskFitJob) { post refresh_task_fit_review_path(review) }
     assert_equal "Brak listy AC z opisu zadania - najpierw wygeneruj opis zadania", flash[:alert]
+  end
+
+  test "panel bez notatki nie zostawia wiszącego separatora" do
+    review = gated_review(verdict: "partial")
+    review.update!(task_fit_reconciliation: {
+                     "changes" => { "ac1" => { "from" => "unverifiable", "to" => "met", "note" => "" } },
+                     "verdict" => "fits", "at" => Time.current.iso8601 })
+    review.findings.create!(priority: "critical", title: "nil", body: "x", verdict: "refuted", verdict_note: "",
+                            resolution: "dropped", resolution_note: nil)
+
+    get review_path(review)
+
+    assert_select ".reconcile-note", text: /[:—]\s*\z/, count: 0
+    assert_select ".finding p.reconcile-note", text: /\AWeryfikator \(.*obalone\)\z/
+  end
+
+  test "panel pokazuje reviewerowi uzasadnienia weryfikatora i uzgodnienia jako tekst" do
+    review = gated_review(verdict: "partial")
+    review.update!(task_fit_reconciliation: {
+                     "changes" => { "ac1" => { "from" => "unverifiable", "to" => "met", "note" => "test w sms_spec.rb:12 to pokrywa" } },
+                     "evidence_found" => { "from" => false, "to" => true, "note" => "log w komentarzu 4" },
+                     "verdict" => "fits", "at" => Time.current.iso8601 })
+    review.findings.create!(priority: "critical", title: "nil w kalkulacji", body: "x", verdict: "refuted",
+                            verdict_note: "guard w invoice.rb:80", resolution: "dropped",
+                            resolution_note: "guard potwierdzony w kodzie")
+    review.findings.create!(priority: "minor", title: "spór", body: "y", verdict: "disputed",
+                            verdict_note: "zależy od konfiguracji", resolution: "kept",
+                            resolution_note: "konfiguracja domyślna ma ten błąd")
+
+    get review_path(review)
+
+    assert_select ".finding-dropped.finding-refuted p.muted", text: /Weryfikator \(.*obalone\): guard w invoice\.rb:80/
+    assert_select ".finding-dropped p.muted", text: /Po uzgodnieniu \(usunięte po uzgodnieniu\): guard potwierdzony w kodzie/
+    assert_select "p.muted", text: /Weryfikator \(.*\): zależy od konfiguracji/
+    assert_select "p.muted", text: /Po uzgodnieniu \(zostawione mimo weryfikacji\): konfiguracja domyślna/
+    assert_select ".task-fit-banner .reconcile-note", text: /task_fit: #{Review::TASK_FIT_LABELS["partial"]} → po uzgodnieniu: #{Review::TASK_FIT_LABELS["fits"]}/
+    assert_select ".task-fit-banner .reconcile-note", text: /dowód/i
+    assert_select ".task-fit-item .reconcile-note", text: /task_fit: \? niesprawdzalne z kodu → po uzgodnieniu: ✓ spełnione — test w sms_spec\.rb:12/
+  end
+
+  test "bez uzgodnienia panel nie ma linii uzasadnień" do
+    review = gated_review(verdict: "partial")
+    get review_path(review)
+    assert_select ".reconcile-note", count: 0
   end
 
   # ---- Bramka zgodności z zadaniem: baner ma być pierwszą rzeczą na ekranie.

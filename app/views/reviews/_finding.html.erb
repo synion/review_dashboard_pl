@@ -1,6 +1,6 @@
 <%# Wspólny kafelek znaleziska: panel review grupuje je nagłówkami priorytetów,
     a na diffie znalezisko stoi samo przy linii — stąd `with_priority`. %>
-<div class="finding finding-<%= finding.priority %><%= " finding-refuted" if finding.refuted? %>">
+<div class="finding finding-<%= finding.priority %><%= " finding-refuted" if finding.refuted? %><%= " finding-dropped" if finding.dropped? %>">
   <strong><% if local_assigns[:with_priority] %><%= Finding::PRIORITY_LABELS[finding.priority] %> — <% end %><%= finding.title %></strong>
   <% if finding.verdict.present? %>
     <span class="status-badge verdict-<%= finding.verdict %>" title="<%= finding.verdict_note %>"><%= finding.verdict_label %></span>
@@ -9,5 +9,12 @@
     <span class="status-badge fix-<%= finding.fix_status %>" title="<%= finding.fix_note %>"><%= finding.fix_label %></span>
   <% end %>
   <% if finding.file_location.present? %><code class="inline"><%= finding.file_location %></code><% end %>
+  <%# Uzasadnienia jako tekst, nie tooltip: reviewer ma widzieć, dlaczego tak, a nie inaczej. %>
+  <% if %w[refuted disputed].include?(finding.verdict) %>
+    <p class="muted reconcile-note">Weryfikator (<%= finding.verdict_label %>)<%= ": #{finding.verdict_note}" if finding.verdict_note.present? %></p>
+  <% end %>
+  <% if finding.resolution.present? %>
+    <p class="muted reconcile-note">Po uzgodnieniu (<%= finding.resolution_label %>)<%= ": #{finding.resolution_note}" if finding.resolution_note.present? %></p>
+  <% end %>
   <details><summary>szczegóły</summary><%= markdown finding.body %></details>
 </div>

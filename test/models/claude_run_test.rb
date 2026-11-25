@@ -100,4 +100,29 @@ class ClaudeRunTest < ActiveSupport::TestCase
     assert_equal "review", review.running_review_run.kind, "postęp review nie może zniknąć pod cyklem pobocznym"
     assert_equal side, review.running_claude_run, "abort i guardy widzą każdą pracującą sesję"
   end
+
+  test "reconcile jest rodzajem pobocznym i wznawialnym" do
+    assert_includes ClaudeRun::KINDS, "reconcile"
+    refute_includes ClaudeRun::LIFECYCLE_KINDS, "reconcile"
+    assert_includes Review::RESUMABLE_KINDS, "reconcile"
+    assert_equal ClaudeRun::TIMEOUTS["followup"], ClaudeRun::TIMEOUTS["reconcile"]
+  end
+
+  # Uzgodnienie pożycza status „reviewing" jak compact - bez tego panel przez pół godziny
+  # pokazywał „Czeka w kolejce" z „Ponów", a postęp leciał do karty, której nie ma.
+  test "reconcile idzie kanałem postępu review, nie pobocznym" do
+    review = reviews(:pr_review)
+    assert_equal "review", review.claude_runs.new(kind: "reconcile").progress_scope
+    run = review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running")
+    assert_equal run, review.running_review_run
+    assert_nil review.side_claude_run
+  end
+
+  test "czekające albo pracujące uzgodnienie blokuje ręczną zmianę statusu" do
+    review = reviews(:pr_review)
+    run = review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "pending")
+    refute review.status_overridable?
+    run.update!(status: "succeeded")
+    assert review.status_overridable?
+  end
 end

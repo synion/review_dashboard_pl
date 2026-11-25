@@ -1,6 +1,8 @@
 require "test_helper"
 
 class OrphanedRunsCleanupTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @review = reviews(:pr_review)
     # Obrona przed cudzym result.json na wspólnej ścieżce fixture'a: recover_from_disk
@@ -92,6 +94,110 @@ class OrphanedRunsCleanupTest < ActiveSupport::TestCase
                  { status: @review.status, summary_imported: @review.summary == "Stary przebieg" })
   ensure
     FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
+  test "odzysk po restarcie w trakcie uzgodnienia nie importuje result.json ani nie odpala task_fit" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    finding = @review.findings.create!(priority: "minor", title: "Zostaje", body: "x", verdict: "refuted")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running",
+                                supervisor_pid: nil, previous_status: "decided")
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    File.write(@review.artifacts_dir.join("result.json"),
+               { summary: "Z result.json", findings: [], playwright: nil }.to_json)
+    File.write(@review.artifacts_dir.join("reconcile.json"), { summary: "Z uzgodnienia", findings: [] }.to_json)
+
+    assert_no_enqueued_jobs(only: TaskFitJob) { OrphanedRunsCleanup.call }
+    @review.reload
+    assert_equal({ status: "decided", summary: "Z uzgodnienia", findings: [ finding.id ] },
+                 { status: @review.status, summary: @review.summary, findings: @review.findings.map(&:id) })
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
+  test "odzysk uzgodnienia ze starym reconcile.json tylko przywraca status" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running",
+                                supervisor_pid: nil, previous_status: "decided")
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    stale = @review.artifacts_dir.join("reconcile.json")
+    File.write(stale, { summary: "Stary przebieg", findings: [] }.to_json)
+    File.utime(1.hour.ago.to_time, 1.hour.ago.to_time, stale)
+
+    OrphanedRunsCleanup.call
+    @review.reload
+    assert_equal [ "decided", "Stare" ], [ @review.status, @review.summary ]
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
+  test "odzysk uzgodnienia z uciętym reconcile.json przywraca status zamiast failować" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running",
+                                supervisor_pid: nil, previous_status: "decided")
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    File.write(@review.artifacts_dir.join("reconcile.json"), '{"summary": "ucięt')
+
+    OrphanedRunsCleanup.call
+    @review.reload
+    assert_equal [ "decided", "Stare", nil ], [ @review.status, @review.summary, @review.error_message ]
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
+  # Run poboczny założony w trakcie uzgodnienia (task_fit, opis zadania) nie może przestawić
+  # odzysku na ścieżkę review — ta zaimportowałaby result.json i zawołała mark_reviewed!.
+  test "odzysk uzgodnienia działa, choć w trakcie powstał run poboczny" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "running",
+                                supervisor_pid: nil, previous_status: "decided")
+    @review.claude_runs.create!(kind: "task_fit", claude_config: "/x", status: "succeeded")
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    File.write(@review.artifacts_dir.join("result.json"), { summary: "Z result.json", findings: [], playwright: nil }.to_json)
+    File.write(@review.artifacts_dir.join("reconcile.json"), { summary: "Z uzgodnienia", findings: [] }.to_json)
+
+    assert_no_enqueued_jobs(only: TaskFitJob) { OrphanedRunsCleanup.call }
+    assert_equal [ "decided", "Z uzgodnienia" ], [ @review.reload.status, @review.summary ]
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
+  # Restart, zanim worker podjął job: run czeka jako pending z poprzednim statusem.
+  test "odzysk uzgodnienia czekającego w kolejce oddaje status i zamyka run" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    run = @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", previous_status: "decided")
+
+    OrphanedRunsCleanup.call
+    run.reload
+    assert_equal({ status: "decided", error: nil, run_status: "aborted", finished: true },
+                 { status: @review.reload.status, error: @review.error_message,
+                   run_status: run.status, finished: run.finished_at.present? })
+  end
+
+  # Stare, zakończone uzgodnienie to nie przerwane uzgodnienie: „reviewing" bez runa
+  # to np. followup w kolejce — reconcile.json nie może wrócić ani nadpisać statusu.
+  test "zakończone wcześniej uzgodnienie nie przejmuje odzysku" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    @review.claude_runs.create!(kind: "review", claude_config: "/x", status: "succeeded")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "succeeded",
+                                previous_status: "decided", finished_at: 1.minute.ago)
+    FileUtils.mkdir_p(@review.artifacts_dir)
+    File.write(@review.artifacts_dir.join("reconcile.json"), { summary: "Z uzgodnienia", findings: [] }.to_json)
+
+    OrphanedRunsCleanup.call
+    @review.reload
+    assert_equal "Stare", @review.summary
+    refute_equal "decided", @review.status
+  ensure
+    FileUtils.rm_rf(@review.artifacts_dir)
+  end
+
+  test "uzgodnienie przerwane przed nowszym runem cyklu nie przejmuje odzysku" do
+    @review.update!(status: "reviewing", summary: "Stare")
+    @review.claude_runs.create!(kind: "reconcile", claude_config: "/x", status: "aborted", previous_status: "decided")
+    @review.claude_runs.create!(kind: "followup", claude_config: "/x", status: "running", supervisor_pid: nil)
+
+    OrphanedRunsCleanup.call
+    assert_equal "failed", @review.reload.status
   end
 
   # Przy boocie broadcast potrafi się wywrócić (render partiala przed załadowaniem routes).

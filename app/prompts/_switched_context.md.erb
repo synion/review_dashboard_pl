@@ -27,11 +27,12 @@ Ta sesja startuje bez historii poprzedniej rozmowy — jej transkryptu nie ma ju
 
 <%= review.summary %>
 <% end -%>
-<% if review.findings.any? -%>
+<%# Bez usuniętych po uzgodnieniu: sesja, która ich nie widzi, nie przywróci ich do result.json. -%>
+<% if review.findings.active.any? -%>
 
 ### Znaleziska z poprzedniego przebiegu
 
-<% review.findings.order(:id).each do |finding| -%>
+<% review.findings.active.order(:id).each do |finding| -%>
 - **<%= finding.priority %>** — <%= finding.title %><%= " (#{finding.file_location})" if finding.file_location.present? %>
 <% end -%>
 <% end -%>

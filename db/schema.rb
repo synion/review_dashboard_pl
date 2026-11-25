@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_085114) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_120000) do
   create_table "claude_runs", force: :cascade do |t|
     t.integer "cache_creation_tokens"
     t.integer "cache_read_tokens"
@@ -27,6 +27,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_085114) do
     t.text "last_message"
     t.string "model"
     t.integer "pid"
+    t.string "previous_status"
     t.string "resume_session_id"
     t.integer "review_id", null: false
     t.string "session_id"
@@ -58,6 +59,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_085114) do
     t.text "fix_note"
     t.string "fix_status"
     t.string "priority"
+    t.string "resolution"
+    t.text "resolution_note"
     t.integer "review_id", null: false
     t.string "source", default: "review", null: false
     t.string "title"
@@ -176,6 +179,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_085114) do
     t.string "task_description_status", default: "skipped", null: false
     t.json "task_fit"
     t.datetime "task_fit_checked_at"
+    t.json "task_fit_reconciliation"
     t.string "task_fit_status", default: "skipped", null: false
     t.text "task_link_note"
     t.string "task_link_status"

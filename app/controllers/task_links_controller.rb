@@ -14,7 +14,7 @@ class TaskLinksController < ApplicationController
 
     attrs = { task_url: url, task_link_status: "confirmed", task_link_note: nil }
     # Inne zadanie = wszystko, co dashboard o zadaniu wie, dotyczy starego.
-    attrs.merge!(task_title: nil, task_description: nil, task_criteria: nil, task_fit: nil, task_fit_status: "skipped",
+    attrs.merge!(task_title: nil, task_description: nil, task_criteria: nil, task_fit: nil, task_fit_status: "skipped", task_fit_reconciliation: nil,
                  task_comments_seen: nil, task_comments_latest: nil, task_comments_checked_at: nil) if changed
     describe = changed || !%w[queued running ready].include?(review.task_description_status)
     attrs[:task_description_status] = "queued" if describe

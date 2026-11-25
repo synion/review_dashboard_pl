@@ -1,8 +1,9 @@
 <%# Prompt do wklejenia agentowi, który poprawia kod po selfreview. Składany z wyniku
     w bazie, bez sesji Claude: znaleziska i zgodność z zadaniem są już ustrukturyzowane.
-    Obalone uwagi (verify_findings) wypadają — agent nie ma poprawiać czegoś, czego
-    świeża sesja nie potwierdziła. -%>
-<% findings = review.findings.from_review.order(:priority, :id).reject(&:refuted?) -%>
+    Wypadają usunięte po uzgodnieniu oraz obalone (verify_findings) — agent nie ma
+    poprawiać czegoś, czego świeża sesja nie potwierdziła. Obalona uwaga, którą
+    uzgodnienie zostawiło albo obniżyło, zostaje. -%>
+<% findings = review.findings.from_review.active.order(:priority, :id).reject { |finding| finding.refuted? && finding.resolution.nil? } -%>
 <% unmet = review.task_fit_items.select { |item| Review.task_fit_status_blocking?(item["status"]) } -%>
 <% unverifiable = review.task_fit_items.select { |item| Review.task_fit_status_unverifiable?(item["status"]) } -%>
 Popraw kod na branchu `<%= review.branch %>` po review.

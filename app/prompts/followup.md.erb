@@ -19,6 +19,13 @@ Zrób z tym rzetelną robotę:
 - Dla każdego zakwestionowanego znaleziska wróć do kodu i zweryfikuj ponownie — bez przywiązania do wcześniejszej opinii. Jeśli reviewer ma rację, usuń albo przeklasyfikuj znalezisko. Jeśli nie ma — zostaw je i krótko uzasadnij w `body`, odnosząc się do jego argumentu.
 - Zaktualizuj `summary`: dopisz na końcu sekcję „**Po dyskusji**" — max 3 bullety, każdy zaczyna się od **pogrubionego słowa-klucza** i mówi w jednym zdaniu, co się zmieniło i dlaczego.
 - Zaktualizuj też linię `**Krótko:**` na górze `summary`, jeśli dyskusja zmieniła wniosek.
+<% dropped = review.findings.from_review.where(resolution: "dropped").order(:id) -%>
+<% if dropped.any? -%>
+- Te znaleziska rozstrzygnięto jako usunięte po uzgodnieniu. Nie wpisuj ich do nowego `result.json`, chyba że masz nowy dowód z kodu (plik:linia), którego wcześniej nie było:
+<% dropped.each do |finding| -%>
+  - <%= finding.title %>
+<% end -%>
+<% end -%>
 - Zapisz PONOWNIE CAŁY plik `<%= review.artifacts_dir.join("result.json") %>` w tym samym formacie co poprzednio (summary, findings, playwright) — pełna zawartość, nie różnica. Sekcję `playwright` zostaw bez zmian, chyba że zmiana znalezisk wymaga aktualizacji testu.
 
 <%= style %>
